@@ -11,6 +11,9 @@ struct OverlayPalette {
 
     let backgroundMaterial: NSVisualEffectView.Material
     let backgroundTint: CGColor
+    /// Fond opaque des panneaux qui ne laissent rien transparaître (panneau latéral) — là où
+    /// `backgroundMaterial` + `backgroundTint` servent aux widgets translucides.
+    let panelBackground: CGColor
     let strokeColor: CGColor
 
     let buttonSymbolColor: NSColor
@@ -30,6 +33,7 @@ struct OverlayPalette {
         glowRadius: 4,
         backgroundMaterial: .hudWindow,
         backgroundTint: CGColor(gray: 0, alpha: 0.35),
+        panelBackground: CGColor(gray: 0.04, alpha: 1),
         strokeColor: CGColor(gray: 1, alpha: 0.08),
         buttonSymbolColor: .white,
         buttonGlowColor: CGColor(gray: 1, alpha: 0.5)
@@ -42,6 +46,7 @@ struct OverlayPalette {
         glowRadius: 3,
         backgroundMaterial: .popover,
         backgroundTint: CGColor(gray: 1, alpha: 0.4),
+        panelBackground: CGColor(gray: 0.97, alpha: 1),
         strokeColor: CGColor(gray: 0, alpha: 0.06),
         buttonSymbolColor: .black.withAlphaComponent(0.75),
         buttonGlowColor: CGColor(gray: 0, alpha: 0.35)
@@ -59,6 +64,7 @@ extension OverlayPalette {
             glowRadius: glowRadius * CGFloat(intensity),
             backgroundMaterial: backgroundMaterial,
             backgroundTint: backgroundTint,
+            panelBackground: panelBackground,
             strokeColor: strokeColor,
             buttonSymbolColor: buttonSymbolColor,
             buttonGlowColor: buttonGlowColor
