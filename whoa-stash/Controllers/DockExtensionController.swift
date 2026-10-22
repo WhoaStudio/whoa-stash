@@ -9,6 +9,10 @@ import Combine
 @MainActor
 final class DockExtensionController {
 
+    /// Clic sur la bague d'utilisation Claude — relayé par `AppDelegate` au panneau latéral,
+    /// que ce contrôleur n'a pas à connaître.
+    var onUsageRingClicked: (() -> Void)?
+
     private let geometryProvider = DockGeometryProvider()
     private let window = DockExtensionWindow()
     private let viewModel = DockExtensionViewModel()
@@ -25,6 +29,10 @@ final class DockExtensionController {
         window.onIconClicked = { [weak self] slot in
             print("[DockExt][Controller] icône cliquée: \(slot.name)")
             self?.viewModel.activate(slot)
+        }
+
+        window.onUsageRingClicked = { [weak self] in
+            self?.onUsageRingClicked?()
         }
 
         viewModel.onSlotsChanged = { [weak self] in
@@ -52,6 +60,10 @@ final class DockExtensionController {
             }
     }
 
+    func apply(usageState: ClaudeUsageState) {
+        window.apply(usageState: usageState)
+    }
+
     private func setEnabled(_ enabled: Bool) {
         guard isEnabled != enabled else { return }
         isEnabled = enabled
@@ -70,7 +82,7 @@ final class DockExtensionController {
         print("[DockExt][Controller] setSide(\(newSide))")
         side = newSide
 
-        guard isEnabled, let geometry = lastGeometry, !viewModel.resolvedSlots.isEmpty else { return }
+        guard isEnabled, let geometry = lastGeometry else { return }
         window.reveal(against: geometry, side: side)
     }
 
@@ -83,21 +95,18 @@ final class DockExtensionController {
             print("[DockExt][Controller] applySlots(): pas de géométrie connue ou extension désactivée, pas d'affichage")
             return
         }
-        if viewModel.resolvedSlots.isEmpty {
-            print("[DockExt][Controller] applySlots(): aucun slot configuré → hide()")
-            window.hide()
-        } else {
-            print("[DockExt][Controller] applySlots(): reveal() avec la géométrie connue")
-            window.reveal(against: geometry, side: side)
-        }
+        // Plus de `hide()` quand aucune app n'est configurée : la bague d'utilisation Claude est
+        // une case permanente, donc l'extension a toujours quelque chose à montrer.
+        print("[DockExt][Controller] applySlots(): reveal() avec la géométrie connue")
+        window.reveal(against: geometry, side: side)
     }
 
     private func handleGeometryChange(_ geometry: DockGeometry?) {
         print("[DockExt][Controller] handleGeometryChange(geometry=\(geometry != nil)) — slots configurés=\(viewModel.resolvedSlots.count)")
         lastGeometry = geometry
 
-        guard let geometry, !viewModel.resolvedSlots.isEmpty else {
-            print("[DockExt][Controller] → hide() (geometry nil ou aucun slot configuré)")
+        guard let geometry else {
+            print("[DockExt][Controller] → hide() (plus de géométrie de Dock connue)")
             window.hide()
             return
         }

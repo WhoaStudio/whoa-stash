@@ -1,8 +1,9 @@
 import AppKit
 
-/// Contenu du panneau latéral : une colonne quasi opaque accrochée au bord droit de l'écran,
-/// arrondie uniquement du côté intérieur, avec un texte de test centré. Porte aussi l'animation
-/// d'entrée/sortie (glissement depuis le bord droit + fondu), appliquée à son propre calque.
+/// Contenu du panneau latéral : une carte quasi opaque accrochée au bord droit de l'écran,
+/// arrondie du côté intérieur et évasée dans le bord, portant la carte d'utilisation Claude
+/// (`ClaudeUsagePanelView`). Porte aussi l'animation d'entrée/sortie (glissement depuis le bord
+/// droit + fondu), appliquée à son propre calque.
 ///
 /// Mise en page entièrement en frames, comme le reste de l'overlay (`DockExtensionContentView`,
 /// `BrightnessBarView`) — pas de contraintes Auto Layout.
@@ -10,13 +11,13 @@ final class SidePanelContentView: NSView {
 
     private let backgroundLayer = CAShapeLayer()
     private let strokeLayer = CAShapeLayer()
-    private let label = NSTextField(labelWithString: "[test text]")
+    private let usageView = ClaudeUsagePanelView()
 
     /// Rayon unique de toute la silhouette : il vaut à la fois pour les deux coins convexes
     /// (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans le bord de
     /// l'écran. À `largeur / 2`, les deux arcs se rejoignent tangentiellement sans segment droit
     /// entre eux — c'est la proportion de la référence.
-    private let cornerRadius: CGFloat = 50
+    private let cornerRadius: CGFloat = 28
 
     /// Durée du fondu seul : le glissement, lui, est porté par un ressort et dure le temps que
     /// met celui-ci à se stabiliser.
@@ -42,9 +43,7 @@ final class SidePanelContentView: NSView {
         strokeLayer.lineWidth = 1
         layer?.addSublayer(strokeLayer)
 
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.alignment = .center
-        addSubview(label)
+        addSubview(usageView)
 
         // L'ombre est portée ici plutôt que par la fenêtre : l'ombre système serait calculée sur
         // le cadre complet et resterait donc visible au bord de l'écran pendant que le contenu
@@ -67,7 +66,12 @@ final class SidePanelContentView: NSView {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         backgroundLayer.fillColor = palette.panelBackground
         strokeLayer.strokeColor = palette.strokeColor
-        label.textColor = palette.buttonSymbolColor
+    }
+
+    /// Relayé par `SidePanelWindow` depuis le modèle de vue partagé avec la bague du Dock : les
+    /// deux surfaces montrent toujours le même instantané.
+    func apply(usageState: ClaudeUsageState, animated: Bool) {
+        usageView.apply(usageState, animated: animated)
     }
 
     override func layout() {
@@ -83,13 +87,7 @@ final class SidePanelContentView: NSView {
         strokeLayer.path = shape
         layer?.shadowPath = shape
 
-        let size = label.intrinsicContentSize
-        label.frame = NSRect(
-            x: (bounds.width - size.width) / 2,
-            y: (bounds.height - size.height) / 2,
-            width: size.width,
-            height: size.height
-        )
+        usageView.frame = bounds
     }
 
     /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et

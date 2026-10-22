@@ -8,12 +8,18 @@ import CoreGraphics
 final class DockExtensionWindow {
 
     var onIconClicked: ((ResolvedDockSlot) -> Void)?
+    var onUsageRingClicked: (() -> Void)?
 
     private let panel: NSPanel
     private let contentView: DockExtensionContentView
     private let maskLayer = CALayer()
 
     private var iconViews: [DockExtensionIconView] = []
+    /// Toujours présente, et toujours en dernier : la bague est une case de l'extension au même
+    /// titre qu'une icône d'app, mais elle n'est pas configurable et ne doit donc pas se mêler
+    /// à l'ordre des emplacements choisis par l'utilisateur.
+    private var usageRingView: ClaudeUsageRingView?
+    private var usageState: ClaudeUsageState = .loading
     private var isRevealed = false
     private var currentSide: EdgePosition = .right
 
@@ -64,7 +70,21 @@ final class DockExtensionWindow {
             icon.onClick = { [weak self] clicked in self?.onIconClicked?(clicked) }
             return icon
         }
-        contentView.configure(icons: iconViews, tileSize: tileSize)
+
+        // La bague est reconstruite avec les icônes : sa taille suit celle des cases du Dock,
+        // qui change dès que l'utilisateur modifie la taille du Dock système.
+        usageRingView?.removeFromSuperview()
+        let ring = ClaudeUsageRingView(tileSize: tileSize)
+        ring.onClick = { [weak self] in self?.onUsageRingClicked?() }
+        ring.apply(usageState, animated: false)
+        usageRingView = ring
+
+        contentView.configure(tiles: iconViews + [ring], tileSize: tileSize)
+    }
+
+    func apply(usageState newState: ClaudeUsageState) {
+        usageState = newState
+        usageRingView?.apply(newState, animated: true)
     }
 
     /// Repositionne la fenêtre contre le Dock sans rejouer l'animation d'apparition —
@@ -84,7 +104,7 @@ final class DockExtensionWindow {
     }
 
     func reveal(against geometry: DockGeometry, side: EdgePosition) {
-        print("[DockExt][Window] reveal() appelé — isRevealed=\(isRevealed), iconViews.count=\(iconViews.count), side=\(side)")
+        print("[DockExt][Window] reveal() appelé — isRevealed=\(isRevealed), tuiles=\(tileCount), side=\(side)")
         guard !isRevealed else {
             reposition(against: geometry, side: side)
             return
@@ -107,7 +127,7 @@ final class DockExtensionWindow {
         print("[DockExt][Window] reveal() — panel.orderFrontRegardless() exécuté, panel.isVisible après=\(panel.isVisible), frame réel=\(panel.frame)")
 
         animateMaskWidth(to: frame.size.width, duration: revealDuration)
-        contentView.revealIcons(duration: revealDuration)
+        contentView.revealTiles(duration: revealDuration)
     }
 
     func hide() {
@@ -116,13 +136,16 @@ final class DockExtensionWindow {
         isRevealed = false
         panel.ignoresMouseEvents = true
 
-        contentView.hideIcons(duration: hideDuration)
+        contentView.hideTiles(duration: hideDuration)
         animateMaskWidth(to: 0, duration: hideDuration) { [weak self] in
             guard let self, !self.isRevealed else { return }
             print("[DockExt][Window] hide() — animation terminée, orderOut(nil)")
             self.panel.orderOut(nil)
         }
     }
+
+    /// Icônes configurées + la bague d'utilisation, toujours présente.
+    private var tileCount: Int { iconViews.count + (usageRingView == nil ? 0 : 1) }
 
     /// Bord de la fenêtre qui touche le Dock (`0` = gauche, `1` = droite) : c'est ce bord qui
     /// reste fixe pendant le dépliage, la largeur grandissant vers le bord opposé.
@@ -134,7 +157,7 @@ final class DockExtensionWindow {
         // Le gap fait partie de la position de départ de la fenêtre, pas de l'animation : la
         // largeur du masque grandit à l'intérieur de ce frame déjà décalé, donc l'espacement
         // avec le Dock reste constant du début à la fin du dépliage.
-        let desiredWidth = contentView.desiredWidth(for: iconViews.count, tileSize: geometry.tileSize)
+        let desiredWidth = contentView.desiredWidth(for: tileCount, tileSize: geometry.tileSize)
 
         let originX: CGFloat
         let width: CGFloat
@@ -189,7 +212,7 @@ private final class DockExtensionContentView: NSView {
 
     private let visualEffectView = NSVisualEffectView()
     private let strokeLayer = CAShapeLayer()
-    private var iconViews: [DockExtensionIconView] = []
+    private var tileViews: [NSView] = []
 
     /// Réglé dynamiquement par `DockExtensionWindow` d'après la hauteur réelle du Dock.
     var cornerRadius: CGFloat = 16 {
@@ -258,50 +281,50 @@ private final class DockExtensionContentView: NSView {
             transform: nil
         )
 
-        layoutIcons()
+        layoutTiles()
     }
 
-    private func layoutIcons() {
+    private func layoutTiles() {
         var x = horizontalPadding
-        for icon in iconViews {
-            let size = icon.frame.size
-            icon.frame = NSRect(x: x, y: (bounds.height - size.height) * verticalBias, width: size.width, height: size.height)
+        for tile in tileViews {
+            let size = tile.frame.size
+            tile.frame = NSRect(x: x, y: (bounds.height - size.height) * verticalBias, width: size.width, height: size.height)
             x += size.width + spacing
         }
     }
 
-    func desiredWidth(for iconCount: Int, tileSize: CGFloat) -> CGFloat {
-        guard iconCount > 0 else { return 0 }
-        return CGFloat(iconCount) * tileSize + CGFloat(iconCount - 1) * spacing + horizontalPadding * 2
+    func desiredWidth(for tileCount: Int, tileSize: CGFloat) -> CGFloat {
+        guard tileCount > 0 else { return 0 }
+        return CGFloat(tileCount) * tileSize + CGFloat(tileCount - 1) * spacing + horizontalPadding * 2
     }
 
-    func configure(icons: [DockExtensionIconView], tileSize: CGFloat) {
-        iconViews.forEach { $0.removeFromSuperview() }
-        iconViews = icons
-        iconViews.forEach { addSubview($0) }
-        layoutIcons()
+    func configure(tiles: [NSView], tileSize: CGFloat) {
+        tileViews.forEach { $0.removeFromSuperview() }
+        tileViews = tiles
+        tileViews.forEach { addSubview($0) }
+        layoutTiles()
     }
 
-    func revealIcons(duration: TimeInterval) {
-        animateIcons(appearing: true, totalDuration: duration)
+    func revealTiles(duration: TimeInterval) {
+        animateTiles(appearing: true, totalDuration: duration)
     }
 
-    func hideIcons(duration: TimeInterval) {
-        animateIcons(appearing: false, totalDuration: duration)
+    func hideTiles(duration: TimeInterval) {
+        animateTiles(appearing: false, totalDuration: duration)
     }
 
-    /// Fait apparaître/disparaître chaque icône avec un délai croissant selon sa position
+    /// Fait apparaître/disparaître chaque case avec un délai croissant selon sa position
     /// horizontale, pour suivre le bord du masque plutôt que de sauter d'un coup.
-    private func animateIcons(appearing: Bool, totalDuration: TimeInterval) {
-        let icons = iconViews
-        guard !icons.isEmpty else { return }
+    private func animateTiles(appearing: Bool, totalDuration: TimeInterval) {
+        let tiles = tileViews
+        guard !tiles.isEmpty else { return }
 
         let iconDuration = 0.18
         let maxDelay = max(0, totalDuration - iconDuration)
 
-        for (index, icon) in icons.enumerated() {
+        for (index, icon) in tiles.enumerated() {
             guard let layer = icon.layer else { continue }
-            let progress: CGFloat = icons.count > 1 ? CGFloat(index) / CGFloat(icons.count - 1) : 0
+            let progress: CGFloat = tiles.count > 1 ? CGFloat(index) / CGFloat(tiles.count - 1) : 0
             let delay = appearing ? Double(progress) * maxDelay : Double(1 - progress) * maxDelay
 
             CATransaction.begin()

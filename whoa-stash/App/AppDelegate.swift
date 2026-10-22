@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var brightnessOverlayController: BrightnessOverlayController?
     private var dockExtensionController: DockExtensionController?
     private var sidePanelController: SidePanelController?
+    private var claudeUsageViewModel: ClaudeUsageViewModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Icône dans la menu bar (en haut à droite de l'écran)
@@ -30,6 +31,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
         sidePanelController = SidePanelController()
         sidePanelController?.activate()
+
+        // Utilisation Claude : un seul modèle de vue alimente la bague du Dock et le panneau
+        // latéral, pour qu'ils montrent le même instantané et qu'un seul appel réseau les serve.
+        // `--claude-usage=73,7` substitue des valeurs fixes à la vraie source (voir
+        // `MockClaudeUsageProvider`), pour développer et vérifier sans réseau ni trousseau.
+        let usageProvider: ClaudeUsageProviding = MockClaudeUsageProvider.fromLaunchArguments() ?? ClaudeUsageService()
+        let usageViewModel = ClaudeUsageViewModel(provider: usageProvider)
+        claudeUsageViewModel = usageViewModel
+
+        usageViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.claudeUsageViewModel?.state else { return }
+            self.dockExtensionController?.apply(usageState: state)
+            self.sidePanelController?.apply(usageState: state)
+        }
+
+        dockExtensionController?.onUsageRingClicked = { [weak self] in
+            // Rafraîchissement opportuniste : le panneau s'ouvre tout de suite avec le dernier
+            // instantané connu, et se met à jour dès que la requête revient.
+            self?.claudeUsageViewModel?.refresh()
+            self?.sidePanelController?.togglePinnedReveal()
+        }
+
+        usageViewModel.activate()
+
+        // Ouvre le panneau d'utilisation sans passer par le survol du coin ni le clic sur la
+        // bague — c'est ce qui rend la carte vérifiable sur capture d'écran, au même titre que
+        // `--show-settings` pour les Préférences.
+        if CommandLine.arguments.contains("--show-usage-panel") {
+            sidePanelController?.togglePinnedReveal()
+        }
 
         if CommandLine.arguments.contains("--dark") {
             SettingsStorage.shared.settings.general.appearanceMode = .dark

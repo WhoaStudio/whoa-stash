@@ -35,6 +35,10 @@ final class SidePanelWindow {
 
     var frame: NSRect { panel.frame }
 
+    func apply(usageState: ClaudeUsageState, animated: Bool) {
+        contentView.apply(usageState: usageState, animated: animated)
+    }
+
     /// Suit le réglage Général > Appearance comme les autres panneaux de l'overlay, au lieu de
     /// suivre l'apparence système : c'est lui qui décide si le panneau est anthracite ou clair.
     func apply(appearanceMode: AppearanceMode) {

@@ -9,10 +9,12 @@ enum SidePanelGeometry {
     static let hotZoneWidth: CGFloat = 20
     static let hotZoneHeight: CGFloat = 100
 
-    /// Proportions verticales : le panneau est une colonne accrochée au bord, pas une bulle
-    /// horizontale — c'est ce qui lui donne sa silhouette de référence.
-    static let panelWidth: CGFloat = 100
-    static let panelHeight: CGFloat = 420
+    /// Dimensions dictées par le contenu : le panneau porte la carte d'utilisation Claude
+    /// (en-tête + deux lignes avec barre et pourcentage), qui a besoin de largeur pour tenir
+    /// « Current session » et « Resets in 51 min » sur la même ligne. `ClaudeUsagePanelView`
+    /// dérive ses propres marges de ce cadre.
+    static let panelWidth: CGFloat = 320
+    static let panelHeight: CGFloat = 190
 
     /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
     static let topInset: CGFloat = 8

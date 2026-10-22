@@ -19,6 +19,15 @@ final class SidePanelController {
     private var appearanceCancellable: AnyCancellable?
     private var pollTimer: Timer?
 
+    private var usageState: ClaudeUsageState = .loading
+
+    /// Ouverture déclenchée par un clic sur la bague du Dock, et non par le survol du coin : le
+    /// curseur est alors en bas de l'écran, loin de la zone sensible, donc le suivi normal
+    /// refermerait le panneau au premier mouvement. L'épinglage suspend cette logique jusqu'à ce
+    /// que l'utilisateur soit venu sur le panneau puis en soit ressorti.
+    private var isPinned = false
+    private var hasVisitedPinnedPanel = false
+
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est téléporté,
     /// ou qu'il quitte la zone pendant un changement de Space, plus aucun événement n'arrive et le
     /// panneau resterait ouvert. Ce rafraîchissement ne tourne que pendant qu'un panneau est visible.
@@ -54,6 +63,41 @@ final class SidePanelController {
         windows.values.forEach { $0.apply(appearanceMode: appearanceMode) }
     }
 
+    /// Diffuse le dernier instantané à tous les panneaux, y compris ceux qui ne sont pas visibles :
+    /// ils doivent être déjà à jour au moment où ils glissent à l'écran, pas se remplir après coup.
+    func apply(usageState newState: ClaudeUsageState) {
+        usageState = newState
+        windows.values.forEach { $0.apply(usageState: newState, animated: true) }
+    }
+
+    /// Ouvre (ou referme) le panneau de l'écran qui contient le curseur — appelé par le clic sur
+    /// la bague du Dock.
+    func togglePinnedReveal() {
+        guard !isPinned else {
+            isPinned = false
+            hideActive()
+            return
+        }
+
+        guard
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+                ?? NSScreen.main,
+            let displayID = screen.displayID,
+            let window = windows[displayID]
+        else { return }
+
+        if activeDisplay != displayID {
+            hideActive()
+            activeDisplay = displayID
+        }
+
+        isPinned = true
+        hasVisitedPinnedPanel = false
+        window.apply(usageState: usageState, animated: false)
+        window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
+        startPolling()
+    }
+
     // MARK: - Suivi du curseur
 
     private func handleCursor(at location: NSPoint) {
@@ -74,6 +118,18 @@ final class SidePanelController {
         // depuis la zone sensible sans qu'il se referme en chemin.
         let overPanel = activeDisplay == displayID && window.frame.contains(location)
 
+        if isPinned {
+            // Le panneau épinglé ne se referme qu'une fois le curseur venu dessus puis reparti —
+            // sinon il disparaîtrait avant même que le pointeur ait quitté le Dock.
+            if overPanel {
+                hasVisitedPinnedPanel = true
+            } else if hasVisitedPinnedPanel {
+                isPinned = false
+                hideActive()
+            }
+            return
+        }
+
         guard inHotZone || overPanel else {
             hideActive()
             return
@@ -83,11 +139,13 @@ final class SidePanelController {
             hideActive()
             activeDisplay = displayID
         }
+        window.apply(usageState: usageState, animated: false)
         window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
         startPolling()
     }
 
     private func hideActive() {
+        isPinned = false
         guard let activeDisplay else { return }
         windows[activeDisplay]?.hide()
         self.activeDisplay = nil
