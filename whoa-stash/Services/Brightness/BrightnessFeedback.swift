@@ -12,14 +12,16 @@ protocol BrightnessFeedback {
 /// désactivable indépendamment via `General > Enable haptic/sound feedback`.
 final class SystemBrightnessFeedback: BrightnessFeedback {
     private let sound: NSSound?
+    private let storage: SettingsStorage
 
-    init() {
+    init(storage: SettingsStorage = .shared) {
+        self.storage = storage
         sound = NSSound(named: "Pop")
         sound?.volume = 0.35
     }
 
     func tickCrossed() {
-        let general = SettingsStorage.shared.settings.general
+        let general = storage.settings.general
         if general.enableHapticFeedback {
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         }

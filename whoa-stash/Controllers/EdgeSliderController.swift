@@ -7,12 +7,19 @@ final class EdgeSliderController: NSObject {
 
     private var window: NSPanel!
     private var sliderView: EdgeSliderView!
-    private let viewModel = EdgeSliderViewModel()
+    private let viewModel: EdgeSliderViewModel
+    private let storage: SettingsStorage
+
+    init(storage: SettingsStorage = .shared) {
+        self.storage = storage
+        viewModel = EdgeSliderViewModel(settings: storage)
+        super.init()
+    }
 
     func activate() {
         guard let screen = NSScreen.main else { return }
 
-        let prefs = SettingsStorage.shared.settings.edgeSlider
+        let prefs = storage.settings.edgeSlider
         let width: CGFloat = 6      // largeur de la zone sensible au repos
         let height: CGFloat = prefs.sliderHeight
         let x = prefs.edgePosition == .right ? screen.frame.maxX - width : screen.frame.minX

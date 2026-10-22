@@ -30,15 +30,23 @@ final class BrightnessOverlayController {
     private let edgeThreshold: CGFloat = 2
     private let hideAnimationDuration: TimeInterval = 0.45
 
-    init(controller: BrightnessControlling) {
-        let brightness = SettingsStorage.shared.settings.brightness
+    /// `storage` n'est lu qu'ici : au-delà de l'init, l'état courant arrive par
+    /// `settingsCancellable`, pas par une relecture du stockage.
+    init(controller: BrightnessControlling, storage: SettingsStorage = .shared) {
+        let brightness = storage.settings.brightness
         panelSize = brightness.widgetSize.panelSize
         closeDelay = brightness.autoHideDelay
         glowIntensity = brightness.glowIntensity
         showPercentage = brightness.showPercentage
         widgetPosition = brightness.widgetPosition
 
-        viewModel = BrightnessViewModel(controller: controller)
+        // Le feedback partage le même `storage` que le view model : tout le graphe de l'overlay
+        // lit donc une seule et même source de préférences.
+        viewModel = BrightnessViewModel(
+            controller: controller,
+            feedback: SystemBrightnessFeedback(storage: storage),
+            storage: storage
+        )
 
         panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: panelSize),
@@ -56,7 +64,7 @@ final class BrightnessOverlayController {
         // Sans ça, le panel se cache dès que whoa-stash (app sans fenêtre, menu bar only)
         // n'est plus "active", ce qui arrive en permanence puisqu'elle ne prend jamais le focus.
         panel.hidesOnDeactivate = false
-        panel.appearance = SettingsStorage.shared.settings.general.appearanceMode.nsAppearance
+        panel.appearance = storage.settings.general.appearanceMode.nsAppearance
 
         let initialPalette = OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
         containerView = BrightnessView(tickCount: BrightnessViewModel.tickCount, initialPalette: initialPalette)
@@ -68,7 +76,7 @@ final class BrightnessOverlayController {
 
         mouseMonitor.onMove = { [weak self] location in self?.handlePointerMove(location) }
 
-        settingsCancellable = SettingsStorage.shared.$settings
+        settingsCancellable = storage.$settings
             .sink { [weak self] settings in
                 self?.apply(general: settings.general, brightness: settings.brightness)
             }

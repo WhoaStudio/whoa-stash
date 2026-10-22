@@ -12,13 +12,19 @@ final class DockExtensionController {
 
     private let geometryProvider = DockGeometryProvider()
     private let window = DockExtensionWindow()
-    private let viewModel = DockExtensionViewModel()
+    private let viewModel: DockExtensionViewModel
+    private let storage: SettingsStorage
 
     private var lastGeometry: DockGeometry?
     private var isEnabled = false
     private var side: EdgePosition = .right
     private var cancellable: AnyCancellable?
     private var sideCancellable: AnyCancellable?
+
+    init(storage: SettingsStorage = .shared) {
+        self.storage = storage
+        viewModel = DockExtensionViewModel(preferences: storage)
+    }
 
     func activate() {
         Log.dockExtension.debug("controller: activate()")
@@ -38,14 +44,14 @@ final class DockExtensionController {
             self?.handleGeometryChange(geometry)
         }
 
-        cancellable = SettingsStorage.shared.$settings
+        cancellable = storage.$settings
             .map(\.dock.isEnabled)
             .removeDuplicates()
             .sink { [weak self] enabled in
                 self?.setEnabled(enabled)
             }
 
-        sideCancellable = SettingsStorage.shared.$settings
+        sideCancellable = storage.$settings
             .map(\.dock.side)
             .removeDuplicates()
             .sink { [weak self] side in

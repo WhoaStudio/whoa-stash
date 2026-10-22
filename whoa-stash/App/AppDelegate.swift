@@ -3,6 +3,12 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    /// Racine de composition : une seule instance de `SettingsStorage` traverse toute l'app.
+    /// C'est volontairement `.shared` et non une instance neuve — `SettingsWindowController`
+    /// lit encore le singleton, et deux instances distinctes scinderaient silencieusement
+    /// l'état des préférences entre la fenêtre de réglages et les widgets.
+    private let settings = SettingsStorage.shared
+
     private var statusBarController: StatusBarController?
     private var edgeSliderController: EdgeSliderController?
     private var brightnessOverlayController: BrightnessOverlayController?
@@ -13,20 +19,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController = StatusBarController()
 
         // Fenêtre flottante invisible qui gère le slider sur le bord de l'écran
-        edgeSliderController = EdgeSliderController()
+        edgeSliderController = EdgeSliderController(storage: settings)
         edgeSliderController?.activate()
 
         // Overlay de luminosité sur le bord gauche de l'écran.
         // Remplacer par `FakeBrightnessService()` pour développer sans piloter l'écran réel.
-        brightnessOverlayController = BrightnessOverlayController(controller: SystemBrightnessService())
+        brightnessOverlayController = BrightnessOverlayController(
+            controller: SystemBrightnessService(),
+            storage: settings
+        )
         brightnessOverlayController?.activate()
 
         // Extension du Dock : panneau flottant collé au Dock système, icônes configurables.
-        dockExtensionController = DockExtensionController()
+        dockExtensionController = DockExtensionController(storage: settings)
         dockExtensionController?.activate()
 
         if CommandLine.arguments.contains("--dark") {
-            SettingsStorage.shared.settings.general.appearanceMode = .dark
+            settings.settings.general.appearanceMode = .dark
         }
 
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {

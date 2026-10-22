@@ -16,12 +16,22 @@ final class BrightnessViewModel {
 
     private let controller: BrightnessControlling
     private let feedback: BrightnessFeedback
+    private let storage: SettingsStorage
     /// Sensibilité de base au scroll, multipliée par `Brightness > Scroll sensitivity`.
     private let baseScrollSensitivity: Float = 0.0035
 
-    init(controller: BrightnessControlling, feedback: BrightnessFeedback = SystemBrightnessFeedback()) {
+    /// `feedback` et `storage` ont des valeurs par défaut indépendantes : un appelant qui
+    /// injecte un `storage` de test doit aussi passer le `feedback` correspondant
+    /// (`NoOpBrightnessFeedback`), sans quoi le retour sensoriel lirait encore `.shared`.
+    /// `BrightnessOverlayController` fait ce câblage explicitement.
+    init(
+        controller: BrightnessControlling,
+        feedback: BrightnessFeedback = SystemBrightnessFeedback(),
+        storage: SettingsStorage = .shared
+    ) {
         self.controller = controller
         self.feedback = feedback
+        self.storage = storage
         self.brightness = controller.brightness
     }
 
@@ -43,7 +53,7 @@ final class BrightnessViewModel {
 
     /// `delta > 0` = scroll vers le haut (scrolling naturel) → augmente la luminosité.
     func adjust(byScrollDelta delta: CGFloat) {
-        let multiplier = Float(SettingsStorage.shared.settings.brightness.scrollSensitivity)
+        let multiplier = Float(storage.settings.brightness.scrollSensitivity)
         setBrightness(brightness + Float(delta) * baseScrollSensitivity * multiplier)
     }
 
