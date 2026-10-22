@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import OSLog
 
 /// Expose la liste des slots résolus et l'activation d'une app, avec un callback simple pour
 /// la vue AppKit (même esprit que `BrightnessViewModel` : pas de Combine côté vue).
@@ -28,17 +29,17 @@ final class DockExtensionViewModel {
         let name = slot.name
         launcher.launch(at: slot.bundleURL) { error in
             if let error {
-                print("DockExtension: échec du lancement de \(name) — \(error.localizedDescription)")
+                Log.dockExtension.error("échec du lancement de \(name) — \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     private func resolve(_ slots: [DockExtensionSlot]) {
-        print("[DockExt][ViewModel] resolve() — préférences brutes: \(slots.map { "\($0.index): \($0.appPath ?? "vide")" })")
+        Log.dockExtension.debug("resolve() — préférences brutes: \(slots.map { "\($0.index): \($0.appPath ?? "vide")" }.description)")
         resolvedSlots = slots.compactMap { slot in
             guard let path = slot.appPath else { return nil }
             guard FileManager.default.fileExists(atPath: path) else {
-                print("[DockExt][ViewModel] ⛔️ slot \(slot.index): chemin introuvable sur le disque: \(path)")
+                Log.dockExtension.info("slot \(slot.index, privacy: .public): chemin introuvable sur le disque, emplacement ignoré: \(path)")
                 return nil
             }
             return ResolvedDockSlot(
@@ -48,7 +49,7 @@ final class DockExtensionViewModel {
                 name: FileManager.default.displayName(atPath: path)
             )
         }
-        print("[DockExt][ViewModel] resolve() → \(resolvedSlots.count) slot(s) résolu(s): \(resolvedSlots.map { $0.name })")
+        Log.dockExtension.debug("resolve() → \(self.resolvedSlots.count, privacy: .public) slot(s) résolu(s): \(self.resolvedSlots.map { $0.name }.description)")
         onSlotsChanged?()
     }
 }

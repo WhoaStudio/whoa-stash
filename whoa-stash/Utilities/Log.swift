@@ -1,0 +1,38 @@
+import OSLog
+
+/// Points d'entrée `OSLog` de l'app — un `Logger` par domaine, filtrable dans Console.app
+/// (`subsystem:ugolin-olle.whoa-stash category:dock-geometry`). Remplace `print`, qui n'est pas
+/// retiré en Release : les traces `.debug` ci-dessous ne coûtent rien dans un build de
+/// production et n'interpolent leur message que si quelqu'un écoute réellement.
+///
+/// Niveaux :
+/// - `.debug` : trace de flux, utile en développement uniquement.
+/// - `.info`  : transition d'état qu'on veut pouvoir reconstituer après coup.
+/// - `.error` : échec qui dégrade une fonctionnalité visible par l'utilisateur.
+///
+/// Confidentialité : dans `Logger`, l'interpolation d'une `String` est *privée* par défaut et
+/// les valeurs numériques sont publiques. On garde ce défaut pour tout ce qui vient de
+/// l'utilisateur (chemins et noms des applications choisies dans les Préférences — ils n'ont
+/// rien à faire dans un journal lisible par d'autres processus) et on marque explicitement
+/// `.public` les valeurs purement techniques dont on a besoin pour diagnostiquer : géométrie,
+/// compteurs, drapeaux, codes d'erreur système.
+enum Log {
+
+    /// Doit rester aligné sur `PRODUCT_BUNDLE_IDENTIFIER`. `nonisolated`, comme les `Logger`
+    /// ci-dessous : le module est compilé avec `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, qui
+    /// isolerait sinon ces constantes sur le main actor et interdirait de journaliser depuis un
+    /// contexte non isolé (le callback C de l'`AXObserver`, par exemple).
+    nonisolated private static let subsystem = "ugolin-olle.whoa-stash"
+
+    /// Suivi AX du Dock système : permissions, géométrie, cadence de polling.
+    nonisolated static let dockGeometry = Logger(subsystem: subsystem, category: "dock-geometry")
+
+    /// Extension du Dock : slots configurés, fenêtre flottante, cycle révéler/masquer.
+    nonisolated static let dockExtension = Logger(subsystem: subsystem, category: "dock-extension")
+
+    /// Overlay de luminosité et pilotage de l'écran.
+    nonisolated static let brightness = Logger(subsystem: subsystem, category: "brightness")
+
+    /// Menu bar et fenêtre de Préférences.
+    nonisolated static let settings = Logger(subsystem: subsystem, category: "settings")
+}

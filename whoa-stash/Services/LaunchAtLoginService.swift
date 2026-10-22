@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import ServiceManagement
 
 /// Enregistre ou désenregistre l'app comme élément de lancement au démarrage de session.
@@ -15,9 +16,9 @@ final class LaunchAtLoginService {
             } else {
                 try SMAppService.mainApp.unregister()
             }
-            print("Préférences: lancement au démarrage → \(enabled ? "activé" : "désactivé")")
+            Log.settings.info("lancement au démarrage → \(enabled ? "activé" : "désactivé", privacy: .public)")
         } catch {
-            print("Préférences: échec de la configuration du lancement au démarrage — \(error.localizedDescription)")
+            Log.settings.error("échec de la configuration du lancement au démarrage — \(error.localizedDescription, privacy: .public)")
         }
     }
 }

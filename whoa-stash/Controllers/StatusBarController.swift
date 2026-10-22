@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 /// Gère l'icône dans la menu bar macOS (NSStatusItem) et son menu déroulant.
 @MainActor
@@ -47,7 +48,7 @@ final class StatusBarController {
     }
 
     @objc private func openPreferences() {
-        print("Ouverture des préférences…")
+        Log.settings.debug("ouverture de la fenêtre de Préférences")
         SettingsWindowController.shared.show()
     }
 }

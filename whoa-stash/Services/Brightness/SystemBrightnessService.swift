@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import OSLog
 
 /// Bas niveau : lit/écrit la luminosité d'un écran précis. `SystemBrightnessService`
 /// choisit le bon backend selon l'écran ciblé — aujourd'hui uniquement l'écran interne
@@ -34,7 +35,7 @@ final class DisplayServicesBackend: DisplayBrightnessBackend {
             "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices",
             RTLD_NOW
         ) else {
-            print("DisplayServicesBackend: impossible de charger DisplayServices.framework")
+            Log.brightness.error("impossible de charger DisplayServices.framework — la luminosité ne sera pas pilotable")
             getBrightnessFn = nil
             setBrightnessFn = nil
             return

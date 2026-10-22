@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import QuartzCore
 @preconcurrency import ApplicationServices
 
@@ -62,14 +63,14 @@ final class DockGeometryProvider {
     private let hiddenEdgeThreshold: CGFloat = 4
 
     func start() {
-        print("[DockExt][Geometry] start()")
+        Log.dockGeometry.debug("start()")
 
         activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            print("[DockExt][Geometry] didBecomeActiveNotification → nouvelle tentative de setUpIfNeeded()")
+            Log.dockGeometry.debug("didBecomeActiveNotification → nouvelle tentative de setUpIfNeeded()")
             Task { @MainActor in self?.setUpIfNeeded() }
         }
 
@@ -78,7 +79,7 @@ final class DockGeometryProvider {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            print("[DockExt][Geometry] com.apple.dock.prefchanged reçu")
+            Log.dockGeometry.debug("com.apple.dock.prefchanged reçu")
             Task { @MainActor in self?.refreshGeometry() }
         }
 
@@ -98,7 +99,7 @@ final class DockGeometryProvider {
 
     private func startPolling() {
         guard pollTimer == nil else { return }
-        print("[DockExt][Geometry] startPolling() — démarrage en veille (\(PollRate.idle.interval)s)")
+        Log.dockGeometry.debug("startPolling() — démarrage en veille (\(PollRate.idle.interval, privacy: .public)s)")
         pollRate = .idle
         lastPolledChange = CACurrentMediaTime()
         scheduleTimer(for: pollRate)
@@ -106,7 +107,7 @@ final class DockGeometryProvider {
 
     private func stopPolling() {
         guard pollTimer != nil else { return }
-        print("[DockExt][Geometry] stopPolling()")
+        Log.dockGeometry.debug("stopPolling()")
         pollTimer?.invalidate()
         pollTimer = nil
         lastPolledFrame = nil
@@ -129,7 +130,7 @@ final class DockGeometryProvider {
 
     private func setPollRate(_ rate: PollRate) {
         guard pollRate != rate else { return }
-        print("[DockExt][Geometry] cadence de polling → \(rate) (\(rate.interval)s)")
+        Log.dockGeometry.debug("cadence de polling → \(String(describing: rate), privacy: .public) (\(rate.interval, privacy: .public)s)")
         pollRate = rate
         scheduleTimer(for: rate)
     }
@@ -144,7 +145,7 @@ final class DockGeometryProvider {
                 relaxPollRateIfSettled()
                 return
             }
-            print("[DockExt][Geometry] pollTick(): fenêtre du Dock devenue illisible → refreshGeometry()")
+            Log.dockGeometry.debug("pollTick() — fenêtre du Dock devenue illisible → refreshGeometry()")
             lastPolledFrame = nil
             noteFrameChanged()
             refreshGeometry()
@@ -177,34 +178,34 @@ final class DockGeometryProvider {
     // MARK: - Configuration AX
 
     private func setUpIfNeeded() {
-        print("[DockExt][Geometry] setUpIfNeeded() — isObserving=\(isObserving)")
+        Log.dockGeometry.debug("setUpIfNeeded() — isObserving=\(self.isObserving, privacy: .public)")
         guard !isObserving else {
-            print("[DockExt][Geometry] déjà observé, on ne refait rien")
+            Log.dockGeometry.debug("déjà observé, on ne refait rien")
             return
         }
 
         let trusted = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
-        print("[DockExt][Geometry] AXIsProcessTrustedWithOptions → \(trusted)")
+        Log.dockGeometry.debug("AXIsProcessTrustedWithOptions → \(trusted, privacy: .public)")
         guard trusted else {
-            print("[DockExt][Geometry] ⛔️ permission Accessibilité NON accordée — extension inactive jusqu'à l'octroi (vérifier Réglages Système > Confidentialité et sécurité > Accessibilité).")
+            Log.dockGeometry.error("permission Accessibilité NON accordée — extension inactive jusqu'à l'octroi (Réglages Système > Confidentialité et sécurité > Accessibilité)")
             onChange?(nil)
             return
         }
 
         guard let dockApp = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.dock" }) else {
-            print("[DockExt][Geometry] ⛔️ process Dock introuvable parmi runningApplications.")
+            Log.dockGeometry.error("process Dock introuvable parmi runningApplications")
             return
         }
 
         let pid = dockApp.processIdentifier
-        print("[DockExt][Geometry] process Dock trouvé, pid=\(pid)")
+        Log.dockGeometry.debug("process Dock trouvé, pid=\(pid, privacy: .public)")
         dockPID = pid
         let appElement = AXUIElementCreateApplication(pid)
         dockAppElement = appElement
 
         let callback: AXObserverCallback = { _, _, notification, refcon in
             guard let refcon else { return }
-            print("[DockExt][Geometry] notification AX reçue: \(notification as String)")
+            Log.dockGeometry.debug("notification AX reçue: \(notification as String, privacy: .public)")
             Task { @MainActor in
                 Unmanaged<DockGeometryProvider>.fromOpaque(refcon).takeUnretainedValue().refreshGeometry()
             }
@@ -213,7 +214,7 @@ final class DockGeometryProvider {
         var observerRef: AXObserver?
         let createResult = AXObserverCreate(pid, callback, &observerRef)
         guard createResult == .success, let observerRef else {
-            print("[DockExt][Geometry] ⛔️ impossible de créer l'AXObserver pour le Dock (erreur \(createResult.rawValue)).")
+            Log.dockGeometry.error("impossible de créer l'AXObserver pour le Dock (erreur \(createResult.rawValue, privacy: .public))")
             return
         }
 
@@ -222,18 +223,18 @@ final class DockGeometryProvider {
 
         for notification in [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification] {
             let result = AXObserverAddNotification(observerRef, appElement, notification as CFString, selfPtr)
-            print("[DockExt][Geometry] AXObserverAddNotification(app, \(notification)) → \(result.rawValue)")
+            Log.dockGeometry.debug("AXObserverAddNotification(app, \(notification, privacy: .public)) → \(result.rawValue, privacy: .public)")
         }
 
         dockWindowElement = findDockWindow(in: appElement)
-        print("[DockExt][Geometry] fenêtre du Dock trouvée à l'init ? \(dockWindowElement != nil)")
+        Log.dockGeometry.debug("fenêtre du Dock trouvée à l'init ? \(self.dockWindowElement != nil, privacy: .public)")
         attachWindowNotifications()
 
         CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observerRef), .defaultMode)
         isObserving = true
         startPolling()
 
-        print("[DockExt][Geometry] ✅ suivi AX du Dock activé.")
+        Log.dockGeometry.info("suivi AX du Dock activé")
         refreshGeometry()
     }
 
@@ -251,20 +252,20 @@ final class DockGeometryProvider {
 
     private func attachWindowNotifications() {
         guard let observer, let window = dockWindowElement else {
-            print("[DockExt][Geometry] attachWindowNotifications() annulé (observer ou window nil)")
+            Log.dockGeometry.debug("attachWindowNotifications() annulé (observer ou window nil)")
             return
         }
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         for notification in [kAXMovedNotification, kAXResizedNotification, kAXUIElementDestroyedNotification] {
             let result = AXObserverAddNotification(observer, window, notification as CFString, selfPtr)
-            print("[DockExt][Geometry] AXObserverAddNotification(window, \(notification)) → \(result.rawValue)")
+            Log.dockGeometry.debug("AXObserverAddNotification(window, \(notification, privacy: .public)) → \(result.rawValue, privacy: .public)")
         }
     }
 
     private func findDockWindow(in appElement: AXUIElement) -> AXUIElement? {
         var windowsRef: CFTypeRef?
         let windowsResult = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
-        print("[DockExt][Geometry] findDockWindow: kAXWindowsAttribute → result=\(windowsResult.rawValue), count=\((windowsRef as? [AXUIElement])?.count ?? -1)")
+        Log.dockGeometry.debug("findDockWindow — kAXWindowsAttribute → result=\(windowsResult.rawValue, privacy: .public), count=\((windowsRef as? [AXUIElement])?.count ?? -1, privacy: .public)")
         if windowsResult == .success, let windows = windowsRef as? [AXUIElement], let first = windows.first {
             return first
         }
@@ -272,17 +273,17 @@ final class DockGeometryProvider {
         var childrenRef: CFTypeRef?
         let childrenResult = AXUIElementCopyAttributeValue(appElement, kAXChildrenAttribute as CFString, &childrenRef)
         guard let children = childrenRef as? [AXUIElement] else {
-            print("[DockExt][Geometry] findDockWindow: kAXChildrenAttribute → result=\(childrenResult.rawValue), aucun enfant exploitable")
+            Log.dockGeometry.debug("findDockWindow — kAXChildrenAttribute → result=\(childrenResult.rawValue, privacy: .public), aucun enfant exploitable")
             return nil
         }
-        print("[DockExt][Geometry] findDockWindow: kAXChildrenAttribute → \(children.count) enfant(s), recherche du rôle AXWindow")
+        Log.dockGeometry.debug("findDockWindow — kAXChildrenAttribute → \(children.count, privacy: .public) enfant(s), recherche du rôle AXWindow")
 
         for child in children {
-            print("[DockExt][Geometry] findDockWindow: enfant avec rôle \(role(of: child) ?? "?")")
+            Log.dockGeometry.debug("findDockWindow — enfant avec rôle \(self.role(of: child) ?? "?", privacy: .public)")
         }
 
         if let windowMatch = children.first(where: { role(of: $0) == (kAXWindowRole as String) }) {
-            print("[DockExt][Geometry] findDockWindow: match par rôle AXWindow")
+            Log.dockGeometry.debug("findDockWindow — match par rôle AXWindow")
             return windowMatch
         }
 
@@ -291,7 +292,7 @@ final class DockGeometryProvider {
         // On retombe sur le premier enfant dont la géométrie est lisible plutôt que d'exiger le
         // rôle AXWindow, sans quoi `dockWindowElement` reste nil et rien ne s'affiche jamais.
         let geometryMatch = children.first { frame(of: $0) != nil }
-        print("[DockExt][Geometry] findDockWindow: pas d'enfant AXWindow — repli sur géométrie exploitable, trouvé ? \(geometryMatch != nil) (rôle=\(geometryMatch.flatMap(role) ?? "?"))")
+        Log.dockGeometry.debug("findDockWindow — pas d'enfant AXWindow, repli sur géométrie exploitable, trouvé ? \(geometryMatch != nil, privacy: .public) (rôle=\(geometryMatch.flatMap(self.role) ?? "?", privacy: .public))")
         return geometryMatch
     }
 
@@ -309,51 +310,51 @@ final class DockGeometryProvider {
     // MARK: - Géométrie
 
     private func refreshGeometry() {
-        print("[DockExt][Geometry] refreshGeometry()")
+        Log.dockGeometry.debug("refreshGeometry()")
 
         guard isBottomOriented else {
-            print("[DockExt][Geometry] ⛔️ Dock non orienté en bas (orientation=\(dockDefaults?.string(forKey: "orientation") ?? "?")) → onChange(nil)")
+            Log.dockGeometry.info("Dock non orienté en bas (orientation=\(self.dockDefaults?.string(forKey: "orientation") ?? "?", privacy: .public)), extension non gérée dans cette configuration → onChange(nil)")
             onChange?(nil)
             return
         }
 
         if let window = dockWindowElement, !elementStillValid(window) {
-            print("[DockExt][Geometry] référence de fenêtre invalide, recherche d'une nouvelle fenêtre Dock")
+            Log.dockGeometry.debug("référence de fenêtre invalide, recherche d'une nouvelle fenêtre Dock")
             dockWindowElement = dockAppElement.flatMap(findDockWindow)
             attachWindowNotifications()
         }
 
         guard let window = dockWindowElement else {
-            print("[DockExt][Geometry] ⛔️ aucune fenêtre Dock disponible → onChange(nil)")
+            Log.dockGeometry.debug("aucune fenêtre Dock disponible → onChange(nil)")
             onChange?(nil)
             return
         }
 
         guard let axFrame = frame(of: window) else {
-            print("[DockExt][Geometry] ⛔️ impossible de lire position/taille de la fenêtre Dock → onChange(nil)")
+            Log.dockGeometry.debug("impossible de lire position/taille de la fenêtre Dock → onChange(nil)")
             onChange?(nil)
             return
         }
 
-        print("[DockExt][Geometry] frame AX brut = \(axFrame)")
+        Log.dockGeometry.debug("frame AX brut = \(String(describing: axFrame), privacy: .public)")
         let appKitFrame = convertToAppKitCoordinates(axFrame)
-        print("[DockExt][Geometry] frame converti (AppKit) = \(appKitFrame)")
+        Log.dockGeometry.debug("frame converti (AppKit) = \(String(describing: appKitFrame), privacy: .public)")
 
         guard let screen = screen(forAppKitFrame: appKitFrame) else {
-            print("[DockExt][Geometry] ⛔️ aucun écran ne correspond au frame → onChange(nil)")
+            Log.dockGeometry.debug("aucun écran ne correspond au frame → onChange(nil)")
             onChange?(nil)
             return
         }
-        print("[DockExt][Geometry] écran correspondant = \(screen.frame)")
+        Log.dockGeometry.debug("écran correspondant = \(String(describing: screen.frame), privacy: .public)")
 
         guard !isHidden(appKitFrame, on: screen) else {
-            print("[DockExt][Geometry] Dock considéré MASQUÉ (hauteur=\(appKitFrame.height), maxY=\(appKitFrame.maxY), screen.minY=\(screen.frame.minY)) → onChange(nil)")
+            Log.dockGeometry.debug("Dock considéré MASQUÉ (hauteur=\(appKitFrame.height, privacy: .public), maxY=\(appKitFrame.maxY, privacy: .public), screen.minY=\(screen.frame.minY, privacy: .public)) → onChange(nil)")
             onChange?(nil)
             return
         }
 
         let tileSize = dockDefaults?.double(forKey: "tilesize") ?? 64
-        print("[DockExt][Geometry] ✅ Dock VISIBLE — frame=\(appKitFrame), tileSize=\(tileSize) → onChange(geometry)")
+        Log.dockGeometry.debug("Dock VISIBLE — frame=\(String(describing: appKitFrame), privacy: .public), tileSize=\(tileSize, privacy: .public) → onChange(geometry)")
         onChange?(DockGeometry(frame: appKitFrame, screen: screen, tileSize: CGFloat(tileSize)))
     }
 

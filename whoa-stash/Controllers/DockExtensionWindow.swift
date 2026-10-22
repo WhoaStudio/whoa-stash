@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import OSLog
 
 /// Fenêtre flottante collée au bord droit du vrai Dock : même hauteur, même matériau, mêmes
 /// coins, même niveau de fenêtre que le Dock (`CGWindowLevelForKey(.dockWindow)`). La
@@ -51,13 +52,13 @@ final class DockExtensionWindow {
         maskLayer.backgroundColor = NSColor.black.cgColor
         contentView.layer?.mask = maskLayer
 
-        print("[DockExt][Window] init() — panel créé, level=\(panel.level.rawValue) (CGWindowLevelForKey(.dockWindow)=\(CGWindowLevelForKey(.dockWindow)))")
+        Log.dockExtension.debug("window: init() — panel créé, level=\(self.panel.level.rawValue, privacy: .public) (CGWindowLevelForKey(.dockWindow)=\(CGWindowLevelForKey(.dockWindow), privacy: .public))")
     }
 
     /// Reconstruit les icônes affichées ; n'affecte pas la visibilité en cours (le
     /// contrôleur appelle `reveal`/`hide` séparément selon la géométrie du Dock).
     func setSlots(_ slots: [ResolvedDockSlot], tileSize: CGFloat) {
-        print("[DockExt][Window] setSlots() — \(slots.count) slot(s): \(slots.map { $0.name }), tileSize=\(tileSize)")
+        Log.dockExtension.debug("window: setSlots() — \(slots.count, privacy: .public) slot(s): \(slots.map { $0.name }.description), tileSize=\(tileSize, privacy: .public)")
         iconViews.forEach { $0.removeFromSuperview() }
         iconViews = slots.map { slot in
             let icon = DockExtensionIconView(slot: slot, tileSize: tileSize)
@@ -73,7 +74,7 @@ final class DockExtensionWindow {
     func reposition(against geometry: DockGeometry, side: EdgePosition) {
         currentSide = side
         let frame = windowFrame(for: geometry, side: side)
-        print("[DockExt][Window] reposition() — frame=\(frame), side=\(side)")
+        Log.dockExtension.debug("window: reposition() — frame=\(String(describing: frame), privacy: .public), side=\(side.rawValue, privacy: .public)")
         contentView.cornerRadius = geometry.frame.height * cornerRadiusRatio
         panel.setFrame(frame, display: true)
         contentView.frame = NSRect(origin: .zero, size: frame.size)
@@ -84,7 +85,7 @@ final class DockExtensionWindow {
     }
 
     func reveal(against geometry: DockGeometry, side: EdgePosition) {
-        print("[DockExt][Window] reveal() appelé — isRevealed=\(isRevealed), iconViews.count=\(iconViews.count), side=\(side)")
+        Log.dockExtension.debug("window: reveal() appelé — isRevealed=\(self.isRevealed, privacy: .public), iconViews.count=\(self.iconViews.count, privacy: .public), side=\(side.rawValue, privacy: .public)")
         guard !isRevealed else {
             reposition(against: geometry, side: side)
             return
@@ -92,7 +93,7 @@ final class DockExtensionWindow {
 
         currentSide = side
         let frame = windowFrame(for: geometry, side: side)
-        print("[DockExt][Window] reveal() — frame calculé=\(frame), panel.isVisible avant=\(panel.isVisible)")
+        Log.dockExtension.debug("window: reveal() — frame calculé=\(String(describing: frame), privacy: .public), panel.isVisible avant=\(self.panel.isVisible, privacy: .public)")
         contentView.cornerRadius = geometry.frame.height * cornerRadiusRatio
         panel.setFrame(frame, display: true)
         contentView.frame = NSRect(origin: .zero, size: frame.size)
@@ -104,14 +105,14 @@ final class DockExtensionWindow {
         panel.orderFrontRegardless()
         panel.ignoresMouseEvents = false
         isRevealed = true
-        print("[DockExt][Window] reveal() — panel.orderFrontRegardless() exécuté, panel.isVisible après=\(panel.isVisible), frame réel=\(panel.frame)")
+        Log.dockExtension.debug("window: reveal() — orderFrontRegardless() exécuté, panel.isVisible après=\(self.panel.isVisible, privacy: .public), frame réel=\(String(describing: self.panel.frame), privacy: .public)")
 
         animateMaskWidth(to: frame.size.width, duration: revealDuration)
         contentView.revealIcons(duration: revealDuration)
     }
 
     func hide() {
-        print("[DockExt][Window] hide() appelé — isRevealed=\(isRevealed)")
+        Log.dockExtension.debug("window: hide() appelé — isRevealed=\(self.isRevealed, privacy: .public)")
         guard isRevealed else { return }
         isRevealed = false
         panel.ignoresMouseEvents = true
@@ -119,7 +120,7 @@ final class DockExtensionWindow {
         contentView.hideIcons(duration: hideDuration)
         animateMaskWidth(to: 0, duration: hideDuration) { [weak self] in
             guard let self, !self.isRevealed else { return }
-            print("[DockExt][Window] hide() — animation terminée, orderOut(nil)")
+            Log.dockExtension.debug("window: hide() — animation terminée, orderOut(nil)")
             self.panel.orderOut(nil)
         }
     }
@@ -150,7 +151,7 @@ final class DockExtensionWindow {
             originX = geometry.frame.minX - dockGap - width
         }
 
-        print("[DockExt][Window] windowFrame() — dockFrame=\(geometry.frame), gap=\(dockGap), side=\(side), screen=\(geometry.screen.frame), desiredWidth=\(desiredWidth), width final=\(width)")
+        Log.dockExtension.debug("window: windowFrame() — dockFrame=\(String(describing: geometry.frame), privacy: .public), gap=\(self.dockGap, privacy: .public), side=\(side.rawValue, privacy: .public), screen=\(String(describing: geometry.screen.frame), privacy: .public), desiredWidth=\(desiredWidth, privacy: .public), width final=\(width, privacy: .public)")
         return NSRect(x: originX, y: geometry.frame.minY, width: width, height: geometry.frame.height)
     }
 
