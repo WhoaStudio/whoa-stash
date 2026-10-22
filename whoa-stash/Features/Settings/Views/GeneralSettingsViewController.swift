@@ -4,7 +4,7 @@ import Combine
 /// Écran "General" : lancement au démarrage, apparence, couleur d'accent, animations,
 /// retour haptique et sonore. Ne contient aucune logique — tout transite par
 /// `GeneralSettingsViewModel`.
-final class GeneralSettingsView: SettingsSectionViewController {
+final class GeneralSettingsViewController: SettingsSectionViewController {
 
     private let viewModel = GeneralSettingsViewModel()
     private var cancellable: AnyCancellable?

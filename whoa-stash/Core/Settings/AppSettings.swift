@@ -1,21 +1,5 @@
 import AppKit
 
-/// Bord de l'écran où un widget est ancré. Partagé par le slider de volume (`edgeSlider`)
-/// et l'overlay de luminosité (`brightness.widgetPosition`).
-enum EdgePosition: String, Codable, CaseIterable, Identifiable, Sendable {
-    case left
-    case right
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .left: return "Left Edge"
-        case .right: return "Right Edge"
-        }
-    }
-}
-
 /// Thème de l'interface. `.system` suit l'apparence macOS en direct.
 enum AppearanceMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case system

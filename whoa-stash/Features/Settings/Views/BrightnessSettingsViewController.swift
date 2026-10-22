@@ -3,7 +3,7 @@ import Combine
 
 /// Écran "Brightness" : visibilité de l'overlay, pourcentage, délai de fermeture, intensité
 /// du glow, sensibilité au scroll, position et taille du widget.
-final class BrightnessSettingsView: SettingsSectionViewController {
+final class BrightnessSettingsViewController: SettingsSectionViewController {
 
     private let viewModel = BrightnessSettingsViewModel()
     private var cancellable: AnyCancellable?

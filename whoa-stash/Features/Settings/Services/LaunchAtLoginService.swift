@@ -3,7 +3,7 @@ import OSLog
 import ServiceManagement
 
 /// Enregistre ou désenregistre l'app comme élément de lancement au démarrage de session.
-/// Isolé dans un service dédié pour que `AppSettingsStore` reste une simple persistance,
+/// Isolé dans un service dédié pour que `SettingsStorage` reste une simple persistance,
 /// sans effet de bord système dans son `didSet`.
 final class LaunchAtLoginService {
 

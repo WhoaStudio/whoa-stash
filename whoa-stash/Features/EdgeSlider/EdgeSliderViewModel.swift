@@ -2,7 +2,7 @@ import Foundation
 
 /// Traduit le geste de drag de `EdgeSliderView` en réglage de volume, en appliquant la
 /// sensibilité configurée par l'utilisateur. Miroir de `BrightnessViewModel` : la vue ne
-/// connaît ni `VolumeControlling` ni `AppSettingsStore`, seulement ce ViewModel.
+/// connaît ni `VolumeControlling` ni `SettingsStorage`, seulement ce ViewModel.
 @MainActor
 final class EdgeSliderViewModel {
 

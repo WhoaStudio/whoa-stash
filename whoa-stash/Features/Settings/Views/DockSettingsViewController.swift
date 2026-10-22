@@ -3,7 +3,7 @@ import Combine
 
 /// Écran "Dock Extension" : activation globale, puis un slot par emplacement (icône +
 /// chemin de l'app choisie, bouton "Choose…", bouton "Clear" quand un slot n'est pas vide).
-final class DockSettingsView: SettingsSectionViewController {
+final class DockSettingsViewController: SettingsSectionViewController {
 
     private let viewModel = DockSettingsViewModel()
     private var cancellable: AnyCancellable?

@@ -147,10 +147,10 @@ private final class SettingsRootViewController: NSViewController {
 
     private func makeViewController(for category: SettingsCategory) -> NSViewController {
         switch category {
-        case .general: return GeneralSettingsView(animationsEnabled: animationsEnabled)
-        case .brightness: return BrightnessSettingsView(animationsEnabled: animationsEnabled)
-        case .dock: return DockSettingsView(animationsEnabled: animationsEnabled)
-        case .about: return AboutSettingsView(animationsEnabled: animationsEnabled)
+        case .general: return GeneralSettingsViewController(animationsEnabled: animationsEnabled)
+        case .brightness: return BrightnessSettingsViewController(animationsEnabled: animationsEnabled)
+        case .dock: return DockSettingsViewController(animationsEnabled: animationsEnabled)
+        case .about: return AboutSettingsViewController(animationsEnabled: animationsEnabled)
         }
     }
 }

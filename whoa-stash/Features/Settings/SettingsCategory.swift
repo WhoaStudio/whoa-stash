@@ -1,6 +1,4 @@
 import AppKit
-import Combine
-import Foundation
 
 /// Une catégorie de la sidebar des Préférences — ordre d'affichage = ordre des cas.
 enum SettingsCategory: String, CaseIterable, Identifiable {
@@ -39,11 +37,4 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .about: return .systemGreen
         }
     }
-}
-
-/// État de sélection de la fenêtre de Préférences — la seule chose que `SettingsWindowController`
-/// et `SidebarView` partagent.
-@MainActor
-final class SettingsViewModel: ObservableObject {
-    @Published var selectedCategory: SettingsCategory = .general
 }

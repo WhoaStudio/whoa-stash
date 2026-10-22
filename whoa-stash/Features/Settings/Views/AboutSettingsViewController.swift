@@ -2,7 +2,7 @@ import AppKit
 
 /// Écran "About" : icône, nom, version, copyright, liens GitHub et site — une mise en page
 /// centrée, pas une carte de formulaire.
-final class AboutSettingsView: NSViewController {
+final class AboutSettingsViewController: NSViewController {
 
     private let animationsEnabled: () -> Bool
 
