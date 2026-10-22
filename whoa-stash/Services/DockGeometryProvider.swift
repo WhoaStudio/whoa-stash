@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 @preconcurrency import ApplicationServices
 
 /// Suit la position et la visibilité du vrai Dock via l'Accessibility API. Les notifications
@@ -7,8 +8,10 @@ import AppKit
 /// sur les versions récentes de macOS, le Dock n'expose plus de véritable `AXWindow` — seulement
 /// une `AXList` qui ne supporte pas ces notifications (`AXObserverAddNotification` retourne
 /// `kAXErrorNotificationUnsupported`/-25207, vérifié en pratique). On complète donc avec un
-/// polling léger de la position/taille (2 lectures AX par tick) pendant que l'app tourne : c'est
-/// la seule méthode qui détecte de façon fiable l'apparition/disparition du Dock.
+/// polling de la position/taille (2 lectures AX par tick) : c'est la seule méthode qui détecte
+/// de façon fiable l'apparition/disparition du Dock. Sa cadence est adaptative — basse
+/// fréquence au repos, cadence d'animation seulement le temps de suivre un mouvement
+/// réellement détecté (voir `PollRate`).
 @MainActor
 final class DockGeometryProvider {
 
@@ -23,9 +26,34 @@ final class DockGeometryProvider {
     private var activationObserver: NSObjectProtocol?
     private var prefsObserver: NSObjectProtocol?
 
+    /// Cadence du polling AX. Le Dock ne bouge que pendant ses animations de glissement : le
+    /// reste du temps, l'interroger 60 fois par seconde revient à payer 120 allers-retours IPC
+    /// synchrones par seconde sur le thread principal pour apprendre que rien n'a changé. On
+    /// surveille donc à basse fréquence et on ne monte à la cadence d'animation que le temps de
+    /// suivre un mouvement détecté.
+    private enum PollRate {
+        /// Veille : repère le début d'un glissement en ~83 ms au pire — imperceptible devant
+        /// l'animation du Dock elle-même — pour 1/5 des lectures AX de l'ancienne cadence fixe.
+        case idle
+        /// Suivi d'un mouvement en cours : une lecture par frame, comme avant.
+        case active
+
+        var interval: TimeInterval {
+            switch self {
+            case .idle: return 1.0 / 12.0
+            case .active: return 1.0 / 60.0
+            }
+        }
+    }
+
     private var pollTimer: Timer?
     private var lastPolledFrame: CGRect?
-    private let pollInterval: TimeInterval = 1.0 / 60.0
+    private var pollRate: PollRate = .idle
+    private var lastPolledChange: CFTimeInterval = 0
+
+    /// Durée sans aucun changement de frame au bout de laquelle on repasse en veille. Plus longue
+    /// que l'animation de glissement du Dock, pour ne pas redescendre en plein mouvement.
+    private let activeLingerDuration: TimeInterval = 0.5
 
     private let dockDefaults = UserDefaults(suiteName: "com.apple.dock")
 
@@ -70,12 +98,10 @@ final class DockGeometryProvider {
 
     private func startPolling() {
         guard pollTimer == nil else { return }
-        print("[DockExt][Geometry] startPolling() — intervalle=\(pollInterval)s")
-        let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.pollTick() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        pollTimer = timer
+        print("[DockExt][Geometry] startPolling() — démarrage en veille (\(PollRate.idle.interval)s)")
+        pollRate = .idle
+        lastPolledChange = CACurrentMediaTime()
+        scheduleTimer(for: pollRate)
     }
 
     private func stopPolling() {
@@ -84,23 +110,68 @@ final class DockGeometryProvider {
         pollTimer?.invalidate()
         pollTimer = nil
         lastPolledFrame = nil
+        pollRate = .idle
     }
 
-    /// Tick à haute fréquence : ne fait que 2 lectures AX bon marché (position/taille) et compare
-    /// au tick précédent. Le traitement complet (`refreshGeometry`, avec toute sa journalisation)
-    /// n'est déclenché que lorsque le frame a réellement changé — donc typiquement uniquement
-    /// pendant l'animation de glissement du Dock, pas en continu pendant que l'app tourne.
+    /// `Timer` ne permet pas de changer son intervalle après coup : changer de cadence revient
+    /// donc à remplacer le timer.
+    private func scheduleTimer(for rate: PollRate) {
+        pollTimer?.invalidate()
+        // Le timer est ajouté à `RunLoop.main`, son bloc s'exécute donc toujours sur le thread
+        // principal : `assumeIsolated` suffit, là où un `Task { @MainActor in }` allouerait une
+        // tâche et un saut d'exécuteur à chaque tick.
+        let timer = Timer(timeInterval: rate.interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollTick() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
+    }
+
+    private func setPollRate(_ rate: PollRate) {
+        guard pollRate != rate else { return }
+        print("[DockExt][Geometry] cadence de polling → \(rate) (\(rate.interval)s)")
+        pollRate = rate
+        scheduleTimer(for: rate)
+    }
+
+    /// Ne fait que 2 lectures AX bon marché (position/taille) et compare au tick précédent. Le
+    /// traitement complet (`refreshGeometry`, avec toute sa journalisation) n'est déclenché que
+    /// lorsque le frame a réellement changé — donc uniquement pendant l'animation de glissement
+    /// du Dock, pas en continu pendant que l'app tourne.
     private func pollTick() {
         guard let window = dockWindowElement, let axFrame = frame(of: window) else {
-            guard lastPolledFrame != nil else { return }
+            guard lastPolledFrame != nil else {
+                relaxPollRateIfSettled()
+                return
+            }
             print("[DockExt][Geometry] pollTick(): fenêtre du Dock devenue illisible → refreshGeometry()")
             lastPolledFrame = nil
+            noteFrameChanged()
             refreshGeometry()
             return
         }
-        guard axFrame != lastPolledFrame else { return }
+        guard axFrame != lastPolledFrame else {
+            relaxPollRateIfSettled()
+            return
+        }
         lastPolledFrame = axFrame
+        noteFrameChanged()
         refreshGeometry()
+    }
+
+    /// Le Dock vient de bouger : on suit à la cadence d'animation et on repousse le retour
+    /// en veille.
+    private func noteFrameChanged() {
+        lastPolledChange = CACurrentMediaTime()
+        setPollRate(.active)
+    }
+
+    /// Rien n'a changé à ce tick : on retombe en veille dès que le Dock est immobile depuis
+    /// `activeLingerDuration`.
+    private func relaxPollRateIfSettled() {
+        guard pollRate == .active,
+              CACurrentMediaTime() - lastPolledChange >= activeLingerDuration else { return }
+        setPollRate(.idle)
     }
 
     // MARK: - Configuration AX
