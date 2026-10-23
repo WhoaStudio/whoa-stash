@@ -20,7 +20,7 @@ final class SidePanelContentView: NSView {
     /// (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans le bord de
     /// l'écran. À `largeur / 2`, les deux arcs se rejoignent tangentiellement sans segment droit
     /// entre eux — c'est la proportion de la référence.
-    private let cornerRadius: CGFloat = 28
+    private let cornerRadius = SidePanelGeometry.panelCornerRadius
 
     /// Durée du fondu seul : le glissement, lui, est porté par un ressort et dure le temps que
     /// met celui-ci à se stabiliser.
@@ -104,7 +104,7 @@ final class SidePanelContentView: NSView {
         strokeLayer.path = path
         layer?.shadowPath = path
 
-        ringStrip.frame = bounds.insetBy(dx: 0, dy: SidePanelGeometry.ringInset)
+        ringStrip.frame = bounds.insetBy(dx: 0, dy: SidePanelGeometry.ringVerticalInset)
     }
 
     /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et

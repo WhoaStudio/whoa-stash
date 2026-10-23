@@ -24,7 +24,10 @@ final class ClaudeUsageRingView: NSView {
     private let strokeWidthRatio: CGFloat = 0.11
     private let markDiameterRatio: CGFloat = 0.46
 
-    init(tileSize: CGFloat) {
+    private let mark: UsageMarkPath
+
+    init(tileSize: CGFloat, mark: UsageMarkPath = .claude) {
+        self.mark = mark
         super.init(frame: NSRect(x: 0, y: 0, width: tileSize, height: tileSize))
         wantsLayer = true
         setUp()
@@ -100,7 +103,6 @@ final class ClaudeUsageRingView: NSView {
         CATransaction.setDisableActions(!animated)
         progressLayer.strokeColor = color
         markLayer.fillColor = color
-        percentLayer.foregroundColor = NSColor.labelColor.cgColor
         CATransaction.commit()
 
         switch state {
@@ -117,7 +119,12 @@ final class ClaudeUsageRingView: NSView {
     }
 
     private func applyAppearance() {
+        let palette = OverlayPalette.resolved(for: effectiveAppearance)
         trackLayer.strokeColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        // Même encre que le reste de la bande : `NSColor.labelColor` se résolvait sur
+        // l'apparence de dessin courante et non sur celle de la vue, ce qui donnait un
+        // pourcentage noir sur fond sombre.
+        percentLayer.foregroundColor = palette.buttonSymbolColor.cgColor
     }
 
     // MARK: - Mise en page
@@ -156,7 +163,7 @@ final class ClaudeUsageRingView: NSView {
 
         let markDiameter = ringDiameter * markDiameterRatio
         markLayer.frame = bounds
-        markLayer.path = ClaudeMarkPath.path(
+        markLayer.path = mark.path(
             in: CGRect(
                 x: ringCenter.x - markDiameter / 2,
                 y: ringCenter.y - markDiameter / 2,

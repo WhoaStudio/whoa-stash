@@ -4,15 +4,16 @@ import AppKit
 /// jauge, pour que la bague du Dock et les barres du panneau ne puissent pas diverger.
 enum ClaudeUsagePalette {
 
-    /// Vert identique à `OverlayPalette.activeTickColor` — le widget partage la signature
-    /// colorée du reste de l'overlay plutôt que d'introduire un second vert.
-    static let low = CGColor(red: 0x39 / 255, green: 0xFF / 255, blue: 0x88 / 255, alpha: 1)
+    /// Orange de Claude Code, et non le vert de l'overlay : une jauge peu remplie porte la
+    /// couleur de la marque plutôt qu'un feu vert, et toute l'échelle reste dans la même famille
+    /// chaude — l'intensité monte avec le remplissage au lieu de changer de teinte.
+    static let low = CGColor(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255, alpha: 1)
     static let medium = CGColor(red: 0xFF / 255, green: 0xB8 / 255, blue: 0x3D / 255, alpha: 1)
     static let high = CGColor(red: 0xFF / 255, green: 0x4A / 255, blue: 0x23 / 255, alpha: 1)
 
     /// Seuils de bascule. Les deux points de la référence tombent de part et d'autre : 7 % en
-    /// vert, 73 % en orange-rouge. Le palier ambre intermédiaire n'y apparaît pas — il évite
-    /// qu'une jauge passe du vert au rouge d'un coup à mi-course.
+    /// orange Claude, 73 % en orange-rouge. Le palier ambre intermédiaire évite qu'une jauge
+    /// change de teinte d'un coup à mi-course.
     static let mediumThreshold = 0.50
     static let highThreshold = 0.70
 

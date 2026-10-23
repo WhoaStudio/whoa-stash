@@ -21,9 +21,32 @@ enum SidePanelGeometry {
     static let ringSpacing: CGFloat = 16
     static let ringInset: CGFloat = 14
 
-    /// Nombre de bagues empilées dans la bande. Une seule source d'utilisation est branchée
-    /// aujourd'hui (Claude) ; la bande s'allonge d'elle-même dès qu'il y en aura d'autres.
-    static let ringCount = 1
+    /// Rayon de la silhouette du panneau, partagé avec `SidePanelContentView` : c'est lui qui
+    /// décide de la marge haute et basse, puisque les raccords concaves rognent la zone peinte
+    /// près des deux extrémités.
+    static let panelCornerRadius: CGFloat = 28
+
+    /// Marge haute et basse de la pile de bagues : le rayon de la silhouette, plus de quoi ne pas
+    /// raser le raccord. Sans elle, la première bague mord sur l'évasement et déborde du panneau.
+    static let ringVerticalInset: CGFloat = panelCornerRadius + 10
+
+    /// Une case de la bande : la marque qu'elle porte, et si une source de données l'alimente.
+    /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
+    /// neutre — en attendant que leur fournisseur soit raccordé.
+    struct RingSlot: Equatable {
+        let mark: UsageMarkPath
+        let isConnected: Bool
+    }
+
+    /// Les bagues empilées, de haut en bas. Seule celle de Claude a une source aujourd'hui ;
+    /// c'est aussi la seule à ouvrir la bulle de détail.
+    static let ringSlots: [RingSlot] = [
+        RingSlot(mark: .claude, isConnected: true),
+        RingSlot(mark: .codex, isConnected: false),
+        RingSlot(mark: .gemini, isConnected: false),
+    ]
+
+    static var ringCount: Int { ringSlots.count }
 
     /// Le panneau est désormais une bande étroite : il ne porte plus la carte d'utilisation mais
     /// seulement les bagues, la carte étant passée dans la bulle qui s'ouvre au survol.
@@ -35,7 +58,7 @@ enum SidePanelGeometry {
     static let minimumPanelHeight: CGFloat = 400
 
     static var panelHeight: CGFloat {
-        let content = 2 * ringInset
+        let content = 2 * ringVerticalInset
             + CGFloat(ringCount) * ringTileSize
             + CGFloat(max(0, ringCount - 1)) * ringSpacing
         return max(content, minimumPanelHeight)

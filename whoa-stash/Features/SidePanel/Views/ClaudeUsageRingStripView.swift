@@ -1,8 +1,8 @@
 import AppKit
 
-/// Contenu de la bande latérale : les bagues d'utilisation empilées, une par source. Une seule
-/// est branchée aujourd'hui (Claude) ; les suivantes viendront s'ajouter ici sans que la
-/// silhouette du panneau ni la bulle n'aient à changer.
+/// Contenu de la bande latérale : les bagues d'utilisation empilées, une par case déclarée dans
+/// `SidePanelGeometry.ringSlots`. Celles qui n'ont pas encore de source restent vides, avec leur
+/// marque en teinte neutre — elles ne sont pas alimentées par l'instantané Claude.
 ///
 /// La vue ne reçoit aucun événement de souris — la fenêtre du panneau laisse tout passer (voir
 /// `SidePanelWindow`) — donc c'est `SidePanelController` qui décide, depuis la position globale
@@ -12,12 +12,17 @@ final class ClaudeUsageRingStripView: NSView {
     private let rings: [ClaudeUsageRingView]
 
     override init(frame frameRect: NSRect) {
-        rings = (0..<SidePanelGeometry.ringCount).map { _ in
-            ClaudeUsageRingView(tileSize: SidePanelGeometry.ringTileSize)
+        rings = SidePanelGeometry.ringSlots.map { slot in
+            ClaudeUsageRingView(tileSize: SidePanelGeometry.ringTileSize, mark: slot.mark)
         }
         super.init(frame: frameRect)
         wantsLayer = true
         rings.forEach(addSubview)
+
+        // Les cases sans source partent — et restent — sur un anneau vide.
+        for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
+            ring.apply(.unavailable(reason: "Not connected"), animated: false)
+        }
     }
 
     @available(*, unavailable)
@@ -26,8 +31,9 @@ final class ClaudeUsageRingStripView: NSView {
     }
 
     func apply(_ state: ClaudeUsageState, animated: Bool) {
-        // Une seule source pour l'instant : toutes les bagues montrent l'utilisation Claude.
-        rings.forEach { $0.apply(state, animated: animated) }
+        for (position, ring) in rings.enumerated() where SidePanelGeometry.ringSlots[position].isConnected {
+            ring.apply(state, animated: animated)
+        }
     }
 
     /// Met en avant la bague survolée et laisse retomber les autres.
@@ -50,7 +56,11 @@ final class ClaudeUsageRingStripView: NSView {
         super.layout()
 
         let tile = SidePanelGeometry.ringTileSize
-        let spacing = SidePanelGeometry.ringSpacing
+        let gaps = CGFloat(max(1, rings.count - 1))
+        // Réparties sur toute la hauteur disponible plutôt que tassées en haut : la bande est
+        // plus haute que ses bagues, et l'espace en trop se distribue entre elles. L'écart ne
+        // descend jamais sous `ringSpacing`, qui reste le minimum lisible.
+        let spacing = max(SidePanelGeometry.ringSpacing, (bounds.height - CGFloat(rings.count) * tile) / gaps)
 
         // Empilées depuis le haut : la première bague est la plus proche de la barre de menus,
         // comme dans la référence.

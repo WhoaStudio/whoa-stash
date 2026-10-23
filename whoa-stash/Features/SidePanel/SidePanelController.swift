@@ -177,8 +177,10 @@ final class SidePanelController {
     private func updateRingHover(at location: NSPoint, on screen: NSScreen, displayID: CGDirectDisplayID) {
         guard let window = windows[displayID], let callout = callouts[displayID] else { return }
 
+        // Seules les bagues branchées ouvrent la bulle : les autres n'ont rien à montrer.
         let hovered = (0..<window.ringCount).first { index in
-            window.ringScreenRect(at: index)?.contains(location) ?? false
+            SidePanelGeometry.ringSlots[index].isConnected
+                && window.ringScreenRect(at: index)?.contains(location) ?? false
         }
 
         guard let hovered else {
