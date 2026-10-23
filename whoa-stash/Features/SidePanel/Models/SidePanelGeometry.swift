@@ -15,7 +15,7 @@ enum SidePanelGeometry {
     /// « Current session » et « Resets in 51 min » sur la même ligne. `ClaudeUsagePanelView`
     /// dérive ses propres marges de ce cadre.
     static let panelWidth: CGFloat = 320
-    static let panelHeight: CGFloat = 190
+    static let panelHeight: CGFloat = 200
 
     /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
     static let topInset: CGFloat = 8

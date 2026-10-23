@@ -13,9 +13,7 @@ final class ClaudeUsageRingView: NSView {
     var onHoverChanged: ((Bool, NSRect) -> Void)?
 
     private let contentLayer = CALayer()
-    private let trackLayer = CAShapeLayer()
-    private let progressLayer = CAShapeLayer()
-    private let markLayer = CAShapeLayer()
+    private let ring = ClaudeUsageRing()
     private let percentLayer = CATextLayer()
 
     private var trackingArea: NSTrackingArea?
@@ -25,8 +23,6 @@ final class ClaudeUsageRingView: NSView {
     /// avec les préférences de l'utilisateur, et l'anneau doit suivre sans constante codée.
     private let labelHeightRatio: CGFloat = 0.24
     private let gapRatio: CGFloat = 0.04
-    private let strokeWidthRatio: CGFloat = 0.11
-    private let markDiameterRatio: CGFloat = 0.46
 
     init(tileSize: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: tileSize, height: tileSize))
@@ -43,16 +39,7 @@ final class ClaudeUsageRingView: NSView {
         contentLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         layer?.addSublayer(contentLayer)
 
-        for shape in [trackLayer, progressLayer] {
-            shape.fillColor = nil
-            shape.lineCap = .round
-            contentLayer.addSublayer(shape)
-        }
-        // L'anneau part de midi et tourne dans le sens horaire : c'est le chemin lui-même qui
-        // porte cette orientation, `strokeEnd` n'a plus qu'à exprimer la fraction remplie.
-        progressLayer.strokeEnd = 0
-
-        contentLayer.addSublayer(markLayer)
+        ring.install(in: contentLayer)
 
         percentLayer.alignmentMode = .center
         percentLayer.truncationMode = .none
@@ -74,7 +61,7 @@ final class ClaudeUsageRingView: NSView {
         // il ne récupère pas l'échelle de la fenêtre tout seul.
         let scale = window?.backingScaleFactor ?? 2
         percentLayer.contentsScale = scale
-        markLayer.contentsScale = scale
+        ring.setContentsScale(scale)
     }
 
     // MARK: - État
@@ -85,25 +72,10 @@ final class ClaudeUsageRingView: NSView {
     }
 
     private func applyState(animated: Bool) {
-        let session = state.snapshot?.session
-
-        let fill = session.map { CGFloat($0.utilization) } ?? 0
-        let color = session.map { ClaudeUsagePalette.color(for: $0.utilization) }
-            ?? ClaudeUsagePalette.unavailable(for: effectiveAppearance)
-
-        if animated {
-            progressLayer.springAnimate(keyPath: "strokeEnd", to: fill, preset: .snappy)
-        } else {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            progressLayer.strokeEnd = fill
-            CATransaction.commit()
-        }
+        ring.apply(utilization: state.snapshot?.session.utilization, appearance: effectiveAppearance, animated: animated)
 
         CATransaction.begin()
         CATransaction.setDisableActions(!animated)
-        progressLayer.strokeColor = color
-        markLayer.fillColor = color
         percentLayer.foregroundColor = NSColor.labelColor.cgColor
         CATransaction.commit()
 
@@ -121,7 +93,7 @@ final class ClaudeUsageRingView: NSView {
     }
 
     private func applyAppearance() {
-        trackLayer.strokeColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        ring.applyAppearance(effectiveAppearance)
     }
 
     // MARK: - Mise en page
@@ -136,38 +108,11 @@ final class ClaudeUsageRingView: NSView {
         let labelHeight = tileSize * labelHeightRatio
         let gap = tileSize * gapRatio
         let ringDiameter = min(bounds.width, bounds.height - labelHeight - gap)
-        let strokeWidth = ringDiameter * strokeWidthRatio
 
         // L'anneau occupe le haut de la case, le pourcentage se loge dessous — comme dans la
         // référence, où le chiffre est posé sous la bague et non à l'intérieur.
         let ringCenter = CGPoint(x: bounds.midX, y: bounds.maxY - ringDiameter / 2)
-        let radius = (ringDiameter - strokeWidth) / 2
-
-        let circle = CGMutablePath()
-        circle.addArc(
-            center: ringCenter,
-            radius: radius,
-            startAngle: .pi / 2,
-            endAngle: .pi / 2 - 2 * .pi,
-            clockwise: true
-        )
-
-        for shape in [trackLayer, progressLayer] {
-            shape.frame = bounds
-            shape.path = circle
-            shape.lineWidth = strokeWidth
-        }
-
-        let markDiameter = ringDiameter * markDiameterRatio
-        markLayer.frame = bounds
-        markLayer.path = ClaudeMarkPath.path(
-            in: CGRect(
-                x: ringCenter.x - markDiameter / 2,
-                y: ringCenter.y - markDiameter / 2,
-                width: markDiameter,
-                height: markDiameter
-            )
-        )
+        ring.layout(in: bounds, center: ringCenter, diameter: ringDiameter)
 
         let fontSize = labelHeight * 0.86
         percentLayer.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
