@@ -141,6 +141,13 @@ final class DockExtensionWindow {
         isRevealed = false
         panel.ignoresMouseEvents = true
 
+        // La case s'en va sans que le curseur l'ait quittée : `mouseExited` n'arrivera jamais,
+        // c'est donc ici qu'il faut annoncer la fin du survol, sans quoi la bulle d'utilisation
+        // resterait ouverte indéfiniment.
+        if let usageRingView {
+            onUsageRingHoverChanged?(false, usageRingView.screenRect)
+        }
+
         contentView.hideTiles(duration: hideDuration)
         animateMaskWidth(to: 0, duration: hideDuration) { [weak self] in
             guard let self, !self.isRevealed else { return }

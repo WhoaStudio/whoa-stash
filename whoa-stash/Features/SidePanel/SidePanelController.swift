@@ -164,7 +164,8 @@ final class SidePanelController {
             Task { @MainActor in
                 guard let self else { return }
                 self.ringHideTimer = nil
-                guard !self.isHoveringRing, !self.isCursorOverActivePanel else { return }
+                let location = NSEvent.mouseLocation
+                guard !self.isCursorOnRing(at: location), !self.isCursorOverActivePanel else { return }
                 self.hideActive()
             }
         }
@@ -175,6 +176,14 @@ final class SidePanelController {
     private func cancelRingHide() {
         ringHideTimer?.invalidate()
         ringHideTimer = nil
+    }
+
+    /// `isHoveringRing` seul ne suffit pas : l'extension du Dock disparaît avec le Dock en
+    /// masquage automatique, et sa case part alors sans émettre de `mouseExited`. Le drapeau
+    /// resterait vrai et la bulle ne se refermerait plus jamais. La position du curseur, elle,
+    /// reste juste dans tous les cas.
+    private func isCursorOnRing(at location: NSPoint) -> Bool {
+        isHoveringRing && ringRect.contains(location)
     }
 
     private var isCursorOverActivePanel: Bool {
@@ -189,7 +198,7 @@ final class SidePanelController {
         // coin ni de l'écran sous le curseur, seulement du survol de la bague et du sien.
         if isRingAnchored {
             let overPanel = activeDisplay.flatMap { windows[$0] }?.frame.contains(location) ?? false
-            if isHoveringRing || overPanel {
+            if isCursorOnRing(at: location) || overPanel {
                 cancelRingHide()
             } else {
                 scheduleRingHide()
