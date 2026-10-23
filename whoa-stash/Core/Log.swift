@@ -35,4 +35,7 @@ enum Log {
 
     /// Menu bar et fenêtre de Préférences.
     nonisolated static let settings = Logger(subsystem: subsystem, category: "settings")
+
+    /// Panneau latéral et récupération de l'utilisation Claude.
+    nonisolated static let sidePanel = Logger(subsystem: subsystem, category: "side-panel")
 }
