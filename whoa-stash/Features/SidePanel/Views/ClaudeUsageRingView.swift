@@ -51,6 +51,9 @@ final class ClaudeUsageRingView: NSView {
         // porte cette orientation, `strokeEnd` n'a plus qu'à exprimer la fraction remplie.
         progressLayer.strokeEnd = 0
 
+        // Le tracé officiel d'OpenAI se referme sur lui-même : sans « even-odd », son nœud
+        // central se remplirait.
+        markLayer.fillRule = mark.usesEvenOddFill ? .evenOdd : .nonZero
         contentLayer.addSublayer(markLayer)
 
         percentLayer.alignmentMode = .center

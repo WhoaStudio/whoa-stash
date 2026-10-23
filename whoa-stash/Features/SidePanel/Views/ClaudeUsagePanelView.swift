@@ -94,7 +94,7 @@ final class ClaudeUsagePanelView: NSView {
 
         let markSize = headerHeight * 0.82
         markLayer.frame = bounds
-        markLayer.path = ClaudeMarkPath.path(
+        markLayer.path = UsageMarkPath.claude.path(
             in: CGRect(
                 x: leadingInset,
                 y: headerTop + (headerHeight - markSize) / 2,
