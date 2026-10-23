@@ -1,24 +1,45 @@
 import AppKit
 
 /// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// droit, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à la bague
-/// d'utilisation du Dock. Tout est exprimé en coordonnées globales AppKit (origine en bas à
-/// gauche de l'écran principal, axe Y vers le haut).
+/// droit, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
+/// bagues. Tout est exprimé en coordonnées globales AppKit (origine en bas à gauche de l'écran
+/// principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
     /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord droit.
     static let hotZoneWidth: CGFloat = 20
     static let hotZoneHeight: CGFloat = 100
 
-    /// Dimensions dictées par le contenu : le panneau porte la carte d'utilisation Claude
-    /// (en-tête + deux lignes avec barre et pourcentage), qui a besoin de largeur pour tenir
-    /// « Current session » et « Resets in 51 min » sur la même ligne. `ClaudeUsagePanelView`
-    /// dérive ses propres marges de ce cadre.
-    static let panelWidth: CGFloat = 320
-    static let panelHeight: CGFloat = 190
-
     /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
     static let topInset: CGFloat = 8
+
+    // MARK: - Bande de bagues
+
+    /// Côté d'une case de bague — la bague elle-même plus le pourcentage posé dessous, voir
+    /// `ClaudeUsageRingView`.
+    static let ringTileSize: CGFloat = 60
+    static let ringSpacing: CGFloat = 16
+    static let ringInset: CGFloat = 14
+
+    /// Nombre de bagues empilées dans la bande. Une seule source d'utilisation est branchée
+    /// aujourd'hui (Claude) ; la bande s'allonge d'elle-même dès qu'il y en aura d'autres.
+    static let ringCount = 1
+
+    /// Le panneau est désormais une bande étroite : il ne porte plus la carte d'utilisation mais
+    /// seulement les bagues, la carte étant passée dans la bulle qui s'ouvre au survol.
+    static let panelWidth: CGFloat = ringTileSize + 2 * ringInset
+
+    /// Hauteur plancher de la bande : elle garde sa silhouette haute et élancée même avec une
+    /// seule bague, les suivantes venant remplir la place déjà réservée. Au-delà, c'est le
+    /// contenu qui commande.
+    static let minimumPanelHeight: CGFloat = 400
+
+    static var panelHeight: CGFloat {
+        let content = 2 * ringInset
+            + CGFloat(ringCount) * ringTileSize
+            + CGFloat(max(0, ringCount - 1)) * ringSpacing
+        return max(content, minimumPanelHeight)
+    }
 
     static func hotZone(on screen: NSScreen) -> NSRect {
         let frame = screen.frame
@@ -44,50 +65,81 @@ enum SidePanelGeometry {
     }
 }
 
-// MARK: - Bulle ancrée à la bague
+// MARK: - Bulle ancrée à une bague
 
 extension SidePanelGeometry {
 
-    /// Pointe de la bulle : elle dépasse sous le corps et vise le centre de la bague.
+    /// Dimensions de la carte d'utilisation portée par la bulle : elle a besoin de largeur pour
+    /// tenir « Current session » et « Resets in 51 min » sur la même ligne.
+    static let calloutWidth: CGFloat = 320
+    static let calloutHeight: CGFloat = 190
+
+    /// Pointe de la bulle : elle dépasse sur le côté du corps et vise la bague.
     static let tailLength: CGFloat = 11
     static let tailWidth: CGFloat = 20
 
-    /// Écart entre le haut de la bague et la pointe — assez petit pour que le curseur traverse
+    /// Écart entre le bord de la bague et la pointe — assez petit pour que le curseur traverse
     /// sans que la bulle se referme, assez grand pour que les deux ne se touchent pas.
     static let tailGap: CGFloat = 8
 
     /// Marge minimale conservée avec les bords de l'écran quand la bague est près d'un coin.
     static let calloutScreenMargin: CGFloat = 10
 
-    /// Cadre complet de la bulle, **pointe comprise** : le corps occupe le haut, la pointe les
-    /// `tailLength` points du bas. La bulle est centrée sur la bague, puis ramenée dans l'écran
-    /// si elle en sortait — c'est le seul cas où la pointe n'est plus au milieu du corps, et
-    /// `tailCenterX(for:ringRect:)` s'en charge.
-    static func calloutFrame(anchoredTo ringRect: NSRect, on screen: NSScreen) -> NSRect {
+    /// Rayon des quatre coins de la bulle. Plus serré que celui du panneau, qui s'évase dans le
+    /// bord de l'écran.
+    static let calloutCornerRadius: CGFloat = 18
+
+    /// Bord du corps d'où sort la pointe. `.right` signifie que la bulle est posée **à gauche**
+    /// de la bague et pointe vers elle, vers la droite — le cas de la bande accrochée au bord
+    /// droit de l'écran.
+    enum TailEdge: Equatable {
+        case left
+        case right
+    }
+
+    /// Ce que la vue a besoin pour dessiner sa silhouette : de quel bord sort la pointe, et à
+    /// quelle hauteur dans son propre repère.
+    struct Tail: Equatable {
+        var edge: TailEdge
+        var centerY: CGFloat
+    }
+
+    /// Cadre complet de la bulle, **pointe comprise**, et la pointe qui va avec.
+    struct Callout: Equatable {
+        var frame: NSRect
+        var tail: Tail
+    }
+
+    /// Pose la bulle à côté de la bague : de préférence à sa gauche, comme dans la référence, et
+    /// à sa droite quand l'écran manque de place de ce côté. Elle est centrée verticalement sur
+    /// la bague, puis ramenée dans l'écran si elle en sortait — c'est le seul cas où la pointe
+    /// n'est plus au milieu du corps.
+    static func callout(anchoredTo ringRect: NSRect, on screen: NSScreen) -> Callout {
         let visible = screen.visibleFrame
-        let height = panelHeight + tailLength
+        let width = calloutWidth + tailLength
 
         let minX = visible.minX + calloutScreenMargin
-        let maxX = max(minX, visible.maxX - panelWidth - calloutScreenMargin)
-        let x = min(max(ringRect.midX - panelWidth / 2, minX), maxX)
+        let maxX = max(minX, visible.maxX - width - calloutScreenMargin)
 
-        // La bulle se pose au-dessus de la bague ; si l'écran manque de hauteur au-dessus du
-        // Dock, elle redescend juste sous la barre de menus plutôt que de passer dessous.
-        let maxY = max(visible.minY, visible.maxY - height - calloutScreenMargin)
-        let y = min(ringRect.maxY + tailGap, maxY)
+        // À gauche de la bague tant qu'elle y tient entièrement ; sinon de l'autre côté.
+        let leftX = ringRect.minX - tailGap - width
+        let edge: TailEdge = leftX >= minX ? .right : .left
+        let rawX = edge == .right ? leftX : ringRect.maxX + tailGap
+        let x = min(max(rawX, minX), maxX)
 
-        return NSRect(x: x, y: y, width: panelWidth, height: height)
+        let minY = visible.minY + calloutScreenMargin
+        let maxY = max(minY, visible.maxY - calloutHeight - calloutScreenMargin)
+        let y = min(max(ringRect.midY - calloutHeight / 2, minY), maxY)
+
+        let frame = NSRect(x: x, y: y, width: width, height: calloutHeight)
+        return Callout(frame: frame, tail: Tail(edge: edge, centerY: tailCenterY(for: frame, ringRect: ringRect)))
     }
 
-    /// Abscisse de la pointe dans le repère de la vue (origine au coin bas-gauche du cadre) :
+    /// Ordonnée de la pointe dans le repère de la vue (origine au coin bas-gauche du cadre) :
     /// elle suit le centre de la bague, sans jamais mordre sur les coins arrondis.
-    static func tailCenterX(for frame: NSRect, ringRect: NSRect) -> CGFloat {
+    private static func tailCenterY(for frame: NSRect, ringRect: NSRect) -> CGFloat {
         let inset = calloutCornerRadius + tailWidth / 2
-        let raw = ringRect.midX - frame.minX
-        return min(max(raw, inset), frame.width - inset)
+        let raw = ringRect.midY - frame.minY
+        return min(max(raw, inset), frame.height - inset)
     }
-
-    /// Rayon des quatre coins de la bulle. Plus serré que celui du panneau de bord, qui vaut la
-    /// moitié de sa largeur pour évaser la silhouette dans le bord de l'écran.
-    static let calloutCornerRadius: CGFloat = 18
 }

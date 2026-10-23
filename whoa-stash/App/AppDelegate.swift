@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var edgeSliderController: EdgeSliderController?
     private var brightnessOverlayController: BrightnessOverlayController?
-    private var dockExtensionController: DockExtensionController?
     private var sidePanelController: SidePanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
 
@@ -32,17 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         brightnessOverlayController?.activate()
 
-        // Extension du Dock : panneau flottant collé au Dock système, icônes configurables.
-        dockExtensionController = DockExtensionController(storage: settings)
-        dockExtensionController?.activate()
-
         // Panneau latéral : glisse depuis le bord droit quand le curseur entre dans la zone
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
         sidePanelController = SidePanelController(storage: settings)
         sidePanelController?.activate()
 
-        // Utilisation Claude : un seul modèle de vue alimente la bague du Dock et le panneau
-        // latéral, pour qu'ils montrent le même instantané et qu'un seul appel réseau les serve.
+        // Utilisation Claude : le modèle de vue alimente la bande latérale, et un seul appel
+        // réseau la sert.
         // `--claude-usage=73,7` substitue des valeurs fixes à la vraie source (voir
         // `MockClaudeUsageProvider`), pour développer et vérifier sans réseau ni trousseau.
         let usageProvider: ClaudeUsageProviding = MockClaudeUsageProvider.fromLaunchArguments() ?? ClaudeUsageService()
@@ -51,24 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         usageViewModel.onStateChanged = { [weak self] in
             guard let self, let state = self.claudeUsageViewModel?.state else { return }
-            self.dockExtensionController?.apply(usageState: state)
             self.sidePanelController?.apply(usageState: state)
-        }
-
-        dockExtensionController?.onUsageRingHoverChanged = { [weak self] hovering, ringRect in
-            if hovering {
-                // Rafraîchissement opportuniste : la bulle s'ouvre tout de suite avec le dernier
-                // instantané connu, et se met à jour dès que la requête revient.
-                self?.claudeUsageViewModel?.refresh()
-            }
-            self?.sidePanelController?.setRingHover(hovering, ringRect: ringRect)
         }
 
         usageViewModel.activate()
 
-        // Ouvre la carte d'utilisation sans passer par le survol du coin ni par celui de la
-        // bague — c'est ce qui la rend vérifiable sur capture d'écran, au même titre que
-        // `--show-settings` pour les Préférences.
+        // Ouvre la bande sans passer par le survol du coin — c'est ce qui la rend vérifiable
+        // sur capture d'écran, au même titre que `--show-settings` pour les Préférences.
         if CommandLine.arguments.contains("--show-usage-panel") {
             sidePanelController?.togglePinnedReveal()
         }

@@ -1,7 +1,7 @@
 import AppKit
 
 /// Une ligne pouvant être hébergée par `SettingsCardView` : `SettingsRowView` (titre +
-/// contrôle) ou une ligne au contenu plus spécifique comme `DockSlotRowView`.
+/// contrôle) ou une ligne au contenu plus spécifique.
 protocol SettingsCardRow: NSView {
     var showsSeparator: Bool { get set }
 }

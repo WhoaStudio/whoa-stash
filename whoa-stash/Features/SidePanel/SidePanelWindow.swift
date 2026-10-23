@@ -47,10 +47,25 @@ final class SidePanelWindow {
         panel.appearance = appearanceMode.nsAppearance
     }
 
-    func reveal(in frame: NSRect, shape: SidePanelContentView.Shape) {
-        // La silhouette d'abord : elle décide de l'axe du glissement et de la mise en page du
-        // contenu, que `setFrame` va justement appliquer.
-        contentView.shape = shape
+    var isVisible: Bool { isRevealed }
+
+    /// Met en avant la bague survolée — le contrôleur la désigne depuis la position du curseur,
+    /// la fenêtre ne recevant aucun événement.
+    func setHighlightedRing(_ index: Int?) {
+        contentView.setHighlightedRing(index)
+    }
+
+    var ringCount: Int { contentView.ringCount }
+
+    /// Cadre d'une bague en coordonnées globales AppKit, le repère dans lequel raisonnent
+    /// `SidePanelGeometry` et `SidePanelController`. La vue de contenu remplit la fenêtre, donc
+    /// un simple décalage suffit.
+    func ringScreenRect(at index: Int) -> NSRect? {
+        guard let frame = contentView.ringFrame(at: index) else { return nil }
+        return frame.offsetBy(dx: panel.frame.minX, dy: panel.frame.minY)
+    }
+
+    func reveal(in frame: NSRect) {
         setFrame(frame)
         guard !isRevealed else { return }
         isRevealed = true

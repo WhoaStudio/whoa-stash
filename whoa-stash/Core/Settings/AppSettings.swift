@@ -93,37 +93,6 @@ struct BrightnessSettings: Codable, Equatable, Sendable {
     var enableOverlay: Bool = true
 }
 
-struct DockExtensionSettings: Codable, Equatable, Sendable {
-    static let slotCount = 5
-
-    var isEnabled: Bool = true
-    var slots: [DockExtensionSlot] = (0..<DockExtensionSettings.slotCount).map { DockExtensionSlot(index: $0, appPath: nil) }
-    /// Côté du Dock où l'extension apparaît.
-    var side: EdgePosition = .right
-
-    init(
-        isEnabled: Bool = true,
-        slots: [DockExtensionSlot] = (0..<DockExtensionSettings.slotCount).map({ DockExtensionSlot(index: $0, appPath: nil) }),
-        side: EdgePosition = .right
-    ) {
-        self.isEnabled = isEnabled
-        self.slots = slots
-        self.side = side
-    }
-
-    // Décodeur manuel : `side` est un champ ajouté après coup. Le JSON déjà persisté chez les
-    // utilisateurs existants ne l'a pas, et le décodage synthétisé par défaut échouerait sur la
-    // clé manquante (`try?` dans `SettingsStorage` réinitialiserait alors TOUT `AppSettings`,
-    // pas seulement ce champ). `decodeIfPresent` + repli rend l'ajout rétro-compatible.
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
-        slots = try container.decodeIfPresent([DockExtensionSlot].self, forKey: .slots)
-            ?? (0..<DockExtensionSettings.slotCount).map { DockExtensionSlot(index: $0, appPath: nil) }
-        side = try container.decodeIfPresent(EdgePosition.self, forKey: .side) ?? .right
-    }
-}
-
 /// Réglages du slider de volume ancré au bord de l'écran — pas de section dédiée dans les
 /// Préférences aujourd'hui, mais centralisés ici comme le reste.
 struct EdgeSliderSettings: Codable, Equatable, Sendable {
@@ -138,7 +107,6 @@ struct EdgeSliderSettings: Codable, Equatable, Sendable {
 struct AppSettings: Codable, Equatable, Sendable {
     var general = GeneralSettings()
     var brightness = BrightnessSettings()
-    var dock = DockExtensionSettings()
     var edgeSlider = EdgeSliderSettings()
 
     static let `default` = AppSettings()

@@ -4,7 +4,6 @@ import AppKit
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case general
     case brightness
-    case dock
     case about
 
     var id: String { rawValue }
@@ -13,7 +12,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "General"
         case .brightness: return "Brightness"
-        case .dock: return "Dock Extension"
         case .about: return "About"
         }
     }
@@ -22,7 +20,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .brightness: return "sun.max"
-        case .dock: return "dock.rectangle"
         case .about: return "info.circle"
         }
     }
@@ -33,7 +30,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return .systemBlue
         case .brightness: return .systemOrange
-        case .dock: return .systemPurple
         case .about: return .systemGreen
         }
     }

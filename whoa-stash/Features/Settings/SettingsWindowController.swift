@@ -149,7 +149,6 @@ private final class SettingsRootViewController: NSViewController {
         switch category {
         case .general: return GeneralSettingsViewController(animationsEnabled: animationsEnabled)
         case .brightness: return BrightnessSettingsViewController(animationsEnabled: animationsEnabled)
-        case .dock: return DockSettingsViewController(animationsEnabled: animationsEnabled)
         case .about: return AboutSettingsViewController(animationsEnabled: animationsEnabled)
         }
     }

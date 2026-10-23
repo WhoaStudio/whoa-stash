@@ -1,38 +1,20 @@
 import AppKit
 
-/// Contenu du panneau latéral : une carte quasi opaque accrochée au bord droit de l'écran,
-/// arrondie du côté intérieur et évasée dans le bord, portant la carte d'utilisation Claude
-/// (`ClaudeUsagePanelView`). Porte aussi l'animation d'entrée/sortie (glissement depuis le bord
-/// droit + fondu), appliquée à son propre calque.
+/// Contenu du panneau latéral : une bande quasi opaque accrochée au bord droit de l'écran,
+/// arrondie du côté intérieur et évasée dans le bord, portant les bagues d'utilisation
+/// (`ClaudeUsageRingStripView`). La carte détaillée, elle, vit dans la bulle qui s'ouvre au
+/// survol d'une bague (`UsageCalloutWindow`).
 ///
-/// Mise en page entièrement en frames, comme le reste de l'overlay (`DockExtensionContentView`,
-/// `BrightnessBarView`) — pas de contraintes Auto Layout.
+/// Porte aussi l'animation d'entrée/sortie (glissement depuis le bord droit + fondu), appliquée
+/// à son propre calque.
+///
+/// Mise en page entièrement en frames, comme le reste de l'overlay (`BrightnessBarView`) —
+/// pas de contraintes Auto Layout.
 final class SidePanelContentView: NSView {
-
-    /// Les deux silhouettes que porte cette vue. `screenEdge` est la carte accrochée au bord
-    /// droit de l'écran (survol du coin supérieur droit) ; `callout` est la bulle posée au-dessus
-    /// de la bague du Dock, dont la pointe vise celle-ci.
-    enum Shape: Equatable {
-        case screenEdge
-        /// Abscisse de la pointe dans le repère de la vue — voir `SidePanelGeometry.tailCenterX`.
-        case callout(tailCenterX: CGFloat)
-
-        var isCallout: Bool {
-            if case .callout = self { return true }
-            return false
-        }
-    }
-
-    var shape: Shape = .screenEdge {
-        didSet {
-            guard shape != oldValue else { return }
-            needsLayout = true
-        }
-    }
 
     private let backgroundLayer = CAShapeLayer()
     private let strokeLayer = CAShapeLayer()
-    private let usageView = ClaudeUsagePanelView()
+    private let ringStrip = ClaudeUsageRingStripView()
 
     /// Rayon unique de toute la silhouette : il vaut à la fois pour les deux coins convexes
     /// (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans le bord de
@@ -64,7 +46,7 @@ final class SidePanelContentView: NSView {
         strokeLayer.lineWidth = 1
         layer?.addSublayer(strokeLayer)
 
-        addSubview(usageView)
+        addSubview(ringStrip)
 
         // L'ombre est portée ici plutôt que par la fenêtre : l'ombre système serait calculée sur
         // le cadre complet et resterait donc visible au bord de l'écran pendant que le contenu
@@ -89,16 +71,30 @@ final class SidePanelContentView: NSView {
         strokeLayer.strokeColor = palette.strokeColor
     }
 
-    /// Relayé par `SidePanelWindow` depuis le modèle de vue partagé avec la bague du Dock : les
-    /// deux surfaces montrent toujours le même instantané.
+    /// Relayé par `SidePanelWindow` depuis le modèle de vue partagé avec la bulle : les deux
+    /// surfaces montrent toujours le même instantané.
     func apply(usageState: ClaudeUsageState, animated: Bool) {
-        usageView.apply(usageState, animated: animated)
+        ringStrip.apply(usageState, animated: animated)
     }
+
+    /// Met en avant la bague survolée — le contrôleur la désigne depuis la position du curseur.
+    func setHighlightedRing(_ index: Int?) {
+        ringStrip.setHighlightedRing(index)
+    }
+
+    /// Cadre d'une bague dans le repère de cette vue : `SidePanelWindow` le convertit en
+    /// coordonnées écran pour que la bulle sache où pointer.
+    func ringFrame(at index: Int) -> NSRect? {
+        guard let frame = ringStrip.ringFrame(at: index) else { return nil }
+        return ringStrip.convert(frame, to: self)
+    }
+
+    var ringCount: Int { ringStrip.ringCount }
 
     override func layout() {
         super.layout()
 
-        let path = currentPath(in: bounds)
+        let path = panelPath(in: bounds)
         backgroundLayer.frame = bounds
         backgroundLayer.path = path
         strokeLayer.frame = bounds
@@ -108,59 +104,7 @@ final class SidePanelContentView: NSView {
         strokeLayer.path = path
         layer?.shadowPath = path
 
-        // Le contenu tient dans le corps : la pointe est une excroissance, rien ne s'y dessine.
-        usageView.frame = bodyRect(in: bounds)
-        // Le bord droit de la bulle est un bord comme un autre, alors que celui de la carte de
-        // bord touche l'écran et se fait rogner par les raccords concaves.
-        usageView.trailingInset = shape.isCallout ? usageView.leadingInset : SidePanelContentView.edgeTrailingInset
-    }
-
-    /// Marge droite de la carte accrochée au bord de l'écran — plus large que la gauche, voir
-    /// `ClaudeUsagePanelView`.
-    private static let edgeTrailingInset: CGFloat = 26
-
-    private func bodyRect(in rect: CGRect) -> CGRect {
-        guard shape.isCallout else { return rect }
-        return CGRect(
-            x: rect.minX,
-            y: rect.minY + SidePanelGeometry.tailLength,
-            width: rect.width,
-            height: rect.height - SidePanelGeometry.tailLength
-        )
-    }
-
-    private func currentPath(in rect: CGRect) -> CGPath {
-        switch shape {
-        case .screenEdge:
-            return panelPath(in: rect)
-        case .callout(let tailCenterX):
-            return calloutPath(in: rect, tailCenterX: tailCenterX)
-        }
-    }
-
-    /// Bulle : un rectangle arrondi classique, plus une pointe triangulaire sur le bord bas qui
-    /// vise la bague. Les coins sont décrits avec `addArc(tangent1End:tangent2End:)`, qui suffit
-    /// ici — contrairement à la carte de bord, cette silhouette n'a aucun raccord concave.
-    private func calloutPath(in rect: CGRect, tailCenterX: CGFloat) -> CGPath {
-        let body = bodyRect(in: rect)
-        let r = min(SidePanelGeometry.calloutCornerRadius, min(body.width, body.height) / 2)
-        let halfTail = SidePanelGeometry.tailWidth / 2
-        let tipY = body.minY - SidePanelGeometry.tailLength
-
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: body.minX + r, y: body.maxY))
-        path.addArc(tangent1End: CGPoint(x: body.maxX, y: body.maxY), tangent2End: CGPoint(x: body.maxX, y: body.minY), radius: r)
-        path.addArc(tangent1End: CGPoint(x: body.maxX, y: body.minY), tangent2End: CGPoint(x: body.minX, y: body.minY), radius: r)
-
-        // Bord bas parcouru vers la gauche, interrompu par la pointe.
-        path.addLine(to: CGPoint(x: tailCenterX + halfTail, y: body.minY))
-        path.addLine(to: CGPoint(x: tailCenterX, y: tipY))
-        path.addLine(to: CGPoint(x: tailCenterX - halfTail, y: body.minY))
-
-        path.addArc(tangent1End: CGPoint(x: body.minX, y: body.minY), tangent2End: CGPoint(x: body.minX, y: body.maxY), radius: r)
-        path.addArc(tangent1End: CGPoint(x: body.minX, y: body.maxY), tangent2End: CGPoint(x: body.maxX, y: body.maxY), radius: r)
-        path.closeSubpath()
-        return path
+        ringStrip.frame = bounds.insetBy(dx: 0, dy: SidePanelGeometry.ringInset)
     }
 
     /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et
@@ -227,15 +171,8 @@ final class SidePanelContentView: NSView {
 
     // MARK: - Animation
 
-    /// Axe et amplitude du glissement, dictés par la silhouette : la carte de bord vient de
-    /// derrière le bord droit de l'écran, la bulle monte de quelques points depuis la bague.
-    private var revealKeyPath: String {
-        shape.isCallout ? "transform.translation.y" : "transform.translation.x"
-    }
-
-    private var revealOffset: CGFloat {
-        shape.isCallout ? -12 : bounds.width
-    }
+    /// Amplitude du glissement : la bande vient de derrière le bord droit de l'écran.
+    private var revealOffset: CGFloat { bounds.width }
 
     /// Place le contenu à son point de départ, complètement transparent — à appeler avant
     /// d'afficher la fenêtre pour que la première image montrée soit déjà le début du glissement
@@ -246,16 +183,14 @@ final class SidePanelContentView: NSView {
         CATransaction.setDisableActions(true)
         // Les deux axes sont réinitialisés : une même fenêtre passe de la carte de bord à la
         // bulle, et le décalage de la silhouette précédente resterait sinon appliqué.
-        layer.setValue(CGFloat(0), forKeyPath: "transform.translation.x")
-        layer.setValue(CGFloat(0), forKeyPath: "transform.translation.y")
-        layer.setValue(revealOffset, forKeyPath: revealKeyPath)
+        layer.setValue(revealOffset, forKeyPath: "transform.translation.x")
         layer.opacity = 0
         CATransaction.commit()
     }
 
     func animateIn() {
         guard let layer else { return }
-        layer.springAnimate(keyPath: revealKeyPath, to: CGFloat(0), preset: .gentle)
+        layer.springAnimate(keyPath: "transform.translation.x", to: CGFloat(0), preset: .gentle)
         animateOpacity(to: 1)
     }
 
@@ -264,7 +199,7 @@ final class SidePanelContentView: NSView {
             completion()
             return
         }
-        layer.springAnimate(keyPath: revealKeyPath, to: revealOffset, preset: .gentle, completion: completion)
+        layer.springAnimate(keyPath: "transform.translation.x", to: revealOffset, preset: .gentle, completion: completion)
         animateOpacity(to: 0)
     }
 

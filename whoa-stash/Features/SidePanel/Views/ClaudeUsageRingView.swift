@@ -1,16 +1,12 @@
 import AppKit
 
-/// Case de l'extension du Dock montrant l'utilisation de la session Claude : un anneau qui se
-/// remplit dans le sens horaire depuis midi, l'étoile Claude au centre, et le pourcentage
-/// dessous. Même grammaire d'interaction que `DockExtensionIconView` (survol et clic au
-/// ressort), mais tout est en calques : le texte aussi, pour que la mise à l'échelle du survol
-/// emporte l'ensemble d'un seul bloc.
+/// Bague d'utilisation de la session Claude : un anneau qui se remplit dans le sens horaire
+/// depuis midi, l'étoile Claude au centre, et le pourcentage dessous.
+///
+/// Tout est en calques, le texte aussi, pour que le ressort de survol emporte l'ensemble d'un
+/// seul bloc. La vue ne reçoit aucun événement — la fenêtre de la bande laisse tout passer —
+/// donc c'est `SidePanelController` qui lui annonce le survol par `setHighlighted(_:)`.
 final class ClaudeUsageRingView: NSView {
-
-    /// Entrée/sortie du curseur sur la case, avec le cadre de la bague en coordonnées écran :
-    /// c'est ce cadre qui ancre la bulle d'utilisation, et il n'est connu que d'ici — la case se
-    /// déplace avec le Dock et change de taille avec lui.
-    var onHoverChanged: ((Bool, NSRect) -> Void)?
 
     private let contentLayer = CALayer()
     private let trackLayer = CAShapeLayer()
@@ -18,8 +14,8 @@ final class ClaudeUsageRingView: NSView {
     private let markLayer = CAShapeLayer()
     private let percentLayer = CATextLayer()
 
-    private var trackingArea: NSTrackingArea?
     private var state: ClaudeUsageState = .loading
+    private var isHighlighted = false
 
     /// Proportions de la case, toutes relatives à `tileSize` : le Dock système change de taille
     /// avec les préférences de l'utilisateur, et l'anneau doit suivre sans constante codée.
@@ -175,24 +171,15 @@ final class ClaudeUsageRingView: NSView {
         percentLayer.frame = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: labelHeight)
     }
 
-    // MARK: - Survol et clic
+    // MARK: - Survol
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea { removeTrackingArea(trackingArea) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
-        trackingArea = area
-        addTrackingArea(area)
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        contentLayer.springAnimate(keyPath: "transform.scale", to: 1.15, preset: .snappy)
-        onHoverChanged?(true, screenRect)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        contentLayer.springAnimate(keyPath: "transform.scale", to: 1.0, preset: .snappy)
-        onHoverChanged?(false, screenRect)
+    /// Ressort de survol, séparé des événements de souris : dans la bande latérale, la fenêtre
+    /// laisse passer tous les clics et aucun `mouseEntered` n'arrive jamais — c'est le
+    /// contrôleur qui déduit le survol de la position du curseur et l'annonce ici.
+    func setHighlighted(_ highlighted: Bool) {
+        guard highlighted != isHighlighted else { return }
+        isHighlighted = highlighted
+        contentLayer.springAnimate(keyPath: "transform.scale", to: highlighted ? 1.15 : 1.0, preset: .snappy)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -203,13 +190,8 @@ final class ClaudeUsageRingView: NSView {
     /// la bague pour la cliquer. Seul le ressort d'enfoncement subsiste.
     override func mouseUp(with event: NSEvent) {
         let insideAfterRelease = bounds.contains(convert(event.locationInWindow, from: nil))
+        isHighlighted = insideAfterRelease
         contentLayer.springAnimate(keyPath: "transform.scale", to: insideAfterRelease ? 1.15 : 1.0, preset: .snappy)
     }
 
-    /// Cadre de la case en coordonnées globales AppKit, le repère dans lequel raisonnent
-    /// `SidePanelGeometry` et `SidePanelController`.
-    var screenRect: NSRect {
-        guard let window else { return .zero }
-        return window.convertToScreen(convert(bounds, to: nil))
-    }
 }
