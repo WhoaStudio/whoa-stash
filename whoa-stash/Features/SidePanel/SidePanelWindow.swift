@@ -47,12 +47,15 @@ final class SidePanelWindow {
         panel.appearance = appearanceMode.nsAppearance
     }
 
-    func reveal(in frame: NSRect) {
+    func reveal(in frame: NSRect, shape: SidePanelContentView.Shape) {
+        // La silhouette d'abord : elle décide de l'axe du glissement et de la mise en page du
+        // contenu, que `setFrame` va justement appliquer.
+        contentView.shape = shape
         setFrame(frame)
         guard !isRevealed else { return }
         isRevealed = true
 
-        contentView.prepareForReveal(offset: frame.width)
+        contentView.prepareForReveal()
         panel.orderFrontRegardless()
         contentView.animateIn()
     }
@@ -61,7 +64,7 @@ final class SidePanelWindow {
         guard isRevealed else { return }
         isRevealed = false
 
-        contentView.animateOut(offset: panel.frame.width) { [weak self] in
+        contentView.animateOut { [weak self] in
             // Un nouveau survol pendant la sortie relance `reveal` : dans ce cas il ne faut
             // surtout pas retirer la fenêtre une fois l'ancienne animation terminée.
             guard let self, !self.isRevealed else { return }

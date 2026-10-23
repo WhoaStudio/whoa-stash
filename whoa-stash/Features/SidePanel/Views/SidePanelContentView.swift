@@ -9,6 +9,27 @@ import AppKit
 /// `BrightnessBarView`) — pas de contraintes Auto Layout.
 final class SidePanelContentView: NSView {
 
+    /// Les deux silhouettes que porte cette vue. `screenEdge` est la carte accrochée au bord
+    /// droit de l'écran (survol du coin supérieur droit) ; `callout` est la bulle posée au-dessus
+    /// de la bague du Dock, dont la pointe vise celle-ci.
+    enum Shape: Equatable {
+        case screenEdge
+        /// Abscisse de la pointe dans le repère de la vue — voir `SidePanelGeometry.tailCenterX`.
+        case callout(tailCenterX: CGFloat)
+
+        var isCallout: Bool {
+            if case .callout = self { return true }
+            return false
+        }
+    }
+
+    var shape: Shape = .screenEdge {
+        didSet {
+            guard shape != oldValue else { return }
+            needsLayout = true
+        }
+    }
+
     private let backgroundLayer = CAShapeLayer()
     private let strokeLayer = CAShapeLayer()
     private let usageView = ClaudeUsagePanelView()
@@ -77,17 +98,69 @@ final class SidePanelContentView: NSView {
     override func layout() {
         super.layout()
 
-        let shape = panelPath(in: bounds)
+        let path = currentPath(in: bounds)
         backgroundLayer.frame = bounds
-        backgroundLayer.path = shape
+        backgroundLayer.path = path
         strokeLayer.frame = bounds
         // Exactement le même chemin que le fond, tracé centré sur la frontière : un `insetBy`
         // uniforme ferait *grandir* le rayon concave là où il rétrécit les rayons convexes, ce qui
         // décollerait la bordure du fond précisément au niveau des raccords.
-        strokeLayer.path = shape
-        layer?.shadowPath = shape
+        strokeLayer.path = path
+        layer?.shadowPath = path
 
-        usageView.frame = bounds
+        // Le contenu tient dans le corps : la pointe est une excroissance, rien ne s'y dessine.
+        usageView.frame = bodyRect(in: bounds)
+        // Le bord droit de la bulle est un bord comme un autre, alors que celui de la carte de
+        // bord touche l'écran et se fait rogner par les raccords concaves.
+        usageView.trailingInset = shape.isCallout ? usageView.leadingInset : SidePanelContentView.edgeTrailingInset
+    }
+
+    /// Marge droite de la carte accrochée au bord de l'écran — plus large que la gauche, voir
+    /// `ClaudeUsagePanelView`.
+    private static let edgeTrailingInset: CGFloat = 26
+
+    private func bodyRect(in rect: CGRect) -> CGRect {
+        guard shape.isCallout else { return rect }
+        return CGRect(
+            x: rect.minX,
+            y: rect.minY + SidePanelGeometry.tailLength,
+            width: rect.width,
+            height: rect.height - SidePanelGeometry.tailLength
+        )
+    }
+
+    private func currentPath(in rect: CGRect) -> CGPath {
+        switch shape {
+        case .screenEdge:
+            return panelPath(in: rect)
+        case .callout(let tailCenterX):
+            return calloutPath(in: rect, tailCenterX: tailCenterX)
+        }
+    }
+
+    /// Bulle : un rectangle arrondi classique, plus une pointe triangulaire sur le bord bas qui
+    /// vise la bague. Les coins sont décrits avec `addArc(tangent1End:tangent2End:)`, qui suffit
+    /// ici — contrairement à la carte de bord, cette silhouette n'a aucun raccord concave.
+    private func calloutPath(in rect: CGRect, tailCenterX: CGFloat) -> CGPath {
+        let body = bodyRect(in: rect)
+        let r = min(SidePanelGeometry.calloutCornerRadius, min(body.width, body.height) / 2)
+        let halfTail = SidePanelGeometry.tailWidth / 2
+        let tipY = body.minY - SidePanelGeometry.tailLength
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: body.minX + r, y: body.maxY))
+        path.addArc(tangent1End: CGPoint(x: body.maxX, y: body.maxY), tangent2End: CGPoint(x: body.maxX, y: body.minY), radius: r)
+        path.addArc(tangent1End: CGPoint(x: body.maxX, y: body.minY), tangent2End: CGPoint(x: body.minX, y: body.minY), radius: r)
+
+        // Bord bas parcouru vers la gauche, interrompu par la pointe.
+        path.addLine(to: CGPoint(x: tailCenterX + halfTail, y: body.minY))
+        path.addLine(to: CGPoint(x: tailCenterX, y: tipY))
+        path.addLine(to: CGPoint(x: tailCenterX - halfTail, y: body.minY))
+
+        path.addArc(tangent1End: CGPoint(x: body.minX, y: body.minY), tangent2End: CGPoint(x: body.minX, y: body.maxY), radius: r)
+        path.addArc(tangent1End: CGPoint(x: body.minX, y: body.maxY), tangent2End: CGPoint(x: body.maxX, y: body.maxY), radius: r)
+        path.closeSubpath()
+        return path
     }
 
     /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et
@@ -154,30 +227,44 @@ final class SidePanelContentView: NSView {
 
     // MARK: - Animation
 
-    /// Place le contenu hors écran, à droite, et complètement transparent — à appeler avant
+    /// Axe et amplitude du glissement, dictés par la silhouette : la carte de bord vient de
+    /// derrière le bord droit de l'écran, la bulle monte de quelques points depuis la bague.
+    private var revealKeyPath: String {
+        shape.isCallout ? "transform.translation.y" : "transform.translation.x"
+    }
+
+    private var revealOffset: CGFloat {
+        shape.isCallout ? -12 : bounds.width
+    }
+
+    /// Place le contenu à son point de départ, complètement transparent — à appeler avant
     /// d'afficher la fenêtre pour que la première image montrée soit déjà le début du glissement
     /// et non le panneau en place.
-    func prepareForReveal(offset: CGFloat) {
+    func prepareForReveal() {
         guard let layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.setValue(offset, forKeyPath: "transform.translation.x")
+        // Les deux axes sont réinitialisés : une même fenêtre passe de la carte de bord à la
+        // bulle, et le décalage de la silhouette précédente resterait sinon appliqué.
+        layer.setValue(CGFloat(0), forKeyPath: "transform.translation.x")
+        layer.setValue(CGFloat(0), forKeyPath: "transform.translation.y")
+        layer.setValue(revealOffset, forKeyPath: revealKeyPath)
         layer.opacity = 0
         CATransaction.commit()
     }
 
     func animateIn() {
         guard let layer else { return }
-        layer.springAnimate(keyPath: "transform.translation.x", to: CGFloat(0), preset: .gentle)
+        layer.springAnimate(keyPath: revealKeyPath, to: CGFloat(0), preset: .gentle)
         animateOpacity(to: 1)
     }
 
-    func animateOut(offset: CGFloat, completion: @escaping () -> Void) {
+    func animateOut(completion: @escaping () -> Void) {
         guard let layer else {
             completion()
             return
         }
-        layer.springAnimate(keyPath: "transform.translation.x", to: offset, preset: .gentle, completion: completion)
+        layer.springAnimate(keyPath: revealKeyPath, to: revealOffset, preset: .gentle, completion: completion)
         animateOpacity(to: 0)
     }
 

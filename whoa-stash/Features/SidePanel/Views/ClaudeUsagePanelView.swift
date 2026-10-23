@@ -12,10 +12,16 @@ final class ClaudeUsagePanelView: NSView {
     private let sessionRow = ClaudeUsageRowView(title: "Current session")
     private let allModelsRow = ClaudeUsageRowView(title: "All models")
 
-    private let horizontalInset: CGFloat = 22
-    /// Marge droite plus large que la gauche : ce bord touche le bord de l'écran, et les coins
-    /// concaves du panneau y rognent la zone réellement peinte.
-    private let trailingInset: CGFloat = 26
+    let leadingInset: CGFloat = 22
+    /// Réglée par la vue hôte selon sa silhouette : sur la carte accrochée au bord de l'écran, ce
+    /// bord touche l'écran et les coins concaves y rognent la zone réellement peinte, donc la
+    /// marge y est plus large que la gauche ; dans la bulle, les deux bords sont symétriques.
+    var trailingInset: CGFloat = 26 {
+        didSet {
+            guard trailingInset != oldValue else { return }
+            needsLayout = true
+        }
+    }
     private let verticalInset: CGFloat = 18
     private let headerHeight: CGFloat = 20
     private let headerSpacing: CGFloat = 16
@@ -83,14 +89,14 @@ final class ClaudeUsagePanelView: NSView {
     override func layout() {
         super.layout()
 
-        let contentWidth = bounds.width - horizontalInset - trailingInset
+        let contentWidth = bounds.width - leadingInset - trailingInset
         let headerTop = bounds.maxY - verticalInset - headerHeight
 
         let markSize = headerHeight * 0.82
         markLayer.frame = bounds
         markLayer.path = ClaudeMarkPath.path(
             in: CGRect(
-                x: horizontalInset,
+                x: leadingInset,
                 y: headerTop + (headerHeight - markSize) / 2,
                 width: markSize,
                 height: markSize
@@ -99,7 +105,7 @@ final class ClaudeUsagePanelView: NSView {
 
         let titleSize = titleLabel.intrinsicContentSize
         titleLabel.frame = NSRect(
-            x: horizontalInset + markSize + 8,
+            x: leadingInset + markSize + 8,
             y: headerTop + (headerHeight - titleSize.height) / 2,
             width: titleSize.width,
             height: titleSize.height
@@ -107,9 +113,9 @@ final class ClaudeUsagePanelView: NSView {
 
         let rowHeight = ClaudeUsageRowView.height
         let sessionTop = headerTop - headerSpacing - rowHeight
-        sessionRow.frame = NSRect(x: horizontalInset, y: sessionTop, width: contentWidth, height: rowHeight)
+        sessionRow.frame = NSRect(x: leadingInset, y: sessionTop, width: contentWidth, height: rowHeight)
         allModelsRow.frame = NSRect(
-            x: horizontalInset,
+            x: leadingInset,
             y: sessionTop - rowSpacing - rowHeight,
             width: contentWidth,
             height: rowHeight

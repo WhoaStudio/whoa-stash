@@ -29,6 +29,21 @@ final class SidePanelController {
     private var isPinned = false
     private var hasVisitedPinnedPanel = false
 
+    /// Ouverture déclenchée par le survol de la bague du Dock : le panneau prend alors la forme
+    /// d'une bulle ancrée au-dessus d'elle, et la zone sensible du coin n'a plus son mot à dire.
+    /// `ringRect` est conservé pour pouvoir recadrer la bulle si l'écran change pendant qu'elle
+    /// est affichée.
+    private var isRingAnchored = false
+    private var isHoveringRing = false
+    private var ringRect: NSRect = .zero
+
+    /// Délai de grâce entre la sortie du curseur de la bague et la fermeture : il faut pouvoir
+    /// traverser les quelques points qui séparent la bague de la pointe sans que la bulle se
+    /// referme en chemin. La fenêtre ne reçoit aucun événement (voir `SidePanelWindow`), donc
+    /// c'est la position globale du curseur qui tranche.
+    private let ringHideGrace: TimeInterval = 0.2
+    private var ringHideTimer: Timer?
+
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est téléporté,
     /// ou qu'il quitte la zone pendant un changement de Space, plus aucun événement n'arrive et le
     /// panneau resterait ouvert. Ce rafraîchissement ne tourne que pendant qu'un panneau est visible.
@@ -99,13 +114,89 @@ final class SidePanelController {
         isPinned = true
         hasVisitedPinnedPanel = false
         window.apply(usageState: usageState, animated: false)
-        window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
+        window.reveal(in: SidePanelGeometry.panelFrame(on: screen), shape: .screenEdge)
         startPolling()
+    }
+
+    // MARK: - Survol de la bague du Dock
+
+    /// Révèle la bulle au-dessus de la bague tant que le curseur est dessus, et la referme une
+    /// fois le curseur parti — à moins qu'il ne soit passé sur la bulle elle-même.
+    func setRingHover(_ hovering: Bool, ringRect rect: NSRect) {
+        isHoveringRing = hovering
+
+        guard hovering else {
+            scheduleRingHide()
+            return
+        }
+
+        cancelRingHide()
+        ringRect = rect
+
+        guard
+            let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) ?? NSScreen.main,
+            let displayID = screen.displayID,
+            let window = windows[displayID]
+        else { return }
+
+        if activeDisplay != displayID {
+            hideActive()
+            activeDisplay = displayID
+        }
+
+        isRingAnchored = true
+        window.apply(usageState: usageState, animated: false)
+        window.reveal(in: calloutFrame(on: screen), shape: calloutShape(on: screen))
+        startPolling()
+    }
+
+    private func calloutFrame(on screen: NSScreen) -> NSRect {
+        SidePanelGeometry.calloutFrame(anchoredTo: ringRect, on: screen)
+    }
+
+    private func calloutShape(on screen: NSScreen) -> SidePanelContentView.Shape {
+        .callout(tailCenterX: SidePanelGeometry.tailCenterX(for: calloutFrame(on: screen), ringRect: ringRect))
+    }
+
+    private func scheduleRingHide() {
+        guard isRingAnchored, ringHideTimer == nil else { return }
+        let timer = Timer(timeInterval: ringHideGrace, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.ringHideTimer = nil
+                guard !self.isHoveringRing, !self.isCursorOverActivePanel else { return }
+                self.hideActive()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ringHideTimer = timer
+    }
+
+    private func cancelRingHide() {
+        ringHideTimer?.invalidate()
+        ringHideTimer = nil
+    }
+
+    private var isCursorOverActivePanel: Bool {
+        guard let activeDisplay, let window = windows[activeDisplay] else { return false }
+        return window.frame.contains(NSEvent.mouseLocation)
     }
 
     // MARK: - Suivi du curseur
 
     private func handleCursor(at location: NSPoint) {
+        // La bulle de la bague a ses propres règles : elle ne dépend ni de la zone sensible du
+        // coin ni de l'écran sous le curseur, seulement du survol de la bague et du sien.
+        if isRingAnchored {
+            let overPanel = activeDisplay.flatMap { windows[$0] }?.frame.contains(location) ?? false
+            if isHoveringRing || overPanel {
+                cancelRingHide()
+            } else {
+                scheduleRingHide()
+            }
+            return
+        }
+
         // Un seul écran est testé, celui qui contient le curseur : avec des écrans accolés, le bord
         // droit de l'un recouvre le bord gauche du suivant, et tester toutes les zones ferait
         // apparaître le panneau du mauvais écran.
@@ -145,12 +236,14 @@ final class SidePanelController {
             activeDisplay = displayID
         }
         window.apply(usageState: usageState, animated: false)
-        window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
+        window.reveal(in: SidePanelGeometry.panelFrame(on: screen), shape: .screenEdge)
         startPolling()
     }
 
     private func hideActive() {
         isPinned = false
+        isRingAnchored = false
+        cancelRingHide()
         guard let activeDisplay else { return }
         windows[activeDisplay]?.hide()
         self.activeDisplay = nil
@@ -177,7 +270,7 @@ final class SidePanelController {
             // Un écran déjà connu a pu changer de taille ou de position ; seul le panneau visible
             // a besoin d'être recadré tout de suite, les autres le seront à leur prochain survol.
             if activeDisplay == displayID {
-                window.setFrame(SidePanelGeometry.panelFrame(on: screen))
+                window.setFrame(isRingAnchored ? calloutFrame(on: screen) : SidePanelGeometry.panelFrame(on: screen))
             }
         }
 
