@@ -11,9 +11,10 @@ final class StatusBarController {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
-            let icon = NSImage(named: "AppIcon")
+            // Glyphe monochrome dédié : l'icône d'application complète devient illisible à 18 pt.
+            let icon = NSImage(named: "MenuBarIcon")
             icon?.size = NSSize(width: 18, height: 18)
-            icon?.isTemplate = false
+            icon?.isTemplate = true
             icon?.accessibilityDescription = "Whoa Stash"
             button.image = icon
         }
