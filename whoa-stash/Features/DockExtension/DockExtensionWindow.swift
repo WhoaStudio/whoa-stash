@@ -9,7 +9,9 @@ import OSLog
 final class DockExtensionWindow {
 
     var onIconClicked: ((ResolvedDockSlot) -> Void)?
-    var onUsageRingClicked: (() -> Void)?
+    /// Survol de la bague d'utilisation Claude, avec son cadre en coordonnées écran — relayé
+    /// jusqu'au panneau latéral, qui s'en sert pour ancrer la bulle juste au-dessus d'elle.
+    var onUsageRingHoverChanged: ((Bool, NSRect) -> Void)?
 
     private let panel: NSPanel
     private let contentView: DockExtensionContentView
@@ -76,7 +78,9 @@ final class DockExtensionWindow {
         // qui change dès que l'utilisateur modifie la taille du Dock système.
         usageRingView?.removeFromSuperview()
         let ring = ClaudeUsageRingView(tileSize: tileSize)
-        ring.onClick = { [weak self] in self?.onUsageRingClicked?() }
+        ring.onHoverChanged = { [weak self] hovering, rect in
+            self?.onUsageRingHoverChanged?(hovering, rect)
+        }
         ring.apply(usageState, animated: false)
         usageRingView = ring
 
@@ -143,6 +147,13 @@ final class DockExtensionWindow {
             Log.dockExtension.debug("window: hide() — animation terminée, orderOut(nil)")
             self.panel.orderOut(nil)
         }
+    }
+
+    /// Cadre actuel de la bague en coordonnées écran, `nil` tant que l'extension n'est pas
+    /// construite ou affichée.
+    var usageRingScreenRect: NSRect? {
+        guard let usageRingView, usageRingView.window != nil else { return nil }
+        return usageRingView.screenRect
     }
 
     /// Icônes configurées + la bague d'utilisation, toujours présente.

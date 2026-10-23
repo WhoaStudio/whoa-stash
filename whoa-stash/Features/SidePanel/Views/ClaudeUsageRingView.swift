@@ -7,7 +7,10 @@ import AppKit
 /// emporte l'ensemble d'un seul bloc.
 final class ClaudeUsageRingView: NSView {
 
-    var onClick: (() -> Void)?
+    /// Entrée/sortie du curseur sur la case, avec le cadre de la bague en coordonnées écran :
+    /// c'est ce cadre qui ancre la bulle d'utilisation, et il n'est connu que d'ici — la case se
+    /// déplace avec le Dock et change de taille avec lui.
+    var onHoverChanged: ((Bool, NSRect) -> Void)?
 
     private let contentLayer = CALayer()
     private let trackLayer = CAShapeLayer()
@@ -184,21 +187,29 @@ final class ClaudeUsageRingView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         contentLayer.springAnimate(keyPath: "transform.scale", to: 1.15, preset: .snappy)
+        onHoverChanged?(true, screenRect)
     }
 
     override func mouseExited(with event: NSEvent) {
         contentLayer.springAnimate(keyPath: "transform.scale", to: 1.0, preset: .snappy)
+        onHoverChanged?(false, screenRect)
     }
 
     override func mouseDown(with event: NSEvent) {
         contentLayer.springAnimate(keyPath: "transform.scale", to: 0.88, preset: .snappy)
     }
 
+    /// Pas de callback au clic : la bulle d'utilisation est déjà ouverte, puisqu'il faut survoler
+    /// la bague pour la cliquer. Seul le ressort d'enfoncement subsiste.
     override func mouseUp(with event: NSEvent) {
         let insideAfterRelease = bounds.contains(convert(event.locationInWindow, from: nil))
         contentLayer.springAnimate(keyPath: "transform.scale", to: insideAfterRelease ? 1.15 : 1.0, preset: .snappy)
-        if insideAfterRelease {
-            onClick?()
-        }
+    }
+
+    /// Cadre de la case en coordonnées globales AppKit, le repère dans lequel raisonnent
+    /// `SidePanelGeometry` et `SidePanelController`.
+    var screenRect: NSRect {
+        guard let window else { return .zero }
+        return window.convertToScreen(convert(bounds, to: nil))
     }
 }

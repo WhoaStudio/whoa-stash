@@ -55,17 +55,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.sidePanelController?.apply(usageState: state)
         }
 
-        dockExtensionController?.onUsageRingClicked = { [weak self] in
-            // Rafraîchissement opportuniste : le panneau s'ouvre tout de suite avec le dernier
-            // instantané connu, et se met à jour dès que la requête revient.
-            self?.claudeUsageViewModel?.refresh()
-            self?.sidePanelController?.togglePinnedReveal()
+        dockExtensionController?.onUsageRingHoverChanged = { [weak self] hovering, ringRect in
+            if hovering {
+                // Rafraîchissement opportuniste : la bulle s'ouvre tout de suite avec le dernier
+                // instantané connu, et se met à jour dès que la requête revient.
+                self?.claudeUsageViewModel?.refresh()
+            }
+            self?.sidePanelController?.setRingHover(hovering, ringRect: ringRect)
         }
 
         usageViewModel.activate()
 
-        // Ouvre le panneau d'utilisation sans passer par le survol du coin ni le clic sur la
-        // bague — c'est ce qui rend la carte vérifiable sur capture d'écran, au même titre que
+        // Ouvre la carte d'utilisation sans passer par le survol du coin ni par celui de la
+        // bague — c'est ce qui la rend vérifiable sur capture d'écran, au même titre que
         // `--show-settings` pour les Préférences.
         if CommandLine.arguments.contains("--show-usage-panel") {
             sidePanelController?.togglePinnedReveal()

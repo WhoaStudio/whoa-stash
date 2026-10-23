@@ -1,8 +1,9 @@
 import AppKit
 
 /// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// droit, et le cadre du panneau qui s'y rattache. Tout est exprimé en coordonnées globales
-/// AppKit (origine en bas à gauche de l'écran principal, axe Y vers le haut).
+/// droit, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à la bague
+/// d'utilisation du Dock. Tout est exprimé en coordonnées globales AppKit (origine en bas à
+/// gauche de l'écran principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
     /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord droit.
@@ -41,4 +42,52 @@ enum SidePanelGeometry {
             height: panelHeight
         )
     }
+}
+
+// MARK: - Bulle ancrée à la bague
+
+extension SidePanelGeometry {
+
+    /// Pointe de la bulle : elle dépasse sous le corps et vise le centre de la bague.
+    static let tailLength: CGFloat = 11
+    static let tailWidth: CGFloat = 20
+
+    /// Écart entre le haut de la bague et la pointe — assez petit pour que le curseur traverse
+    /// sans que la bulle se referme, assez grand pour que les deux ne se touchent pas.
+    static let tailGap: CGFloat = 8
+
+    /// Marge minimale conservée avec les bords de l'écran quand la bague est près d'un coin.
+    static let calloutScreenMargin: CGFloat = 10
+
+    /// Cadre complet de la bulle, **pointe comprise** : le corps occupe le haut, la pointe les
+    /// `tailLength` points du bas. La bulle est centrée sur la bague, puis ramenée dans l'écran
+    /// si elle en sortait — c'est le seul cas où la pointe n'est plus au milieu du corps, et
+    /// `tailCenterX(for:ringRect:)` s'en charge.
+    static func calloutFrame(anchoredTo ringRect: NSRect, on screen: NSScreen) -> NSRect {
+        let visible = screen.visibleFrame
+        let height = panelHeight + tailLength
+
+        let minX = visible.minX + calloutScreenMargin
+        let maxX = max(minX, visible.maxX - panelWidth - calloutScreenMargin)
+        let x = min(max(ringRect.midX - panelWidth / 2, minX), maxX)
+
+        // La bulle se pose au-dessus de la bague ; si l'écran manque de hauteur au-dessus du
+        // Dock, elle redescend juste sous la barre de menus plutôt que de passer dessous.
+        let maxY = max(visible.minY, visible.maxY - height - calloutScreenMargin)
+        let y = min(ringRect.maxY + tailGap, maxY)
+
+        return NSRect(x: x, y: y, width: panelWidth, height: height)
+    }
+
+    /// Abscisse de la pointe dans le repère de la vue (origine au coin bas-gauche du cadre) :
+    /// elle suit le centre de la bague, sans jamais mordre sur les coins arrondis.
+    static func tailCenterX(for frame: NSRect, ringRect: NSRect) -> CGFloat {
+        let inset = calloutCornerRadius + tailWidth / 2
+        let raw = ringRect.midX - frame.minX
+        return min(max(raw, inset), frame.width - inset)
+    }
+
+    /// Rayon des quatre coins de la bulle. Plus serré que celui du panneau de bord, qui vaut la
+    /// moitié de sa largeur pour évaser la silhouette dans le bord de l'écran.
+    static let calloutCornerRadius: CGFloat = 18
 }

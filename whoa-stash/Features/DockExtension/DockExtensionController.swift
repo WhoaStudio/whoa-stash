@@ -10,9 +10,9 @@ import OSLog
 @MainActor
 final class DockExtensionController {
 
-    /// Clic sur la bague d'utilisation Claude — relayé par `AppDelegate` au panneau latéral,
-    /// que ce contrôleur n'a pas à connaître.
-    var onUsageRingClicked: (() -> Void)?
+    /// Survol de la bague d'utilisation Claude, avec son cadre en coordonnées écran — relayé par
+    /// `AppDelegate` au panneau latéral, que ce contrôleur n'a pas à connaître.
+    var onUsageRingHoverChanged: ((Bool, NSRect) -> Void)?
 
     private let geometryProvider = DockGeometryProvider()
     private let window = DockExtensionWindow()
@@ -38,8 +38,8 @@ final class DockExtensionController {
             self?.viewModel.activate(slot)
         }
 
-        window.onUsageRingClicked = { [weak self] in
-            self?.onUsageRingClicked?()
+        window.onUsageRingHoverChanged = { [weak self] hovering, rect in
+            self?.onUsageRingHoverChanged?(hovering, rect)
         }
 
         viewModel.onSlotsChanged = { [weak self] in
