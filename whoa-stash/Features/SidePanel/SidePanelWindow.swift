@@ -11,7 +11,9 @@ final class SidePanelWindow {
     private let contentView = SidePanelContentView()
     private var isRevealed = false
 
-    init() {
+    /// L'apparence est passée à la construction plutôt que lue depuis `SettingsStorage` : le
+    /// panneau n'a besoin que de cette valeur, et son propriétaire la tient déjà.
+    init(appearanceMode: AppearanceMode) {
         panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -29,7 +31,7 @@ final class SidePanelWindow {
         // dans l'overlay passent dessous.
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        panel.appearance = SettingsStorage.shared.settings.general.appearanceMode.nsAppearance
+        panel.appearance = appearanceMode.nsAppearance
         panel.contentView = contentView
     }
 

@@ -9,6 +9,7 @@ import Combine
 final class SidePanelController {
 
     private let mouseMonitor = GlobalMouseMonitor()
+    private let storage: SettingsStorage
 
     /// Indexé par `CGDirectDisplayID` et non par position dans `NSScreen.screens`, qui change dès
     /// qu'un écran est branché ou débranché.
@@ -33,6 +34,10 @@ final class SidePanelController {
     /// panneau resterait ouvert. Ce rafraîchissement ne tourne que pendant qu'un panneau est visible.
     private let pollInterval: TimeInterval = 0.25
 
+    init(storage: SettingsStorage = .shared) {
+        self.storage = storage
+    }
+
     func activate() {
         rebuildWindows()
 
@@ -51,7 +56,7 @@ final class SidePanelController {
         }
         mouseMonitor.start()
 
-        appearanceCancellable = SettingsStorage.shared.$settings
+        appearanceCancellable = storage.$settings
             .map(\.general.appearanceMode)
             .removeDuplicates()
             .sink { [weak self] mode in
@@ -165,8 +170,7 @@ final class SidePanelController {
             if let existing = windows[displayID] {
                 window = existing
             } else {
-                window = SidePanelWindow()
-                window.apply(appearanceMode: SettingsStorage.shared.settings.general.appearanceMode)
+                window = SidePanelWindow(appearanceMode: storage.settings.general.appearanceMode)
                 windows[displayID] = window
             }
 

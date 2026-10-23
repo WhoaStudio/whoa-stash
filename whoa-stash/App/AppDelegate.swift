@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Panneau latéral : glisse depuis le bord droit quand le curseur entre dans la zone
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
-        sidePanelController = SidePanelController()
+        sidePanelController = SidePanelController(storage: settings)
         sidePanelController?.activate()
 
         // Utilisation Claude : un seul modèle de vue alimente la bague du Dock et le panneau
