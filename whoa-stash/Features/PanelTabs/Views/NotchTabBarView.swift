@@ -111,7 +111,7 @@ final class NotchTabBarView: NSView {
 
     /// Pastille centrée verticalement sur l'onglet, un peu plus basse que la rangée.
     private func pillFrame(for item: NotchTabItemView) -> CGRect {
-        let height = SidePanelGeometry.tabPillHeight
+        let height = TabBarMetrics.pillHeight
         return CGRect(
             x: item.frame.minX,
             y: item.frame.midY - height / 2,
@@ -126,10 +126,10 @@ final class NotchTabBarView: NSView {
         var x = bounds.minX
         for item in items {
             item.frame = NSRect(x: x, y: bounds.minY, width: item.preferredWidth, height: bounds.height)
-            x += item.frame.width + SidePanelGeometry.tabSpacing
+            x += item.frame.width + TabBarMetrics.tabSpacing
         }
 
-        let gear = SidePanelGeometry.gearButtonSize
+        let gear = TabBarMetrics.gearButtonSize
         gearButton.frame = NSRect(
             x: bounds.maxX - gear,
             y: bounds.midY - gear / 2,
@@ -171,7 +171,7 @@ private final class NotchTabItemView: NSView {
 
     private func setUp() {
         let configuration = NSImage.SymbolConfiguration(
-            pointSize: SidePanelGeometry.tabIconSize,
+            pointSize: TabBarMetrics.iconSize,
             weight: .semibold
         )
         iconView.image = NSImage(systemSymbolName: tab.symbolName, accessibilityDescription: tab.title)?
@@ -219,26 +219,26 @@ private final class NotchTabItemView: NSView {
     var preferredWidth: CGFloat {
         let bold = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .bold)
         let width = (tab.title as NSString).size(withAttributes: [.font: bold]).width
-        return 2 * SidePanelGeometry.tabPillHorizontalPadding
-            + SidePanelGeometry.tabIconSize
-            + SidePanelGeometry.tabIconLabelGap
+        return 2 * TabBarMetrics.pillHorizontalPadding
+            + TabBarMetrics.iconSize
+            + TabBarMetrics.iconLabelGap
             + ceil(width)
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: preferredWidth, height: SidePanelGeometry.tabBarHeight)
+        NSSize(width: preferredWidth, height: TabBarMetrics.barHeight)
     }
 
     override func layout() {
         super.layout()
 
-        let icon = SidePanelGeometry.tabIconSize
-        let x = SidePanelGeometry.tabPillHorizontalPadding
+        let icon = TabBarMetrics.iconSize
+        let x = TabBarMetrics.pillHorizontalPadding
         iconView.frame = NSRect(x: x, y: bounds.midY - icon / 2, width: icon, height: icon)
 
         let labelSize = label.intrinsicContentSize
         label.frame = NSRect(
-            x: iconView.frame.maxX + SidePanelGeometry.tabIconLabelGap,
+            x: iconView.frame.maxX + TabBarMetrics.iconLabelGap,
             y: bounds.midY - labelSize.height / 2,
             width: labelSize.width,
             height: labelSize.height
@@ -290,7 +290,7 @@ private final class NotchGearButtonView: NSView {
 
     private func setUp() {
         let configuration = NSImage.SymbolConfiguration(
-            pointSize: SidePanelGeometry.gearIconSize,
+            pointSize: TabBarMetrics.gearIconSize,
             weight: .medium
         )
         iconView.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")?
@@ -337,7 +337,7 @@ private final class NotchGearButtonView: NSView {
 
     override func layout() {
         super.layout()
-        let icon = SidePanelGeometry.gearIconSize
+        let icon = TabBarMetrics.gearIconSize
         iconView.frame = NSRect(
             x: bounds.midX - icon / 2,
             y: bounds.midY - icon / 2,

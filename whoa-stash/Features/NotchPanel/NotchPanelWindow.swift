@@ -1,9 +1,13 @@
 import AppKit
 
 /// Fenêtre flottante du panneau de l'encoche, une par écran. Jumelle de `SidePanelWindow` : elle
-/// ne prend jamais le focus, n'apparaît pas dans le Dock (l'app est déjà `LSUIElement`) et laisse
-/// passer tous les clics, le survol étant déduit de la position globale du curseur par
-/// `NotchPanelController`.
+/// ne prend jamais le focus et n'apparaît pas dans le Dock (l'app est déjà `LSUIElement`). Le
+/// survol reste déduit de la position globale du curseur par `NotchPanelController`.
+///
+/// Elle ne prend les clics que **dépliée**, le temps que ses onglets soient là pour les recevoir.
+/// Contrairement à la bande du bord droit, qui n'est à l'écran que révélée, celle-ci y est en
+/// permanence : les accepter tout le temps lui ferait avaler, repliée, les clics du haut de
+/// l'écran — ceux de la barre de menus comprise.
 ///
 /// Deux choses la distinguent de la bande du bord droit :
 ///
@@ -28,6 +32,9 @@ final class NotchPanelWindow {
         panel.backgroundColor = .clear
         // Voir `NotchPanelContentView` : l'ombre est portée par le calque du contenu.
         panel.hasShadow = false
+        // Repliée, la fenêtre laisse tout passer ; `setExpanded(_:animated:)` ouvre et referme
+        // ce robinet. `.nonactivatingPanel` fait que recevoir un clic n'active pas l'app pour
+        // autant : celle de devant garde le focus clavier.
         panel.ignoresMouseEvents = true
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
@@ -42,6 +49,13 @@ final class NotchPanelWindow {
 
     var frame: NSRect { panel.frame }
     var isExpanded: Bool { contentView.isExpanded }
+
+    /// Relayé jusqu'au contrôleur, qui ouvre les Préférences — ni la fenêtre ni la vue de contenu
+    /// n'ont à connaître `SettingsWindowController`.
+    var onOpenSettings: (() -> Void)? {
+        get { contentView.onOpenSettings }
+        set { contentView.onOpenSettings = newValue }
+    }
 
     func apply(usageState: ClaudeUsageState, animated: Bool) {
         contentView.apply(usageState: usageState, animated: animated)
@@ -75,7 +89,12 @@ final class NotchPanelWindow {
     func setExpanded(_ expanded: Bool, animated: Bool = true) {
         if !expanded {
             contentView.setHighlightedRing(nil)
+            // Le panneau rouvrira sur Global : on ne retrouve pas le bac à fichiers la fois
+            // suivante. Sans animation, le repli étant déjà en cours.
+            contentView.select(.global, animated: false)
         }
+        // Les onglets ne sont cliquables que dépliés — voir la note en tête de type.
+        panel.ignoresMouseEvents = !expanded
         contentView.setExpanded(expanded, animated: animated)
     }
 

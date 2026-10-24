@@ -42,26 +42,8 @@ enum SidePanelGeometry {
 
     // MARK: - Barre d'onglets
 
-    /// Hauteur de la rangée haute : les onglets à gauche, l'engrenage à droite.
-    static let tabBarHeight: CGFloat = 36
-
-    /// Hauteur de la pastille de l'onglet actif, un peu plus basse que la rangée pour que celle-ci
-    /// garde de l'air au-dessus et au-dessous.
-    static let tabPillHeight: CGFloat = 30
-
-    /// Marges horizontales à l'intérieur d'une pastille, de part et d'autre du couple
-    /// icône + intitulé.
-    static let tabPillHorizontalPadding: CGFloat = 11
-    static let tabIconSize: CGFloat = 13
-    static let tabIconLabelGap: CGFloat = 6
-
-    /// Écart entre deux onglets. Les pastilles ne se touchent jamais, même entre deux onglets
-    /// voisins tous deux larges.
-    static let tabSpacing: CGFloat = 4
-
-    /// Côté de la zone cliquable de l'engrenage, et taille de son glyphe.
-    static let gearButtonSize: CGFloat = 28
-    static let gearIconSize: CGFloat = 15
+    // Les mesures de la barre vivent dans `TabBarMetrics` : le panneau de l'encoche porte la
+    // même barre, et les deux ne doivent pas pouvoir diverger.
 
     // MARK: - Bande des jours
 
@@ -109,7 +91,7 @@ enum SidePanelGeometry {
 
     static var panelHeight: CGFloat {
         let content = 2 * contentVerticalInset
-            + tabBarHeight
+            + TabBarMetrics.barHeight
             + contentSpacing
             + globalTabContentHeight
         return max(content, minimumPanelHeight)

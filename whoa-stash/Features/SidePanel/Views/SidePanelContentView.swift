@@ -187,7 +187,7 @@ final class SidePanelContentView: NSView {
             dy: SidePanelGeometry.contentVerticalInset
         )
 
-        let tabHeight = SidePanelGeometry.tabBarHeight
+        let tabHeight = TabBarMetrics.barHeight
         tabBar.frame = NSRect(
             x: box.minX,
             y: box.maxY - tabHeight,

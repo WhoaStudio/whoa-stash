@@ -2,8 +2,9 @@ import AppKit
 
 /// Contenu du panneau de l'encoche : une silhouette sombre suspendue au haut de l'écran, qui
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
-/// large portant deux colonnes — les bagues d'utilisation **en ligne** à gauche, la carte
-/// détaillée à droite.
+/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global garde les deux
+/// colonnes d'origine — les bagues d'utilisation **en ligne** à gauche, la carte détaillée à
+/// droite ; Tray et AI reprennent les vues partagées avec la bande du bord droit.
 ///
 /// Les deux silhouettes sont décrites par la même recette de chemin, dans le même ordre de
 /// segments : Core Animation peut donc interpoler l'une vers l'autre, et c'est ce qui constitue
@@ -23,6 +24,18 @@ final class NotchPanelContentView: NSView {
     private let dividerLayer = CALayer()
     private let rings: [ClaudeUsageRingView]
     private let card = ClaudeUsagePanelView()
+
+    /// Appelé au clic sur l'engrenage de la barre d'onglets, relayé jusqu'au contrôleur.
+    var onOpenSettings: (() -> Void)?
+
+    private let tabBar = NotchTabBarView(selectedTab: .global)
+
+    /// Les deux colonnes réunies : elles se montrent et se cachent d'un bloc avec l'onglet Global.
+    private let globalColumns = NSView()
+    private let fileTray = FileTrayView()
+    private let aiTab = AIPlaceholderView()
+
+    private var selectedTab: NotchTab = .global
 
     /// Taille de la silhouette repliée, décidée par l'écran : l'encoche matérielle n'a pas les
     /// mêmes dimensions d'un Mac à l'autre, et une pastille les remplace quand il n'y en a pas.
@@ -76,21 +89,32 @@ final class NotchPanelContentView: NSView {
         highlightLayer.shadowRadius = 10
         highlightLayer.shadowOffset = .zero
         highlightLayer.opacity = 0
-        contentContainer.layer?.addSublayer(highlightLayer)
+        globalColumns.wantsLayer = true
+        globalColumns.layer?.addSublayer(highlightLayer)
+        contentContainer.addSubview(globalColumns)
 
-        rings.forEach(contentContainer.addSubview)
+        rings.forEach(globalColumns.addSubview)
         // Les cases sans source partent — et restent — sur un anneau vide, comme dans la bande
         // du bord droit.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
             ring.apply(.unavailable(reason: "Not connected"), animated: false)
         }
 
-        contentContainer.layer?.addSublayer(dividerLayer)
+        globalColumns.layer?.addSublayer(dividerLayer)
 
         // Les deux bords de la colonne de droite sont symétriques : rien ne la pousse contre un
         // bord d'écran, contrairement à la carte de la bande latérale.
         card.trailingInset = card.leadingInset
-        contentContainer.addSubview(card)
+        globalColumns.addSubview(card)
+
+        tabBar.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
+        tabBar.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
+        contentContainer.addSubview(tabBar)
+
+        for view in [fileTray, aiTab] {
+            contentContainer.addSubview(view)
+        }
+        applySelection(animated: false)
 
         // L'ombre est portée par le calque et non par la fenêtre : l'ombre système serait
         // calculée sur le cadre complet et cernerait l'encoche alors que le panneau est replié.
@@ -128,14 +152,17 @@ final class NotchPanelContentView: NSView {
 
     /// Cadre d'une bague dans le repère de cette vue : `NotchPanelWindow` le convertit en
     /// coordonnées écran pour que le contrôleur puisse y confronter le curseur.
+    /// `nil` hors de l'onglet Global : les bagues y sont masquées, et le contrôleur ne doit pas
+    /// y confronter le curseur.
     func ringFrame(at index: Int) -> NSRect? {
-        guard rings.indices.contains(index) else { return nil }
-        return contentContainer.convert(rings[index].frame, to: self)
+        guard selectedTab == .global, rings.indices.contains(index) else { return nil }
+        return globalColumns.convert(rings[index].frame, to: self)
     }
 
     /// Met en avant la bague survolée et déplace la plaque d'accent sous elle. Le panneau ne
     /// reçoit aucun événement de souris : c'est le contrôleur qui désigne la bague.
     func setHighlightedRing(_ index: Int?) {
+        let index = selectedTab == .global ? index : nil
         for (position, ring) in rings.enumerated() {
             ring.setHighlighted(position == index)
         }
@@ -154,6 +181,53 @@ final class NotchPanelContentView: NSView {
         highlightLayer.springAnimate(keyPath: "opacity", to: Float(1), preset: .snappy)
     }
 
+    // MARK: - Onglets
+
+    private var tabContentViews: [NSView] { [globalColumns, fileTray, aiTab] }
+
+    private func contentView(for tab: NotchTab) -> NSView {
+        switch tab {
+        case .global: globalColumns
+        case .tray: fileTray
+        case .ai: aiTab
+        }
+    }
+
+    /// Bascule d'onglet, au clic dans la barre ou au repli du panneau, qui ramène sur Global.
+    func select(_ tab: NotchTab, animated: Bool) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+        tabBar.select(tab, animated: animated)
+        // La plaque d'accent suit une bague : elle n'a plus rien à désigner ailleurs.
+        setHighlightedRing(nil)
+        applySelection(animated: animated)
+    }
+
+    /// Montre l'onglet choisi et retire les autres. Les vues inactives sont réellement masquées
+    /// et pas seulement transparentes : le bac à fichiers ne doit pas capter un glisser pendant
+    /// qu'un autre onglet est affiché.
+    private func applySelection(animated: Bool) {
+        let active = contentView(for: selectedTab)
+
+        for view in tabContentViews {
+            let isActive = view === active
+            view.isHidden = !isActive
+            guard animated, isActive else {
+                view.layer?.opacity = isActive ? 1 : 0
+                continue
+            }
+            // Fondu d'entrée seul : l'onglet qui s'en va est retiré d'un coup, donc les deux ne
+            // se superposent jamais.
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            fade.duration = fadeDuration
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            view.layer?.opacity = 1
+            view.layer?.add(fade, forKey: "opacity")
+        }
+    }
+
     // MARK: - Mise en page
 
     override func layout() {
@@ -167,11 +241,34 @@ final class NotchPanelContentView: NSView {
 
         contentContainer.frame = bounds
 
-        // Colonne de gauche : les bagues en ligne, centrées sur la hauteur utile.
-        let usableTop = bounds.maxY - NotchPanelGeometry.contentInsetTop
-        let usableBottom = bounds.minY + NotchPanelGeometry.contentInsetBottom
-        let ringY = (usableTop + usableBottom) / 2 - tile / 2
+        // Barre d'onglets en haut, sous la marge que laissent les raccords concaves.
+        let barHeight = TabBarMetrics.barHeight
+        tabBar.frame = NSRect(
+            x: inset,
+            y: bounds.maxY - NotchPanelGeometry.contentInsetTop - barHeight,
+            width: max(0, bounds.width - 2 * inset),
+            height: barHeight
+        )
 
+        // Corps de l'onglet : tout ce qui reste sous la barre. Les trois onglets l'occupent en
+        // entier et se relaient dedans.
+        let bodyTop = tabBar.frame.minY - NotchPanelGeometry.tabBarGap
+        let bodyBottom = bounds.minY + NotchPanelGeometry.contentInsetBottom
+        let body = NSRect(
+            x: bounds.minX,
+            y: bodyBottom,
+            width: bounds.width,
+            height: max(0, bodyTop - bodyBottom)
+        )
+        for view in tabContentViews {
+            view.frame = view === globalColumns
+                ? body
+                : body.insetBy(dx: inset, dy: 0)
+        }
+
+        // Colonne de gauche : les bagues en ligne, centrées sur la hauteur du corps. Les cadres
+        // sont posés dans le repère de `globalColumns`, dont l'origine est celle du corps.
+        let ringY = globalColumns.bounds.midY - tile / 2
         for (position, ring) in rings.enumerated() {
             ring.frame = NSRect(
                 x: inset + CGFloat(position) * (tile + NotchPanelGeometry.ringSpacing),
@@ -184,15 +281,15 @@ final class NotchPanelContentView: NSView {
         let dividerX = inset + rowWidth + NotchPanelGeometry.columnGap
         dividerLayer.frame = NSRect(
             x: dividerX,
-            y: usableBottom + 8,
+            y: globalColumns.bounds.minY + 8,
             width: NotchPanelGeometry.dividerWidth,
-            height: max(0, usableTop - usableBottom - 16)
+            height: max(0, globalColumns.bounds.height - 16)
         )
 
         // Colonne de droite : la carte détaillée, à la hauteur que sa mise en page demande.
         card.frame = NSRect(
             x: dividerX + NotchPanelGeometry.dividerWidth + NotchPanelGeometry.columnGap,
-            y: (usableTop + usableBottom) / 2 - NotchPanelGeometry.cardSize.height / 2,
+            y: globalColumns.bounds.midY - NotchPanelGeometry.cardSize.height / 2,
             width: NotchPanelGeometry.cardSize.width,
             height: NotchPanelGeometry.cardSize.height
         )

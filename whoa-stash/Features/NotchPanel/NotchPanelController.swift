@@ -218,6 +218,10 @@ final class NotchPanelController {
                 window = existing
             } else {
                 window = NotchPanelWindow()
+                // L'engrenage de la barre d'onglets ouvre les Préférences. Leur fenêtre active
+                // l'app, donc le curseur a quitté le haut de l'écran et le suivi repliera le
+                // panneau de lui-même.
+                window.onOpenSettings = { SettingsWindowController.shared.show() }
                 window.apply(usageState: usageState, animated: false)
                 windows[displayID] = window
             }

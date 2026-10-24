@@ -40,6 +40,9 @@ enum NotchPanelGeometry {
     static let contentInsetTop: CGFloat = 16
     static let contentInsetBottom: CGFloat = 12
 
+    /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
+    static let tabBarGap: CGFloat = 12
+
     /// Colonne de gauche : les bagues d'utilisation posées **en ligne** et non empilées, c'est
     /// tout ce qui distingue cette mise en page de celle de la bande du bord droit.
     static let ringTileSize: CGFloat = 60
@@ -58,10 +61,18 @@ enum NotchPanelGeometry {
         return count * ringTileSize + max(0, count - 1) * ringSpacing
     }
 
+    /// Hauteur du contenu d'un onglet, sous la barre : c'est l'onglet Global, le plus haut, qui
+    /// la fixe, pour que la silhouette dépliée ne change pas de taille d'un onglet à l'autre.
+    static var tabContentHeight: CGFloat { cardSize.height }
+
     static var expandedSize: NSSize {
         NSSize(
             width: 2 * contentInsetX + ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width,
-            height: contentInsetTop + cardSize.height + contentInsetBottom
+            height: contentInsetTop
+                + TabBarMetrics.barHeight
+                + tabBarGap
+                + tabContentHeight
+                + contentInsetBottom
         )
     }
 
