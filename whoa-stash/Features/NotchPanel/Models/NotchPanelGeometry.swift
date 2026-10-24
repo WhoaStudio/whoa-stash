@@ -43,6 +43,11 @@ enum NotchPanelGeometry {
     /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
     static let tabBarGap: CGFloat = 12
 
+    /// Bande de la semaine, en tête de l'onglet Global, au-dessus des deux colonnes. Même vue
+    /// que dans la bande du bord droit, donc même hauteur.
+    static let weekStripHeight: CGFloat = 54
+    static let weekStripGap: CGFloat = 12
+
     /// Colonne de gauche : les bagues d'utilisation posées **en ligne** et non empilées, c'est
     /// tout ce qui distingue cette mise en page de celle de la bande du bord droit.
     static let ringTileSize: CGFloat = 60
@@ -63,7 +68,9 @@ enum NotchPanelGeometry {
 
     /// Hauteur du contenu d'un onglet, sous la barre : c'est l'onglet Global, le plus haut, qui
     /// la fixe, pour que la silhouette dépliée ne change pas de taille d'un onglet à l'autre.
-    static var tabContentHeight: CGFloat { cardSize.height }
+    static var tabContentHeight: CGFloat {
+        weekStripHeight + weekStripGap + cardSize.height
+    }
 
     static var expandedSize: NSSize {
         NSSize(

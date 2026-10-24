@@ -7,9 +7,8 @@ import Combine
 /// bulle. Reconstruit la liste des fenêtres à chaque changement de configuration d'écrans
 /// (branchement, débranchement, résolution, réagencement).
 ///
-/// Les fenêtres reçoivent les clics — la barre d'onglets en a besoin — mais pas le survol : c'est
-/// ici que la position globale du curseur est confrontée aux cadres, bagues comprises, parce que
-/// le suivi doit se poursuivre pendant que le curseur passe du panneau à la bulle.
+/// Les fenêtres ne reçoivent aucun événement de souris (voir `SidePanelWindow`) : c'est ici que
+/// la position globale du curseur est confrontée aux cadres, bagues comprises.
 @MainActor
 final class SidePanelController {
 
@@ -229,10 +228,6 @@ final class SidePanelController {
                 window = existing
             } else {
                 window = SidePanelWindow(appearanceMode: storage.settings.general.appearanceMode)
-                // L'engrenage de la barre d'onglets ouvre les Préférences. Le panneau ne reste
-                // pas affiché derrière : la fenêtre de réglages active l'app, donc le curseur a
-                // quitté le coin et le suivi le refermera.
-                window.onOpenSettings = { SettingsWindowController.shared.show() }
                 windows[displayID] = window
             }
 
