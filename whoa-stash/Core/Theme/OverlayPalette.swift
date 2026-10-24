@@ -30,7 +30,9 @@ struct OverlayPalette {
         return isDark ? .dark : .light
     }
 
-    private static let activeGreen = CGColor(red: 0x39 / 255, green: 0xFF / 255, blue: 0x88 / 255, alpha: 1)
+    /// Vert d'accent de l'overlay. Partagé hors de la palette — le panneau de l'encoche
+    /// s'en sert pour marquer la bague survolée — d'où sa visibilité interne.
+    static let activeGreen = CGColor(red: 0x39 / 255, green: 0xFF / 255, blue: 0x88 / 255, alpha: 1)
 
     private static let dark = OverlayPalette(
         activeTickColor: activeGreen,
