@@ -18,17 +18,58 @@ enum SidePanelGeometry {
     /// Côté d'une case de bague — la bague elle-même plus le pourcentage posé dessous, voir
     /// `ClaudeUsageRingView`.
     static let ringTileSize: CGFloat = 60
-    static let ringSpacing: CGFloat = 16
-    static let ringInset: CGFloat = 14
+
+    /// Écart entre deux bagues, désormais mesuré horizontalement : la bande étroite est devenue
+    /// un panneau large et les bagues s'alignent sur une seule rangée.
+    static let ringSpacing: CGFloat = 24
 
     /// Rayon de la silhouette du panneau, partagé avec `SidePanelContentView` : c'est lui qui
     /// décide de la marge haute et basse, puisque les raccords concaves rognent la zone peinte
     /// près des deux extrémités.
     static let panelCornerRadius: CGFloat = 28
 
-    /// Marge haute et basse de la pile de bagues : le rayon de la silhouette, plus de quoi ne pas
-    /// raser le raccord. Sans elle, la première bague mord sur l'évasement et déborde du panneau.
-    static let ringVerticalInset: CGFloat = panelCornerRadius + 10
+    // MARK: - Boîte de contenu
+
+    /// Marges intérieures du panneau. Les marges haute et basse valent au moins le rayon de la
+    /// silhouette : au-dessus de cette ligne, le bord peint se relève vers le bord de l'écran
+    /// pour former l'évasement, et tout contenu qui y monterait sortirait du chemin.
+    static let contentVerticalInset: CGFloat = panelCornerRadius + 6
+    static let contentHorizontalInset: CGFloat = 14
+
+    /// Écart entre deux blocs empilés dans le corps du panneau (barre d'onglets, bande des jours,
+    /// rangée de bagues).
+    static let contentSpacing: CGFloat = 14
+
+    // MARK: - Barre d'onglets
+
+    /// Hauteur de la rangée haute : les onglets à gauche, l'engrenage à droite.
+    static let tabBarHeight: CGFloat = 36
+
+    /// Hauteur de la pastille de l'onglet actif, un peu plus basse que la rangée pour que celle-ci
+    /// garde de l'air au-dessus et au-dessous.
+    static let tabPillHeight: CGFloat = 30
+
+    /// Marges horizontales à l'intérieur d'une pastille, de part et d'autre du couple
+    /// icône + intitulé.
+    static let tabPillHorizontalPadding: CGFloat = 11
+    static let tabIconSize: CGFloat = 13
+    static let tabIconLabelGap: CGFloat = 6
+
+    /// Écart entre deux onglets. Les pastilles ne se touchent jamais, même entre deux onglets
+    /// voisins tous deux larges.
+    static let tabSpacing: CGFloat = 4
+
+    /// Côté de la zone cliquable de l'engrenage, et taille de son glyphe.
+    static let gearButtonSize: CGFloat = 28
+    static let gearIconSize: CGFloat = 15
+
+    // MARK: - Bande des jours
+
+    /// Hauteur de la bande de la semaine : l'initiale du jour, et le numéro posé dessous dans sa
+    /// pastille.
+    static let weekStripHeight: CGFloat = 54
+
+    // MARK: - Bande de bagues
 
     /// Une case de la bande : la marque qu'elle porte, et si une source de données l'alimente.
     /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
@@ -38,7 +79,7 @@ enum SidePanelGeometry {
         let isConnected: Bool
     }
 
-    /// Les bagues empilées, de haut en bas. Seule celle de Claude a une source aujourd'hui ;
+    /// Les bagues alignées, de gauche à droite. Seule celle de Claude a une source aujourd'hui ;
     /// c'est aussi la seule à ouvrir la bulle de détail.
     static let ringSlots: [RingSlot] = [
         RingSlot(mark: .claude, isConnected: true),
@@ -48,19 +89,29 @@ enum SidePanelGeometry {
 
     static var ringCount: Int { ringSlots.count }
 
-    /// Le panneau est désormais une bande étroite : il ne porte plus la carte d'utilisation mais
-    /// seulement les bagues, la carte étant passée dans la bulle qui s'ouvre au survol.
-    static let panelWidth: CGFloat = ringTileSize + 2 * ringInset
+    // MARK: - Cadre du panneau
 
-    /// Hauteur plancher de la bande : elle garde sa silhouette haute et élancée même avec une
-    /// seule bague, les suivantes venant remplir la place déjà réservée. Au-delà, c'est le
-    /// contenu qui commande.
-    static let minimumPanelHeight: CGFloat = 400
+    /// Le panneau porte maintenant une barre d'onglets horizontale : il lui faut de la largeur
+    /// pour tenir les trois intitulés et l'engrenage sur la même rangée, là où la bande d'origine
+    /// n'était large que d'une bague.
+    static let panelWidth: CGFloat = 380
+
+    /// Hauteur plancher : le corps garde la même enveloppe d'un onglet à l'autre, pour que la
+    /// silhouette ne saute pas au changement d'onglet — c'est l'onglet le plus haut qui commande,
+    /// pas celui qui est affiché.
+    static let minimumPanelHeight: CGFloat = 300
+
+    /// Hauteur réclamée par l'onglet Global, le plus chargé : la bande des jours puis la rangée
+    /// de bagues, sous la barre d'onglets.
+    private static var globalTabContentHeight: CGFloat {
+        weekStripHeight + contentSpacing + ringTileSize
+    }
 
     static var panelHeight: CGFloat {
-        let content = 2 * ringVerticalInset
-            + CGFloat(ringCount) * ringTileSize
-            + CGFloat(max(0, ringCount - 1)) * ringSpacing
+        let content = 2 * contentVerticalInset
+            + tabBarHeight
+            + contentSpacing
+            + globalTabContentHeight
         return max(content, minimumPanelHeight)
     }
 

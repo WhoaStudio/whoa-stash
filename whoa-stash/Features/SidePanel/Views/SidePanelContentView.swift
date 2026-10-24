@@ -1,9 +1,11 @@
 import AppKit
 
-/// Contenu du panneau latéral : une bande quasi opaque accrochée au bord droit de l'écran,
-/// arrondie du côté intérieur et évasée dans le bord, portant les bagues d'utilisation
-/// (`ClaudeUsageRingStripView`). La carte détaillée, elle, vit dans la bulle qui s'ouvre au
-/// survol d'une bague (`UsageCalloutWindow`).
+/// Contenu du panneau latéral : une surface quasi opaque accrochée au bord droit de l'écran,
+/// arrondie du côté intérieur et évasée dans le bord.
+///
+/// Porte une barre d'onglets en haut (`NotchTabBarView`) et, dessous, l'onglet choisi : Global
+/// (la semaine et les bagues d'utilisation), Tray (le bac à fichiers) ou AI. La carte détaillée
+/// d'une bague, elle, vit dans la bulle qui s'ouvre à son survol (`UsageCalloutWindow`).
 ///
 /// Porte aussi l'animation d'entrée/sortie (glissement depuis le bord droit + fondu), appliquée
 /// à son propre calque.
@@ -12,9 +14,19 @@ import AppKit
 /// pas de contraintes Auto Layout.
 final class SidePanelContentView: NSView {
 
+    /// Appelé au clic sur l'engrenage de la barre d'onglets. Relayé jusqu'à `SidePanelController`,
+    /// qui seul sait ouvrir les Préférences — la vue n'a pas à connaître la fenêtre de réglages.
+    var onOpenSettings: (() -> Void)?
+
     private let backgroundLayer = CAShapeLayer()
     private let strokeLayer = CAShapeLayer()
-    private let ringStrip = ClaudeUsageRingStripView()
+
+    private let tabBar = NotchTabBarView(selectedTab: .global)
+    private let globalTab = NotchGlobalTabView()
+    private let fileTray = FileTrayView()
+    private let aiTab = AIPlaceholderView()
+
+    private var selectedTab: NotchTab = .global
 
     /// Rayon unique de toute la silhouette : il vaut à la fois pour les deux coins convexes
     /// (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans le bord de
@@ -46,7 +58,14 @@ final class SidePanelContentView: NSView {
         strokeLayer.lineWidth = 1
         layer?.addSublayer(strokeLayer)
 
-        addSubview(ringStrip)
+        tabBar.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
+        tabBar.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
+        addSubview(tabBar)
+
+        for view in tabContentViews {
+            addSubview(view)
+        }
+        applySelection(animated: false)
 
         // L'ombre est portée ici plutôt que par la fenêtre : l'ombre système serait calculée sur
         // le cadre complet et resterait donc visible au bord de l'écran pendant que le contenu
@@ -74,22 +93,79 @@ final class SidePanelContentView: NSView {
     /// Relayé par `SidePanelWindow` depuis le modèle de vue partagé avec la bulle : les deux
     /// surfaces montrent toujours le même instantané.
     func apply(usageState: ClaudeUsageState, animated: Bool) {
-        ringStrip.apply(usageState, animated: animated)
+        globalTab.apply(usageState: usageState, animated: animated)
     }
 
     /// Met en avant la bague survolée — le contrôleur la désigne depuis la position du curseur.
     func setHighlightedRing(_ index: Int?) {
-        ringStrip.setHighlightedRing(index)
+        globalTab.setHighlightedRing(index)
     }
 
     /// Cadre d'une bague dans le repère de cette vue : `SidePanelWindow` le convertit en
     /// coordonnées écran pour que la bulle sache où pointer.
+    ///
+    /// `nil` hors de l'onglet Global : les bagues y sont alors masquées, et le contrôleur ne doit
+    /// pas ouvrir une bulle qui pointerait vers le bac à fichiers.
     func ringFrame(at index: Int) -> NSRect? {
-        guard let frame = ringStrip.ringFrame(at: index) else { return nil }
-        return ringStrip.convert(frame, to: self)
+        guard selectedTab == .global, let frame = globalTab.ringFrame(at: index) else { return nil }
+        return globalTab.convert(frame, to: self)
     }
 
-    var ringCount: Int { ringStrip.ringCount }
+    var ringCount: Int { globalTab.ringCount }
+
+    // MARK: - Onglets
+
+    private var tabContentViews: [NSView] { [globalTab, fileTray, aiTab] }
+
+    private func contentView(for tab: NotchTab) -> NSView {
+        switch tab {
+        case .global: globalTab
+        case .tray: fileTray
+        case .ai: aiTab
+        }
+    }
+
+    /// Bascule d'onglet. Appelée par la barre au clic, et par le contrôleur quand il remet le
+    /// panneau sur Global avant une nouvelle apparition.
+    func select(_ tab: NotchTab, animated: Bool) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+        tabBar.select(tab, animated: animated)
+        applySelection(animated: animated)
+    }
+
+    /// Montre l'onglet choisi et retire les autres. Les vues inactives sont réellement masquées,
+    /// et pas seulement transparentes : le bac à fichiers ne doit pas capter un glisser pendant
+    /// qu'un autre onglet est affiché.
+    private func applySelection(animated: Bool) {
+        let active = contentView(for: selectedTab)
+
+        for view in tabContentViews {
+            let isActive = view === active
+            view.isHidden = !isActive
+            guard animated, isActive else {
+                view.layer?.opacity = isActive ? 1 : 0
+                continue
+            }
+            // Fondu d'entrée seul : l'onglet qui s'en va est retiré d'un coup, donc les deux ne se
+            // superposent jamais pendant la transition.
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            fade.duration = fadeDuration
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            view.layer?.opacity = 1
+            view.layer?.add(fade, forKey: "opacity")
+        }
+    }
+
+    /// Remet le panneau dans son état d'ouverture : l'onglet Global, et sa semaine à la bonne
+    /// date. Appelé juste avant chaque apparition — le panneau reste en mémoire d'un survol à
+    /// l'autre, et parfois d'un jour à l'autre.
+    func prepareForDisplay() {
+        select(.global, animated: false)
+        globalTab.refreshWeek()
+    }
 
     override func layout() {
         super.layout()
@@ -104,7 +180,26 @@ final class SidePanelContentView: NSView {
         strokeLayer.path = path
         layer?.shadowPath = path
 
-        ringStrip.frame = bounds.insetBy(dx: 0, dy: SidePanelGeometry.ringVerticalInset)
+        // Boîte de contenu : tout ce qui est peint reste sous la ligne où le bord supérieur se
+        // relève vers le bord de l'écran pour former l'évasement (voir `panelPath`).
+        let box = bounds.insetBy(
+            dx: SidePanelGeometry.contentHorizontalInset,
+            dy: SidePanelGeometry.contentVerticalInset
+        )
+
+        let tabHeight = SidePanelGeometry.tabBarHeight
+        tabBar.frame = NSRect(
+            x: box.minX,
+            y: box.maxY - tabHeight,
+            width: box.width,
+            height: tabHeight
+        )
+
+        let bodyHeight = max(0, tabBar.frame.minY - SidePanelGeometry.contentSpacing - box.minY)
+        let body = NSRect(x: box.minX, y: box.minY, width: box.width, height: bodyHeight)
+        for view in tabContentViews {
+            view.frame = body
+        }
     }
 
     /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et

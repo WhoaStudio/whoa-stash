@@ -19,6 +19,12 @@ struct OverlayPalette {
     let buttonSymbolColor: NSColor
     let buttonGlowColor: CGColor
 
+    /// Pastille de l'onglet actif dans la barre du panneau, et les deux teintes de son contenu.
+    /// L'onglet actif est franc sur sa pastille ; les autres restent en retrait, sans pastille.
+    let tabPillFill: CGColor
+    let tabActiveContent: NSColor
+    let tabInactiveContent: NSColor
+
     static func resolved(for appearance: NSAppearance) -> OverlayPalette {
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark ? .dark : .light
@@ -36,7 +42,10 @@ struct OverlayPalette {
         panelBackground: CGColor(gray: 0.04, alpha: 1),
         strokeColor: CGColor(gray: 1, alpha: 0.08),
         buttonSymbolColor: .white,
-        buttonGlowColor: CGColor(gray: 1, alpha: 0.5)
+        buttonGlowColor: CGColor(gray: 1, alpha: 0.5),
+        tabPillFill: CGColor(gray: 0.22, alpha: 1),
+        tabActiveContent: .white,
+        tabInactiveContent: NSColor(white: 0.62, alpha: 1)
     )
 
     private static let light = OverlayPalette(
@@ -49,7 +58,10 @@ struct OverlayPalette {
         panelBackground: CGColor(gray: 0.97, alpha: 1),
         strokeColor: CGColor(gray: 0, alpha: 0.06),
         buttonSymbolColor: .black.withAlphaComponent(0.75),
-        buttonGlowColor: CGColor(gray: 0, alpha: 0.35)
+        buttonGlowColor: CGColor(gray: 0, alpha: 0.35),
+        tabPillFill: CGColor(gray: 0.86, alpha: 1),
+        tabActiveContent: NSColor(white: 0.10, alpha: 1),
+        tabInactiveContent: NSColor(white: 0.42, alpha: 1)
     )
 }
 
@@ -67,7 +79,10 @@ extension OverlayPalette {
             panelBackground: panelBackground,
             strokeColor: strokeColor,
             buttonSymbolColor: buttonSymbolColor,
-            buttonGlowColor: buttonGlowColor
+            buttonGlowColor: buttonGlowColor,
+            tabPillFill: tabPillFill,
+            tabActiveContent: tabActiveContent,
+            tabInactiveContent: tabInactiveContent
         )
     }
 }
