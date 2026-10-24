@@ -1,12 +1,17 @@
 import AppKit
 
-/// Contenu de la bande latérale : les bagues d'utilisation empilées, une par case déclarée dans
-/// `SidePanelGeometry.ringSlots`. Celles qui n'ont pas encore de source restent vides, avec leur
-/// marque en teinte neutre — elles ne sont pas alimentées par l'instantané Claude.
+/// Rangée des bagues d'utilisation, une par case déclarée dans `SidePanelGeometry.ringSlots`.
+/// Celles qui n'ont pas encore de source restent vides, avec leur marque en teinte neutre —
+/// elles ne sont pas alimentées par l'instantané Claude.
 ///
-/// La vue ne reçoit aucun événement de souris — la fenêtre du panneau laisse tout passer (voir
-/// `SidePanelWindow`) — donc c'est `SidePanelController` qui décide, depuis la position globale
-/// du curseur, quelle bague est survolée et le lui dit par `setHighlighted(_:)`.
+/// Les bagues sont alignées **horizontalement** depuis que le panneau est large : elles étaient
+/// empilées du temps de la bande étroite d'une seule bague.
+///
+/// La vue ne gère pas le survol elle-même : c'est `SidePanelController` qui décide, depuis la
+/// position globale du curseur, quelle bague est survolée et le lui dit par
+/// `setHighlightedRing(_:)`. La fenêtre reçoit désormais les clics (la barre d'onglets en a
+/// besoin), mais le suivi des bagues reste global — il doit aussi fonctionner pendant que le
+/// curseur traverse la bulle, qui est une autre fenêtre.
 final class ClaudeUsageRingStripView: NSView {
 
     private let rings: [ClaudeUsageRingView]
@@ -56,17 +61,18 @@ final class ClaudeUsageRingStripView: NSView {
         super.layout()
 
         let tile = SidePanelGeometry.ringTileSize
-        let gaps = CGFloat(max(1, rings.count - 1))
-        // Réparties sur toute la hauteur disponible plutôt que tassées en haut : la bande est
-        // plus haute que ses bagues, et l'espace en trop se distribue entre elles. L'écart ne
-        // descend jamais sous `ringSpacing`, qui reste le minimum lisible.
-        let spacing = max(SidePanelGeometry.ringSpacing, (bounds.height - CGFloat(rings.count) * tile) / gaps)
+        let spacing = SidePanelGeometry.ringSpacing
 
-        // Empilées depuis le haut : la première bague est la plus proche de la barre de menus,
-        // comme dans la référence.
-        for (position, ring) in rings.enumerated() {
-            let top = bounds.maxY - CGFloat(position) * (tile + spacing)
-            ring.frame = NSRect(x: (bounds.width - tile) / 2, y: top - tile, width: tile, height: tile)
+        // Le groupe est centré dans la largeur disponible, avec un écart fixe entre bagues : les
+        // répartir sur toute la largeur les éloignerait trop les unes des autres sur un panneau
+        // large, alors qu'elles forment une seule rangée à lire d'un coup.
+        let total = CGFloat(rings.count) * tile + CGFloat(max(0, rings.count - 1)) * spacing
+        var x = bounds.midX - total / 2
+        let y = bounds.midY - tile / 2
+
+        for ring in rings {
+            ring.frame = NSRect(x: x, y: y, width: tile, height: tile)
+            x += tile + spacing
         }
     }
 }
