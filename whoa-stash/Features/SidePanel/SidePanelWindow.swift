@@ -1,15 +1,12 @@
 import AppKit
 
-/// Fenêtre flottante du panneau latéral, une par écran. Ne prend jamais le focus et n'apparaît
-/// pas dans le Dock (l'app est déjà `LSUIElement`).
+/// Fenêtre flottante du panneau latéral, une par écran. Ne prend jamais le focus, n'apparaît pas
+/// dans le Dock (l'app est déjà `LSUIElement`) et laisse passer tous les clics : rien n'y est
+/// cliquable — les onglets et leur engrenage appartiennent au panneau de l'encoche.
 ///
-/// Elle reçoit en revanche les clics, depuis que le panneau porte une barre d'onglets : un onglet
-/// et l'engrenage se cliquent. Le panneau n'étant ordonné à l'écran que pendant qu'il est révélé,
-/// il n'intercepte des clics que là, dans le coin supérieur droit.
-///
-/// Le survol, lui, reste déduit de la position globale du curseur par `SidePanelController` et non
-/// de `NSTrackingArea` : il doit continuer de fonctionner pendant que le curseur traverse la
-/// bulle, qui est une autre fenêtre.
+/// Le survol est déduit de la position globale du curseur par `SidePanelController`, et non de
+/// `NSTrackingArea` : il doit continuer de fonctionner pendant que le curseur traverse la bulle,
+/// qui est une autre fenêtre.
 @MainActor
 final class SidePanelWindow {
 
@@ -30,9 +27,7 @@ final class SidePanelWindow {
         panel.backgroundColor = .clear
         // Voir `SidePanelContentView` : l'ombre est portée par le calque du contenu.
         panel.hasShadow = false
-        // Les onglets ont besoin des clics. `.nonactivatingPanel` fait que les recevoir n'active
-        // pas l'app pour autant : l'application de devant garde le focus clavier.
-        panel.ignoresMouseEvents = false
+        panel.ignoresMouseEvents = true
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         // Au-dessus des fenêtres plein écran — les niveaux `.statusBar` et Dock utilisés ailleurs
@@ -44,13 +39,6 @@ final class SidePanelWindow {
     }
 
     var frame: NSRect { panel.frame }
-
-    /// Relayé jusqu'au contrôleur, qui ouvre les Préférences — ni la fenêtre ni la vue de contenu
-    /// n'ont à connaître `SettingsWindowController`.
-    var onOpenSettings: (() -> Void)? {
-        get { contentView.onOpenSettings }
-        set { contentView.onOpenSettings = newValue }
-    }
 
     func apply(usageState: ClaudeUsageState, animated: Bool) {
         contentView.apply(usageState: usageState, animated: animated)
@@ -85,9 +73,6 @@ final class SidePanelWindow {
         guard !isRevealed else { return }
         isRevealed = true
 
-        // L'onglet revient sur Global et la semaine est remise à la bonne date : le panneau reste
-        // en mémoire d'un survol à l'autre, et l'utilisateur ne doit pas retrouver le bac à
-        // fichiers ouvert la fois suivante.
         contentView.prepareForDisplay()
         contentView.prepareForReveal()
         panel.orderFrontRegardless()

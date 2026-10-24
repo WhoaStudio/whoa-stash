@@ -40,11 +40,6 @@ enum SidePanelGeometry {
     /// rangée de bagues).
     static let contentSpacing: CGFloat = 14
 
-    // MARK: - Barre d'onglets
-
-    // Les mesures de la barre vivent dans `TabBarMetrics` : le panneau de l'encoche porte la
-    // même barre, et les deux ne doivent pas pouvoir diverger.
-
     // MARK: - Bande des jours
 
     /// Hauteur de la bande de la semaine : l'initiale du jour, et le numéro posé dessous dans sa
@@ -73,27 +68,19 @@ enum SidePanelGeometry {
 
     // MARK: - Cadre du panneau
 
-    /// Le panneau porte maintenant une barre d'onglets horizontale : il lui faut de la largeur
-    /// pour tenir les trois intitulés et l'engrenage sur la même rangée, là où la bande d'origine
-    /// n'était large que d'une bague.
+    /// La bande est large depuis qu'elle porte la semaine : sept jours ne tiennent pas dans la
+    /// largeur d'une bague, qui était celle de la bande d'origine.
     static let panelWidth: CGFloat = 380
 
-    /// Hauteur plancher : le corps garde la même enveloppe d'un onglet à l'autre, pour que la
-    /// silhouette ne saute pas au changement d'onglet — c'est l'onglet le plus haut qui commande,
-    /// pas celui qui est affiché.
+    /// Hauteur plancher, pour que la bande garde une silhouette posée même quand son contenu
+    /// tient en moins.
     static let minimumPanelHeight: CGFloat = 300
-
-    /// Hauteur réclamée par l'onglet Global, le plus chargé : la bande des jours puis la rangée
-    /// de bagues, sous la barre d'onglets.
-    private static var globalTabContentHeight: CGFloat {
-        weekStripHeight + contentSpacing + ringTileSize
-    }
 
     static var panelHeight: CGFloat {
         let content = 2 * contentVerticalInset
-            + TabBarMetrics.barHeight
+            + weekStripHeight
             + contentSpacing
-            + globalTabContentHeight
+            + ringTileSize
         return max(content, minimumPanelHeight)
     }
 
