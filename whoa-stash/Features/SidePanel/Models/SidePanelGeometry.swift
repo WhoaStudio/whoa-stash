@@ -10,9 +10,6 @@ enum SidePanelGeometry {
     static let hotZoneWidth: CGFloat = 20
     static let hotZoneHeight: CGFloat = 100
 
-    /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
-    static let topInset: CGFloat = 8
-
     // MARK: - Bande de bagues
 
     /// Côté d'une case de bague — la bague elle-même plus le pourcentage posé dessous, voir
@@ -76,9 +73,12 @@ enum SidePanelGeometry {
 
     /// Cadre affleurant le bord droit de l'écran : c'est depuis ce bord que le contenu glisse,
     /// donc le panneau doit y toucher — l'espacement visuel vient des coins arrondis, pas d'une
-    /// marge. Le haut suit `visibleFrame` pour rester sous la barre de menus.
+    /// marge. Le haut affleure de même le bord supérieur : c'est `frame`, pas `visibleFrame`, qui
+    /// le donne — ce dernier s'arrête sous la barre de menus, plus bas encore sur un écran à
+    /// encoche. La fenêtre est au niveau `.screenSaver` (voir `SidePanelWindow`), donc au-dessus
+    /// de cette barre, et la zone sensible se mesure déjà depuis `frame.maxY`.
     static func panelFrame(on screen: NSScreen) -> NSRect {
-        let top = screen.visibleFrame.maxY - topInset
+        let top = screen.frame.maxY
         return NSRect(
             x: screen.frame.maxX - panelWidth,
             y: top - panelHeight,
