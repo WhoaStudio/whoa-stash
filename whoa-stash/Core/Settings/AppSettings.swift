@@ -101,6 +101,13 @@ struct EdgeSliderSettings: Codable, Equatable, Sendable {
     var sensitivity: Double = 1.0
 }
 
+/// Réglages du panneau de l'encoche — le placement haut-centre, distinct de la bande du bord
+/// droit, qui garde ses propres réglages. Les deux peuvent être affichés en même temps ; ce
+/// drapeau permet de n'en garder qu'un.
+struct NotchPanelSettings: Codable, Equatable, Sendable {
+    var enabled: Bool = true
+}
+
 /// Racine unique des préférences de l'application, persistée automatiquement par
 /// `SettingsStorage`. Aucune vue ni aucun contrôleur ne doit lire/écrire `UserDefaults`
 /// directement — tout transite par ce modèle.
@@ -108,6 +115,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var general = GeneralSettings()
     var brightness = BrightnessSettings()
     var edgeSlider = EdgeSliderSettings()
+    var notchPanel = NotchPanelSettings()
 
     static let `default` = AppSettings()
 }

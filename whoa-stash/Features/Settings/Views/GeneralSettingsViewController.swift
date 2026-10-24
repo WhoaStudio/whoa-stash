@@ -8,6 +8,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     private let viewModel = GeneralSettingsViewModel()
     private var cancellable: AnyCancellable?
+    private var notchPanelCancellable: AnyCancellable?
 
     private let launchAtLoginSwitch = NSSwitch()
     private let appearancePopUp = NSPopUpButton()
@@ -15,6 +16,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private let animationsSwitch = NSSwitch()
     private let hapticSwitch = NSSwitch()
     private let soundSwitch = NSSwitch()
+    private let notchPanelSwitch = NSSwitch()
 
     override func makeCards() -> [SettingsCardView] {
         launchAtLoginSwitch.target = self
@@ -46,18 +48,28 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             SettingsRowView(title: "Accent color", accessory: accentColorPopUp),
         ])
 
+        notchPanelSwitch.target = self
+        notchPanelSwitch.action = #selector(notchPanelChanged)
+
         let feedbackCard = SettingsCardView(title: "Feedback", rows: [
             SettingsRowView(title: "Enable animations", accessory: animationsSwitch),
             SettingsRowView(title: "Enable haptic feedback", accessory: hapticSwitch),
             SettingsRowView(title: "Enable sound feedback", accessory: soundSwitch),
         ])
 
-        return [startupCard, appearanceCard, feedbackCard]
+        let notchPanelCard = SettingsCardView(title: "Notch Panel", rows: [
+            SettingsRowView(title: "Show notch panel", accessory: notchPanelSwitch),
+        ])
+
+        return [startupCard, appearanceCard, notchPanelCard, feedbackCard]
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         cancellable = viewModel.$settings.sink { [weak self] in self?.apply($0) }
+        notchPanelCancellable = viewModel.$notchPanel.sink { [weak self] in
+            self?.notchPanelSwitch.state = $0.enabled ? .on : .off
+        }
     }
 
     private func apply(_ settings: GeneralSettings) {
@@ -91,5 +103,9 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func soundChanged() {
         viewModel.setEnableSoundFeedback(soundSwitch.state == .on)
+    }
+
+    @objc private func notchPanelChanged() {
+        viewModel.setNotchPanelEnabled(notchPanelSwitch.state == .on)
     }
 }
