@@ -16,13 +16,13 @@ enum NotchPanelGeometry {
     /// Rayon des deux raccords **concaves** du haut, là où le panneau s'évase dans le bord
     /// auquel il est suspendu — le haut de l'écran sur un Mac à encoche, le bas de la barre de
     /// menus sinon.
-    /// Le rayon replié reste propre à cet état : la silhouette doit s'y confondre avec
-    /// l'encoche matérielle, qui est trop basse pour porter celui du panneau.
-    static let collapsedShoulderRadius: CGFloat = 7
+    /// Le rayon replié est celui de la poignée du fonds commun : la silhouette doit se confondre
+    /// avec l'encoche matérielle, qui est trop basse pour porter celui du panneau.
+    static let collapsedShoulderRadius = PanelGeometry.collapsedShoulderRadius
     static let expandedShoulderRadius = PanelGeometry.cornerRadius
 
     /// Rayon des deux coins **convexes** du bas.
-    static let collapsedBottomRadius: CGFloat = 10
+    static let collapsedBottomRadius = PanelGeometry.collapsedFarRadius
     static let expandedBottomRadius = PanelGeometry.cornerRadius
 
     // MARK: - État replié
@@ -32,8 +32,9 @@ enum NotchPanelGeometry {
     static let fallbackNotchWidth: CGFloat = 190
 
     /// Pastille affichée sur les Macs sans encoche : assez large pour se lire comme une poignée,
-    /// assez basse pour ne rien masquer de ce qui est sous la barre de menus.
-    static let pillSize = NSSize(width: 160, height: 22)
+    /// assez basse pour ne rien masquer de ce qui est sous la barre de menus. C'est la poignée du
+    /// fonds commun, posée ici sur le bord du haut.
+    static let pillSize = PanelGeometry.collapsedHandleSize
 
     // MARK: - État déplié
 

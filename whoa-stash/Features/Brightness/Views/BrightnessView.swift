@@ -77,7 +77,7 @@ final class BrightnessView: NSView {
     override func layout() {
         super.layout()
 
-        let path = PanelGeometry.silhouette(in: bounds, anchoredTo: edge)
+        let path = PanelGeometry.silhouette(in: bounds, anchoredTo: PanelGeometry.Anchor(edge))
         backgroundLayer.frame = bounds
         backgroundLayer.path = path
         strokeLayer.frame = bounds

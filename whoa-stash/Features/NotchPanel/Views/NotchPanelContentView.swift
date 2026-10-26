@@ -52,9 +52,6 @@ final class NotchPanelContentView: NSView {
 
     private(set) var isExpanded = false
 
-    /// Durée du fondu du contenu. Le dépliage de la silhouette, lui, est porté par un ressort.
-    private let fadeDuration: TimeInterval = 0.18
-
     override init(frame frameRect: NSRect) {
         rings = SidePanelGeometry.ringSlots.map { slot in
             ClaudeUsageRingView(tileSize: NotchPanelGeometry.ringTileSize, mark: slot.mark)
@@ -228,7 +225,7 @@ final class NotchPanelContentView: NSView {
             let fade = CABasicAnimation(keyPath: "opacity")
             fade.fromValue = 0
             fade.toValue = 1
-            fade.duration = fadeDuration
+            fade.duration = PanelFold.fadeDuration
             fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
             view.layer?.opacity = 1
             view.layer?.add(fade, forKey: "opacity")
@@ -321,91 +318,29 @@ final class NotchPanelContentView: NSView {
 
     // MARK: - Silhouette
 
-    /// Silhouette en un seul chemin fermé, suspendue au bord **haut** de la vue : deux raccords
-    /// concaves en haut, qui évasent le panneau dans ce bord comme un onglet s'évase dans sa
-    /// barre, et deux coins convexes en bas.
-    ///
-    /// La recette est la même pour les deux états, au nombre et à l'ordre des segments près :
-    /// c'est cette identité de structure qui rend les deux chemins interpolables, et donc le
-    /// dépliage animable d'un seul `CASpringAnimation` sur `path`.
-    private func panelPath(width: CGFloat, height: CGFloat, shoulder: CGFloat, bottom: CGFloat) -> CGPath {
-        let w = min(width, bounds.width)
-        let h = min(height, bounds.height)
-        // Les quatre rayons doivent tenir dans la silhouette, qui est minuscule une fois repliée.
-        let r = min(shoulder, w / 4, h / 2)
-        let b = min(bottom, w / 2 - r, h - r)
-
-        let left = bounds.midX - w / 2
-        let right = bounds.midX + w / 2
-        let top = bounds.maxY
-        let bottomY = top - h
-
-        let path = CGMutablePath()
-
-        // Haut-gauche : évasement concave depuis le bord auquel le panneau est suspendu. Le
-        // centre est posé **sur** ce bord, décalé vers l'intérieur de la hauteur du rayon —
-        // comme celui de la bande du bord droit l'est vers l'intérieur de sa largeur. C'est ce
-        // qui rend l'arc tangent au bord haut d'un côté et au flanc de l'autre : centré sur le
-        // coin, il rejoindrait les deux à l'équerre et laisserait une marche.
-        path.move(to: CGPoint(x: left, y: top))
-        path.addArc(
-            center: CGPoint(x: left, y: top - r),
-            radius: r,
-            startAngle: .pi / 2,
-            endAngle: 0,
-            clockwise: true
-        )
-
-        // Côté gauche, puis coin convexe bas-gauche.
-        path.addLine(to: CGPoint(x: left + r, y: bottomY + b))
-        path.addArc(
-            center: CGPoint(x: left + r + b, y: bottomY + b),
-            radius: b,
-            startAngle: .pi,
-            endAngle: 3 * .pi / 2,
-            clockwise: false
-        )
-
-        // Bas, puis coin convexe bas-droit.
-        path.addLine(to: CGPoint(x: right - r - b, y: bottomY))
-        path.addArc(
-            center: CGPoint(x: right - r - b, y: bottomY + b),
-            radius: b,
-            startAngle: -.pi / 2,
-            endAngle: 0,
-            clockwise: false
-        )
-
-        // Côté droit, puis évasement concave haut-droit, symétrique du premier.
-        path.addLine(to: CGPoint(x: right - r, y: top - r))
-        path.addArc(
-            center: CGPoint(x: right, y: top - r),
-            radius: r,
-            startAngle: .pi,
-            endAngle: .pi / 2,
-            clockwise: true
-        )
-
-        // Le bord du haut referme la silhouette : c'est par lui qu'elle tient à l'écran.
-        path.closeSubpath()
-        return path
-    }
+    /// Les deux états, tirés de la même recette que les bandes de flanc
+    /// (`PanelGeometry.silhouette`), ici suspendue au bord du **haut** : deux raccords concaves
+    /// qui évasent le panneau dans ce bord comme un onglet s'évase dans sa barre, et deux coins
+    /// convexes en bas. Seuls la taille et les rayons les distinguent, donc les deux chemins ont
+    /// le même nombre de segments dans le même ordre — c'est cette identité de structure qui rend
+    /// le dépliage animable d'un seul `CASpringAnimation` sur `path`.
 
     private func collapsedPath() -> CGPath {
-        panelPath(
-            width: collapsedSize.width,
-            height: collapsedSize.height,
-            shoulder: NotchPanelGeometry.collapsedShoulderRadius,
-            bottom: NotchPanelGeometry.collapsedBottomRadius
+        PanelGeometry.silhouette(
+            in: bounds,
+            anchoredTo: .top,
+            size: collapsedSize,
+            shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
+            farRadius: NotchPanelGeometry.collapsedBottomRadius
         )
     }
 
     private func expandedPath() -> CGPath {
-        panelPath(
-            width: bounds.width,
-            height: bounds.height,
-            shoulder: NotchPanelGeometry.expandedShoulderRadius,
-            bottom: NotchPanelGeometry.expandedBottomRadius
+        PanelGeometry.silhouette(
+            in: bounds,
+            anchoredTo: .top,
+            shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
+            farRadius: NotchPanelGeometry.expandedBottomRadius
         )
     }
 
@@ -422,41 +357,16 @@ final class NotchPanelContentView: NSView {
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let path = expanded ? expandedPath() : collapsedPath()
-        let contentOpacity: Float = expanded ? 1 : 0
-
-        guard animated else {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            for shape in [backgroundLayer, strokeLayer, contentMask] {
-                shape.frame = bounds
-                shape.path = path
-            }
-            contentContainer.layer?.opacity = contentOpacity
-            CATransaction.commit()
-            return
-        }
-
-        for shape in [backgroundLayer, strokeLayer, contentMask] {
-            shape.frame = bounds
-            shape.springAnimate(keyPath: "path", to: path, preset: .gentle)
-        }
-
-        // Le contenu suit le dépliage en fondu plutôt qu'en ressort : il doit avoir disparu
-        // avant que la silhouette ne soit redevenue trop étroite pour le contenir.
-        animate(contentContainer.layer, keyPath: "opacity", to: contentOpacity)
-    }
-
-    private func animate(_ target: CALayer?, keyPath: String, to value: Float) {
-        guard let target else { return }
-
-        let animation = CABasicAnimation(keyPath: keyPath)
-        animation.fromValue = target.presentation()?.value(forKeyPath: keyPath) ?? target.value(forKeyPath: keyPath)
-        animation.toValue = value
-        animation.duration = fadeDuration
-        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-
-        target.setValue(value, forKeyPath: keyPath)
-        target.add(animation, forKey: keyPath)
+        // Le contenu suit le dépliage en fondu plutôt qu'au ressort, et il est découpé par la
+        // silhouette elle-même (`contentMask`) : pendant le dépliage il ne doit rien dépasser de
+        // la forme, qui est encore plus étroite que lui.
+        PanelFold.apply(
+            path: expanded ? expandedPath() : collapsedPath(),
+            to: [backgroundLayer, strokeLayer, contentMask],
+            in: bounds,
+            fading: contentContainer.layer.map { [$0] } ?? [],
+            to: expanded ? 1 : 0,
+            animated: animated
+        )
     }
 }

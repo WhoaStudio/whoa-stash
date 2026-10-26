@@ -1,12 +1,12 @@
 import AppKit
 
 /// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// droit, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
+/// de son bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
 /// bagues. Tout est exprimé en coordonnées globales AppKit (origine en bas à gauche de l'écran
 /// principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
-    /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord droit.
+    /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord d'accroche.
     static let hotZoneWidth = PanelGeometry.hotZoneWidth
     static let hotZoneHeight = PanelGeometry.hotZoneHeight
 
@@ -67,19 +67,33 @@ enum SidePanelGeometry {
     /// tient en moins.
     static let minimumPanelHeight = PanelGeometry.minimumPanelHeight
 
+    /// Silhouette depuis laquelle la bande se déplie, et sur laquelle elle se replie : la
+    /// poignée du fonds commun, décrite dans le repère du bord d'accroche — `width` le long de
+    /// celui-ci, `height` en profondeur. C'est la pastille du panneau de l'encoche, couchée sur
+    /// le flanc. Contrairement à celle de l'encoche, la bande ne s'y arrête pas : elle s'efface
+    /// en même temps qu'elle se replie, puisque rien ne doit rester sur le bord entre deux
+    /// survols.
+    static let collapsedSize = PanelGeometry.collapsedHandleSize
+
     static var panelHeight: CGFloat {
         let content = 2 * contentVerticalInset + ringTileSize
         return max(content, minimumPanelHeight)
     }
 
+    /// Bord auquel la bande est accrochée. Une valeur et non un réglage : le flanc opposé est
+    /// celui du widget de luminosité, qui lui répond. Tout ce qui dépend du bord — la zone
+    /// sensible, le cadre, le sens du dépliage — se rapporte à elle, de sorte que la poser à
+    /// gauche suffit à y déplacer la bande entière.
+    static let anchorEdge: EdgePosition = .right
+
     static func hotZone(on screen: NSScreen) -> NSRect {
-        PanelGeometry.hotZone(on: screen, anchoredTo: .right)
+        PanelGeometry.hotZone(on: screen, anchoredTo: anchorEdge)
     }
 
-    /// Cadre affleurant le bord droit de l'écran, posé par la géométrie commune — la bande n'a
-    /// à dire que son bord d'accroche et la hauteur que son contenu réclame.
+    /// Cadre affleurant le bord d'accroche, posé par la géométrie commune — la bande n'a à dire
+    /// que ce bord et la hauteur que son contenu réclame.
     static func panelFrame(on screen: NSScreen) -> NSRect {
-        PanelGeometry.panelFrame(on: screen, anchoredTo: .right, height: panelHeight)
+        PanelGeometry.panelFrame(on: screen, anchoredTo: anchorEdge, height: panelHeight)
     }
 }
 

@@ -53,6 +53,20 @@ enum PanelGeometry {
         return NSRect(x: x, y: top - height, width: panelWidth, height: height)
     }
 
+    // MARK: - Poignée repliée
+
+    /// Poignée à laquelle un panneau se replie : la silhouette réduite qu'il garde sur son bord
+    /// d'accroche — ou, quand il n'y reste pas, celle depuis laquelle il se déplie. Décrite dans
+    /// le repère du bord (`width` le long de celui-ci, `height` en profondeur), donc la même pour
+    /// les trois accroches : la pastille du panneau de l'encoche est celle d'une bande de flanc
+    /// couchée.
+    static let collapsedHandleSize = CGSize(width: 160, height: 22)
+
+    /// Rayons de cette poignée. Ils lui sont propres et ne valent pas ceux du panneau déplié :
+    /// elle est trop basse pour porter `cornerRadius`, qui l'arrondirait jusqu'à la gommer.
+    static let collapsedShoulderRadius: CGFloat = 7
+    static let collapsedFarRadius: CGFloat = 10
+
     // MARK: - Zone sensible
 
     /// Zone sensible d'une bande : 100 pt de haut sur 20 pt de large, mesurée depuis le coin
@@ -73,81 +87,137 @@ enum PanelGeometry {
 
     // MARK: - Silhouette
 
-    /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et
-    /// deux raccords **concaves** là où la bande rejoint le bord de l'écran, qui l'évasent comme
-    /// un onglet de navigateur s'évase dans sa barre. Les arcs concaves sont décrits avec
-    /// `addArc(center:radius:startAngle:endAngle:clockwise:)` et non avec la variante
-    /// `tangent1End:tangent2End:`, qui ne sait produire que des coins convexes.
+    /// Bord auquel une silhouette est suspendue. Les panneaux de l'overlay s'accrochent tous à
+    /// un bord d'écran, mais pas au même : les bandes à un flanc, le panneau de l'encoche au haut.
+    enum Anchor {
+        case top
+        case left
+        case right
+
+        init(_ edge: EdgePosition) {
+            self = edge == .right ? .right : .left
+        }
+
+        /// Étendue de `rect` dans le repère du bord : `width` le long du bord d'accroche,
+        /// `height` en profondeur depuis celui-ci.
+        fileprivate func stackSize(of rect: CGRect) -> CGSize {
+            switch self {
+            case .top: CGSize(width: rect.width, height: rect.height)
+            case .left, .right: CGSize(width: rect.height, height: rect.width)
+            }
+        }
+
+        /// Transformation qui rapporte le repère du bord — origine au départ du bord d'accroche,
+        /// `+x` le long de celui-ci, `-y` en profondeur — à celui de `rect`, en centrant la
+        /// silhouette sur le bord. C'est tout ce qui distingue les trois accroches.
+        fileprivate func placement(in rect: CGRect, along: CGFloat) -> CGAffineTransform {
+            switch self {
+            case .top:
+                CGAffineTransform(translationX: rect.midX - along / 2, y: rect.maxY)
+            case .right:
+                CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: rect.maxX, ty: rect.midY + along / 2)
+            case .left:
+                CGAffineTransform(a: 0, b: -1, c: -1, d: 0, tx: rect.minX, ty: rect.midY + along / 2)
+            }
+        }
+    }
+
+    /// Silhouette d'un panneau suspendu à `anchor`, en un seul chemin fermé : deux raccords
+    /// **concaves** là où il rejoint son bord d'accroche, qui l'y évasent comme un onglet de
+    /// navigateur s'évase dans sa barre, et deux coins **convexes** du côté opposé. Les arcs
+    /// concaves sont décrits avec `addArc(center:radius:startAngle:endAngle:clockwise:)` et non
+    /// avec la variante `tangent1End:tangent2End:`, qui ne sait produire que des coins convexes.
+    ///
+    /// Le chemin est tracé une fois dans un repère indépendant du bord — le long du bord
+    /// d'accroche, puis en profondeur depuis celui-ci — et c'est `Anchor.placement(in:along:)`
+    /// qui le rapporte au repère de la vue. Les trois accroches partagent donc une seule
+    /// recette : une silhouette de flanc est celle du haut couchée, et non un second tracé que
+    /// rien n'empêcherait de diverger.
+    ///
+    /// `size` décrit la silhouette dans ce repère — `width` le long du bord, `height` en
+    /// profondeur — et la centre sur le bord ; `nil` lui donne tout `rect`. Deux tailles
+    /// différentes produisent le même nombre de segments, dans le même ordre : Core Animation sait
+    /// donc interpoler l'une vers l'autre, et c'est ce qui rend un dépliage animable.
     ///
     /// Tout est dans le même `CGPath` : aucune couture entre le corps et les raccords, et tout ce
     /// qui est hors du chemin reste non peint, donc réellement transparent.
-    ///
-    /// Le chemin est tracé pour le bord droit, puis renvoyé en miroir autour de l'axe vertical du
-    /// cadre quand on le demande à gauche — une bande de gauche est exactement celle de droite
-    /// retournée, et deux tracés symétriques finiraient par diverger.
     static func silhouette(
         in rect: CGRect,
-        anchoredTo edge: EdgePosition,
-        cornerRadius requestedRadius: CGFloat = cornerRadius
+        anchoredTo anchor: Anchor,
+        size: CGSize? = nil,
+        shoulderRadius: CGFloat = cornerRadius,
+        farRadius: CGFloat = cornerRadius
     ) -> CGPath {
-        let path = rightAnchoredSilhouette(in: rect, cornerRadius: requestedRadius)
-        guard edge == .left else { return path }
+        let available = anchor.stackSize(of: rect)
+        let requested = size ?? available
+        let along = min(requested.width, available.width)
+        let across = min(requested.height, available.height)
 
-        var mirror = CGAffineTransform(scaleX: -1, y: 1)
-        mirror.tx = rect.minX + rect.maxX
-        return path.copy(using: &mirror) ?? path
+        // Les quatre rayons doivent tenir dans la silhouette, qui est minuscule quand un panneau
+        // se replie jusqu'à sa poignée.
+        let shoulder = min(shoulderRadius, along / 4, across / 2)
+        let far = min(farRadius, along / 2 - shoulder, across - shoulder)
+
+        let path = stackSilhouette(along: along, across: across, shoulder: shoulder, far: far)
+        var placement = anchor.placement(in: rect, along: along)
+        return path.copy(using: &placement) ?? path
     }
 
-    private static func rightAnchoredSilhouette(in rect: CGRect, cornerRadius: CGFloat) -> CGPath {
-        let r = min(cornerRadius, min(rect.width, rect.height) / 2)
-        let right = rect.maxX      // bord de l'écran
-        let left = rect.minX
-        let top = rect.maxY
-        let bottom = rect.minY
-
+    /// La recette, dans le repère du bord : le bord d'accroche est la ligne `y = 0`, et la
+    /// silhouette s'enfonce vers les `y` négatifs sur `across` de profondeur.
+    private static func stackSilhouette(
+        along: CGFloat,
+        across: CGFloat,
+        shoulder r: CGFloat,
+        far b: CGFloat
+    ) -> CGPath {
+        let depth = -across
         let path = CGMutablePath()
 
-        // Haut : évasement concave depuis le bord, tangent vertical au contact de celui-ci.
-        path.move(to: CGPoint(x: right, y: top))
+        // Premier évasement concave depuis le bord d'accroche. Le centre est posé **sur** ce
+        // bord, décalé en profondeur de la hauteur du rayon : c'est ce qui rend l'arc tangent au
+        // bord d'un côté et au flanc de l'autre — centré sur le coin, il rejoindrait les deux à
+        // l'équerre et laisserait une marche.
+        path.move(to: CGPoint(x: 0, y: 0))
         path.addArc(
-            center: CGPoint(x: right - r, y: top),
-            radius: r,
-            startAngle: 0,
-            endAngle: -.pi / 2,
-            clockwise: true
-        )
-
-        // Coin convexe haut-intérieur.
-        path.addLine(to: CGPoint(x: left + r, y: top - r))
-        path.addArc(
-            center: CGPoint(x: left + r, y: top - 2 * r),
-            radius: r,
-            startAngle: .pi / 2,
-            endAngle: .pi,
-            clockwise: false
-        )
-
-        // Côté intérieur, puis coin convexe bas-intérieur.
-        path.addLine(to: CGPoint(x: left, y: bottom + 2 * r))
-        path.addArc(
-            center: CGPoint(x: left + r, y: bottom + 2 * r),
-            radius: r,
-            startAngle: .pi,
-            endAngle: 3 * .pi / 2,
-            clockwise: false
-        )
-
-        // Bas : évasement concave symétrique.
-        path.addLine(to: CGPoint(x: right - r, y: bottom + r))
-        path.addArc(
-            center: CGPoint(x: right - r, y: bottom),
+            center: CGPoint(x: 0, y: -r),
             radius: r,
             startAngle: .pi / 2,
             endAngle: 0,
             clockwise: true
         )
 
-        // Remontée le long du bord de l'écran : la bande y reste en contact sur toute sa hauteur.
+        // Premier flanc, puis coin convexe du côté opposé au bord.
+        path.addLine(to: CGPoint(x: r, y: depth + b))
+        path.addArc(
+            center: CGPoint(x: r + b, y: depth + b),
+            radius: b,
+            startAngle: .pi,
+            endAngle: 3 * .pi / 2,
+            clockwise: false
+        )
+
+        // Fond de la silhouette, puis second coin convexe.
+        path.addLine(to: CGPoint(x: along - r - b, y: depth))
+        path.addArc(
+            center: CGPoint(x: along - r - b, y: depth + b),
+            radius: b,
+            startAngle: -.pi / 2,
+            endAngle: 0,
+            clockwise: false
+        )
+
+        // Second flanc, puis évasement concave symétrique du premier.
+        path.addLine(to: CGPoint(x: along - r, y: -r))
+        path.addArc(
+            center: CGPoint(x: along, y: -r),
+            radius: r,
+            startAngle: .pi,
+            endAngle: .pi / 2,
+            clockwise: true
+        )
+
+        // Le bord d'accroche referme la silhouette : c'est par lui que le panneau tient à l'écran.
         path.closeSubpath()
         return path
     }
