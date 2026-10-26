@@ -342,14 +342,18 @@ final class NotchPanelContentView: NSView {
 
         let path = CGMutablePath()
 
-        // Haut-gauche : évasement concave depuis le bord auquel le panneau est suspendu.
+        // Haut-gauche : évasement concave depuis le bord auquel le panneau est suspendu. Le
+        // centre est posé **sur** ce bord, décalé vers l'intérieur de la hauteur du rayon —
+        // comme celui de la bande du bord droit l'est vers l'intérieur de sa largeur. C'est ce
+        // qui rend l'arc tangent au bord haut d'un côté et au flanc de l'autre : centré sur le
+        // coin, il rejoindrait les deux à l'équerre et laisserait une marche.
         path.move(to: CGPoint(x: left, y: top))
         path.addArc(
-            center: CGPoint(x: left + r, y: top),
+            center: CGPoint(x: left, y: top - r),
             radius: r,
-            startAngle: .pi,
-            endAngle: 3 * .pi / 2,
-            clockwise: false
+            startAngle: .pi / 2,
+            endAngle: 0,
+            clockwise: true
         )
 
         // Côté gauche, puis coin convexe bas-gauche.
@@ -372,14 +376,14 @@ final class NotchPanelContentView: NSView {
             clockwise: false
         )
 
-        // Côté droit, puis évasement concave haut-droit.
+        // Côté droit, puis évasement concave haut-droit, symétrique du premier.
         path.addLine(to: CGPoint(x: right - r, y: top - r))
         path.addArc(
-            center: CGPoint(x: right - r, y: top),
+            center: CGPoint(x: right, y: top - r),
             radius: r,
-            startAngle: 3 * .pi / 2,
-            endAngle: 2 * .pi,
-            clockwise: false
+            startAngle: .pi,
+            endAngle: .pi / 2,
+            clockwise: true
         )
 
         // Le bord du haut referme la silhouette : c'est par lui qu'elle tient à l'écran.
