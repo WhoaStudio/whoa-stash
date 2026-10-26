@@ -7,6 +7,10 @@ import AppKit
 /// Le survol est déduit de la position globale du curseur par `SidePanelController`, et non de
 /// `NSTrackingArea` : il doit continuer de fonctionner pendant que le curseur traverse la bulle,
 /// qui est une autre fenêtre.
+///
+/// Son cadre ne change pas pendant le dépliage — c'est la silhouette dessinée à l'intérieur qui
+/// s'anime, comme dans le panneau de l'encoche —, mais contrairement à celui-ci la fenêtre est
+/// retirée une fois la bande repliée : rien ne doit rester sur le bord entre deux survols.
 @MainActor
 final class SidePanelWindow {
 
@@ -36,6 +40,7 @@ final class SidePanelWindow {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.appearance = appearanceMode.nsAppearance
         panel.contentView = contentView
+        contentView.anchorEdge = SidePanelGeometry.anchorEdge
     }
 
     var frame: NSRect { panel.frame }
@@ -75,23 +80,23 @@ final class SidePanelWindow {
 
         contentView.prepareForReveal()
         panel.orderFrontRegardless()
-        contentView.animateIn()
+        contentView.setExpanded(true)
     }
 
     func hide() {
         guard isRevealed else { return }
         isRevealed = false
 
-        contentView.animateOut { [weak self] in
-            // Un nouveau survol pendant la sortie relance `reveal` : dans ce cas il ne faut
-            // surtout pas retirer la fenêtre une fois l'ancienne animation terminée.
+        contentView.setExpanded(false) { [weak self] in
+            // Un nouveau survol pendant le repli relance `reveal` : dans ce cas il ne faut
+            // surtout pas retirer la fenêtre une fois l'ancien dépliage terminé.
             guard let self, !self.isRevealed else { return }
             self.panel.orderOut(nil)
         }
     }
 
-    /// Repositionne sans rejouer l'animation d'entrée — utilisé quand l'écran change de taille ou
-    /// de place pendant que le panneau est affiché.
+    /// Repositionne sans rejouer le dépliage — utilisé quand l'écran change de taille ou de place
+    /// pendant que le panneau est affiché.
     func setFrame(_ frame: NSRect) {
         panel.setFrame(frame, display: true)
         contentView.frame = NSRect(origin: .zero, size: frame.size)

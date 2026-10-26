@@ -1,6 +1,6 @@
 import AppKit
 
-/// Contenu du panneau latéral : une surface quasi opaque accrochée au bord droit de l'écran,
+/// Contenu du panneau latéral : une surface quasi opaque accrochée à un bord vertical de l'écran,
 /// arrondie du côté intérieur et évasée dans le bord.
 ///
 /// Porte les bagues d'utilisation (`SidePanelStackView`). La carte détaillée d'une bague, elle,
@@ -11,8 +11,12 @@ import AppKit
 /// d'onglets y serait à la fois peu atteignable et coûteuse — il faudrait lui ouvrir les
 /// événements souris.
 ///
-/// Porte aussi l'animation d'entrée/sortie (glissement depuis le bord droit + fondu), appliquée
-/// à son propre calque.
+/// Porte aussi le dépliage : la bande se déplie depuis son bord comme le panneau de l'encoche se
+/// déplie depuis le haut de l'écran, du même geste et par le même moteur (`PanelFold`). Rien ne
+/// se déplace — ni la fenêtre, ni le cadre de la vue —, c'est la silhouette qui passe de la
+/// poignée au panneau entier. Une seule chose la distingue de l'encoche : celle-ci garde sa
+/// silhouette repliée à l'écran, alors que la bande s'efface entièrement, puisque rien ne doit
+/// rester sur le bord entre deux survols.
 ///
 /// Mise en page entièrement en frames, comme le reste de l'overlay (`BrightnessBarView`) —
 /// pas de contraintes Auto Layout.
@@ -20,18 +24,30 @@ final class SidePanelContentView: NSView {
 
     private let backgroundLayer = CAShapeLayer()
     private let strokeLayer = CAShapeLayer()
+    private let contentMask = CAShapeLayer()
 
+    /// Le contenu vit dans un conteneur à part pour n'avoir qu'un masque à piloter pendant le
+    /// dépliage. Masquer le calque de la vue lui-même rognerait aussi le filet, qui est tracé
+    /// centré sur la frontière et y perdrait la moitié de son épaisseur.
+    private let contentContainer = NSView()
     private let stack = SidePanelStackView()
 
-    /// Rayon unique de toute la silhouette : il vaut à la fois pour les deux coins convexes
-    /// (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans le bord de
-    /// l'écran. À `largeur / 2`, les deux arcs se rejoignent tangentiellement sans segment droit
-    /// entre eux — c'est la proportion de la référence.
+    /// Bord de l'écran auquel la bande est accrochée : c'est lui qui décide du côté où la
+    /// silhouette s'évase, et donc du sens dans lequel elle se déplie.
+    var anchorEdge: EdgePosition = .right {
+        didSet {
+            guard anchorEdge != oldValue else { return }
+            needsLayout = true
+        }
+    }
+
+    /// Rayon unique de toute la silhouette dépliée : il vaut à la fois pour les deux coins
+    /// convexes (côté intérieur) et pour les deux raccords concaves qui évasent le panneau dans
+    /// le bord de l'écran. À `largeur / 2`, les deux arcs se rejoignent tangentiellement sans
+    /// segment droit entre eux — c'est la proportion de la référence.
     private let cornerRadius = SidePanelGeometry.panelCornerRadius
 
-    /// Durée du fondu seul : le glissement, lui, est porté par un ressort et dure le temps que
-    /// met celui-ci à se stabiliser.
-    private let fadeDuration: TimeInterval = 0.22
+    private(set) var isExpanded = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -53,7 +69,13 @@ final class SidePanelContentView: NSView {
         strokeLayer.lineWidth = PanelGeometry.strokeWidth
         layer?.addSublayer(strokeLayer)
 
-        addSubview(stack)
+        contentContainer.wantsLayer = true
+        // Le contenu est découpé par la silhouette elle-même : pendant le dépliage il ne doit
+        // rien dépasser de la forme, qui est encore plus étroite que lui.
+        contentContainer.layer?.mask = contentMask
+        addSubview(contentContainer)
+
+        contentContainer.addSubview(stack)
 
         // Aucune ombre portée : le panneau se détache par sa propre teinte et son filet, et la
         // fenêtre est elle aussi sans ombre (`SidePanelWindow`).
@@ -96,69 +118,91 @@ final class SidePanelContentView: NSView {
     override func layout() {
         super.layout()
 
-        let path = PanelGeometry.silhouette(in: bounds, anchoredTo: .right, cornerRadius: cornerRadius)
-        backgroundLayer.frame = bounds
-        backgroundLayer.path = path
-        strokeLayer.frame = bounds
-        // Exactement le même chemin que le fond, tracé centré sur la frontière : un `insetBy`
-        // uniforme ferait *grandir* le rayon concave là où il rétrécit les rayons convexes, ce qui
-        // décollerait la bordure du fond précisément au niveau des raccords.
-        strokeLayer.path = path
+        // La silhouette est reposée dans l'état courant : la mise en page suit un changement de
+        // cadre d'écran, qui ne doit ni rejouer le dépliage ni laisser le chemin au cadre
+        // précédent.
+        applyShape(expanded: isExpanded, animated: false)
+
+        contentContainer.frame = bounds
 
         // Boîte de contenu : tout ce qui est peint reste sous la ligne où le bord supérieur se
         // relève vers le bord de l'écran pour former l'évasement (voir `PanelGeometry.silhouette`).
-        let box = bounds.insetBy(
+        stack.frame = bounds.insetBy(
             dx: SidePanelGeometry.contentHorizontalInset,
             dy: SidePanelGeometry.contentVerticalInset
         )
-
-        stack.frame = box
     }
 
-    // MARK: - Animation
+    // MARK: - Silhouette
 
-    /// Amplitude du glissement : la bande vient de derrière le bord droit de l'écran.
-    private var revealOffset: CGFloat { bounds.width }
+    /// Les deux états, tirés de la même recette que le panneau de l'encoche
+    /// (`PanelGeometry.silhouette`), ici suspendue à un **flanc**. Seuls la taille et les rayons
+    /// les distinguent, donc les deux chemins ont le même nombre de segments dans le même ordre —
+    /// c'est cette identité de structure qui rend le dépliage animable d'un seul
+    /// `CASpringAnimation` sur `path`.
 
-    /// Place le contenu à son point de départ, complètement transparent — à appeler avant
-    /// d'afficher la fenêtre pour que la première image montrée soit déjà le début du glissement
-    /// et non le panneau en place.
+    private func collapsedPath() -> CGPath {
+        PanelGeometry.silhouette(
+            in: bounds,
+            anchoredTo: PanelGeometry.Anchor(anchorEdge),
+            size: SidePanelGeometry.collapsedSize,
+            shoulderRadius: PanelGeometry.collapsedShoulderRadius,
+            farRadius: PanelGeometry.collapsedFarRadius
+        )
+    }
+
+    private func expandedPath() -> CGPath {
+        PanelGeometry.silhouette(
+            in: bounds,
+            anchoredTo: PanelGeometry.Anchor(anchorEdge),
+            shoulderRadius: cornerRadius,
+            farRadius: cornerRadius
+        )
+    }
+
+    // MARK: - Dépliage
+
+    /// Replie la bande sans animation et l'efface — à appeler avant d'afficher la fenêtre, pour
+    /// que la première image montrée soit déjà le début du dépliage et non le panneau en place.
     func prepareForReveal() {
-        guard let layer else { return }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        // Les deux axes sont réinitialisés : une même fenêtre passe de la carte de bord à la
-        // bulle, et le décalage de la silhouette précédente resterait sinon appliqué.
-        layer.setValue(revealOffset, forKeyPath: "transform.translation.x")
-        layer.opacity = 0
-        CATransaction.commit()
+        isExpanded = false
+        // La mise en page est vidée tout de suite : sans cela la silhouette repliée serait posée
+        // dans la même transaction que le dépliage, qui partirait alors du chemin précédent.
+        layoutSubtreeIfNeeded()
+        applyShape(expanded: false, animated: false)
     }
 
-    func animateIn() {
-        guard let layer else { return }
-        layer.springAnimate(keyPath: "transform.translation.x", to: CGFloat(0), preset: .gentle)
-        animateOpacity(to: 1)
-    }
-
-    func animateOut(completion: @escaping () -> Void) {
-        guard let layer else {
-            completion()
+    /// Déplie ou replie la bande. `completion` est appelée une fois le ressort stabilisé, pour que
+    /// la fenêtre puisse se retirer — contrairement au panneau de l'encoche, la bande ne laisse
+    /// rien derrière elle.
+    func setExpanded(_ expanded: Bool, animated: Bool = true, completion: (() -> Void)? = nil) {
+        guard expanded != isExpanded else {
+            completion?()
             return
         }
-        layer.springAnimate(keyPath: "transform.translation.x", to: revealOffset, preset: .gentle, completion: completion)
-        animateOpacity(to: 0)
+        isExpanded = expanded
+        applyShape(expanded: expanded, animated: animated, completion: completion)
     }
 
-    private func animateOpacity(to value: Float) {
-        guard let layer else { return }
+    private func applyShape(expanded: Bool, animated: Bool, completion: (() -> Void)? = nil) {
+        guard bounds.width > 0, bounds.height > 0 else {
+            completion?()
+            return
+        }
 
-        let animation = CABasicAnimation(keyPath: "opacity")
-        animation.fromValue = layer.presentation()?.opacity ?? layer.opacity
-        animation.toValue = value
-        animation.duration = fadeDuration
-        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-
-        layer.opacity = value
-        layer.add(animation, forKey: "opacity")
+        // C'est tout le calque de la vue qui s'efface, filet et fond compris : la bande n'a pas
+        // d'état replié visible, là où le panneau de l'encoche ne fait disparaître que son contenu
+        // et garde sa silhouette à l'écran. D'où `dissolving` plutôt que `fading` — le fondu suit
+        // le ressort du dépliage, sans quoi la bande se serait effacée avant d'avoir fini de se
+        // replier et le geste passerait inaperçu.
+        PanelFold.apply(
+            path: expanded ? expandedPath() : collapsedPath(),
+            to: [backgroundLayer, strokeLayer, contentMask],
+            in: bounds,
+            dissolving: layer.map { [$0] } ?? [],
+            to: expanded ? 1 : 0,
+            animated: animated,
+            completion: completion
+        )
     }
 }
