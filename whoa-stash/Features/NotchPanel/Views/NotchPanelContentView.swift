@@ -2,9 +2,10 @@ import AppKit
 
 /// Contenu du panneau de l'encoche : une silhouette sombre suspendue au haut de l'écran, qui
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
-/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global garde les deux
-/// colonnes d'origine — les bagues d'utilisation **en ligne** à gauche, la carte détaillée à
-/// droite ; Tray et AI reprennent les vues partagées avec la bande du bord droit.
+/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global porte la semaine en
+/// tête, puis les deux colonnes d'origine — les bagues d'utilisation **en ligne** à gauche, la
+/// carte détaillée à droite ; Tray et AI reprennent les vues partagées avec la bande du bord
+/// droit.
 ///
 /// Les deux silhouettes sont décrites par la même recette de chemin, dans le même ordre de
 /// segments : Core Animation peut donc interpoler l'une vers l'autre, et c'est ce qui constitue
@@ -30,8 +31,10 @@ final class NotchPanelContentView: NSView {
 
     private let tabBar = NotchTabBarView(selectedTab: .global)
 
-    /// Les deux colonnes réunies : elles se montrent et se cachent d'un bloc avec l'onglet Global.
+    /// La semaine et les deux colonnes réunies : elles se montrent et se cachent d'un bloc avec
+    /// l'onglet Global.
     private let globalColumns = NSView()
+    private let weekStrip = WeekStripView()
     private let fileTray = FileTrayView()
     private let aiTab = AIPlaceholderView()
 
@@ -106,6 +109,8 @@ final class NotchPanelContentView: NSView {
         // bord d'écran, contrairement à la carte de la bande latérale.
         card.trailingInset = card.leadingInset
         globalColumns.addSubview(card)
+
+        globalColumns.addSubview(weekStrip)
 
         tabBar.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
         tabBar.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
@@ -194,6 +199,12 @@ final class NotchPanelContentView: NSView {
     }
 
     /// Bascule d'onglet, au clic dans la barre ou au repli du panneau, qui ramène sur Global.
+    /// Remet la semaine à la bonne date — appelé à chaque dépliage, le panneau restant en
+    /// mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
+    func refreshWeek() {
+        weekStrip.refresh()
+    }
+
     func select(_ tab: NotchTab, animated: Bool) {
         guard tab != selectedTab else { return }
         selectedTab = tab
@@ -266,9 +277,22 @@ final class NotchPanelContentView: NSView {
                 : body.insetBy(dx: inset, dy: 0)
         }
 
-        // Colonne de gauche : les bagues en ligne, centrées sur la hauteur du corps. Les cadres
-        // sont posés dans le repère de `globalColumns`, dont l'origine est celle du corps.
-        let ringY = globalColumns.bounds.midY - tile / 2
+        // Dans le repère de `globalColumns` : la semaine en tête, les deux colonnes sous elle.
+        // La semaine s'étend sur toute la largeur utile, les colonnes se partagent le reste.
+        let weekHeight = NotchPanelGeometry.weekStripHeight
+        weekStrip.frame = NSRect(
+            x: inset,
+            y: globalColumns.bounds.maxY - weekHeight,
+            width: max(0, globalColumns.bounds.width - 2 * inset),
+            height: weekHeight
+        )
+
+        let columnsTop = weekStrip.frame.minY - NotchPanelGeometry.weekStripGap
+        let columnsBottom = globalColumns.bounds.minY
+        let columnsMidY = (columnsTop + columnsBottom) / 2
+
+        // Colonne de gauche : les bagues en ligne, centrées sur la hauteur restante.
+        let ringY = columnsMidY - tile / 2
         for (position, ring) in rings.enumerated() {
             ring.frame = NSRect(
                 x: inset + CGFloat(position) * (tile + NotchPanelGeometry.ringSpacing),
@@ -281,15 +305,15 @@ final class NotchPanelContentView: NSView {
         let dividerX = inset + rowWidth + NotchPanelGeometry.columnGap
         dividerLayer.frame = NSRect(
             x: dividerX,
-            y: globalColumns.bounds.minY + 8,
+            y: columnsBottom + 8,
             width: NotchPanelGeometry.dividerWidth,
-            height: max(0, globalColumns.bounds.height - 16)
+            height: max(0, columnsTop - columnsBottom - 16)
         )
 
         // Colonne de droite : la carte détaillée, à la hauteur que sa mise en page demande.
         card.frame = NSRect(
             x: dividerX + NotchPanelGeometry.dividerWidth + NotchPanelGeometry.columnGap,
-            y: globalColumns.bounds.midY - NotchPanelGeometry.cardSize.height / 2,
+            y: columnsMidY - NotchPanelGeometry.cardSize.height / 2,
             width: NotchPanelGeometry.cardSize.width,
             height: NotchPanelGeometry.cardSize.height
         )

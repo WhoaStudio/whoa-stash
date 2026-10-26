@@ -1,11 +1,11 @@
 import AppKit
 
-/// Onglet Global : le contenu historique du panneau. La semaine en haut, les bagues d'utilisation
-/// dessous.
+/// Contenu du panneau latéral : la semaine en haut, les bagues d'utilisation dessous.
 ///
-/// Sert surtout à garder `SidePanelContentView` lisible maintenant qu'il arbitre trois onglets :
-/// tout ce qui touche aux bagues passe par ici, et la vue de contenu ne fait plus que relayer.
-final class NotchGlobalTabView: NSView {
+/// La bande n'a pas d'onglets — ils appartiennent au panneau de l'encoche, qui a la largeur et
+/// la permanence pour les porter. Ce qu'elle montre tient sur une seule vue, et celle-ci existe
+/// pour que `SidePanelContentView` n'ait pas à mêler la silhouette et son contenu.
+final class SidePanelStackView: NSView {
 
     private let weekStrip = WeekStripView()
     private let ringStrip = ClaudeUsageRingStripView()

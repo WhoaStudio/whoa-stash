@@ -87,7 +87,9 @@ final class NotchPanelWindow {
     }
 
     func setExpanded(_ expanded: Bool, animated: Bool = true) {
-        if !expanded {
+        if expanded {
+            contentView.refreshWeek()
+        } else {
             contentView.setHighlightedRing(nil)
             // Le panneau rouvrira sur Global : on ne retrouve pas le bac à fichiers la fois
             // suivante. Sans animation, le repli étant déjà en cours.
