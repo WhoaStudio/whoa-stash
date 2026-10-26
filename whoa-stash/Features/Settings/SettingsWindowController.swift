@@ -1,10 +1,11 @@
 import AppKit
 import Combine
+import OSLog
 
 /// Gère la fenêtre de Préférences : instance unique, ramenée au premier plan à chaque
 /// ouverture. Compose la sidebar et l'écran courant ; ne contient aucune logique métier —
 /// tout passe par `SettingsViewModel` et les view models de section.
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     static let shared = SettingsWindowController()
 
@@ -28,6 +29,8 @@ final class SettingsWindowController: NSWindowController {
 
         self.init(window: window)
 
+        window.delegate = self
+
         let root = SettingsRootViewController(viewModel: settingsViewModel) {
             SettingsStorage.shared.settings.general.enableAnimations
         }
@@ -41,13 +44,57 @@ final class SettingsWindowController: NSWindowController {
             }
     }
 
+    /// Seul chemin d'ouverture de la fenêtre — la menu bar, le menu contextuel des panneaux,
+    /// `--show-settings` et ⌘, y aboutissent tous. L'icône du Dock apparaît donc exactement
+    /// quand la fenêtre apparaît, et la fenêtre est unique : `isReleasedWhenClosed` est faux et
+    /// l'instance est un singleton, donc une seconde ouverture ramène la même au premier plan.
     func show() {
+        rerouteSettingsMenuItem()
+        DockPresence.showIcon()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
 
     func show(_ category: SettingsCategory) {
         settingsViewModel.selectedCategory = category
+        show()
+    }
+
+    // MARK: - NSWindowDelegate
+
+    /// La fermeture de la fenêtre est le seul événement qui retire l'icône. Réduire la fenêtre
+    /// dans le Dock ne la ferme pas : l'icône reste, et c'est elle qui permet de la ressortir.
+    func windowWillClose(_ notification: Notification) {
+        DockPresence.hideIcon()
+    }
+
+    // MARK: - ⌘,
+
+    /// `Settings { EmptyView() }` fait porter à SwiftUI l'entrée « Settings… » ⌘, du menu de
+    /// l'app. Invisible tant qu'on est `.accessory`, elle devient atteignable dès que l'icône du
+    /// Dock fait aussi apparaître la menu bar — et ouvrirait alors une *seconde* fenêtre, vide.
+    /// On la rebranche donc ici sur cette fenêtre-ci, avant toute bascule en `.regular`.
+    ///
+    /// L'opération est idempotente, d'où son appel à chaque `show()` plutôt qu'une seule fois au
+    /// lancement : le menu principal est construit par SwiftUI, et on ne présume pas qu'il
+    /// existe déjà à `applicationDidFinishLaunching`.
+    private func rerouteSettingsMenuItem() {
+        guard let appMenu = NSApp.mainMenu?.items.first?.submenu else { return }
+
+        let swiftUISelectors: Set<String> = ["showSettingsWindow:", "showPreferencesWindow:"]
+
+        for item in appMenu.items {
+            let isSwiftUIItem = item.action.map { swiftUISelectors.contains(NSStringFromSelector($0)) } ?? false
+            let isCommandComma = item.keyEquivalent == "," && item.keyEquivalentModifierMask == [.command]
+            guard isSwiftUIItem || isCommandComma else { continue }
+
+            item.target = self
+            item.action = #selector(showFromMenuItem)
+        }
+    }
+
+    @objc private func showFromMenuItem(_ sender: Any?) {
+        Log.settings.debug("ouverture de la fenêtre de Préférences depuis ⌘,")
         show()
     }
 }
