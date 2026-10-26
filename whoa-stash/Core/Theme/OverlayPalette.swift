@@ -9,10 +9,12 @@ struct OverlayPalette {
     let glowOpacity: Float
     let glowRadius: CGFloat
 
+    /// Matériau translucide et sa teinte. Plus personne ne s'en sert depuis que le widget de
+    /// luminosité est passé au fond plein : gardés pour un éventuel retour au translucide.
     let backgroundMaterial: NSVisualEffectView.Material
     let backgroundTint: CGColor
-    /// Fond opaque des panneaux qui ne laissent rien transparaître (panneau latéral) — là où
-    /// `backgroundMaterial` + `backgroundTint` servent aux widgets translucides.
+    /// Fond opaque de toutes les surfaces de l'overlay : panneau latéral, panneau de l'encoche,
+    /// pilule et bouton du widget de luminosité.
     let panelBackground: CGColor
     let strokeColor: CGColor
 

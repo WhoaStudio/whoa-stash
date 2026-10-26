@@ -10,6 +10,10 @@ import Combine
 /// widget qui s'impose pendant deux secondes fixes. Chaque aspect visible (taille, position,
 /// délai de fermeture, intensité du glow, affichage du pourcentage) suit `Brightness` dans
 /// les Préférences en direct.
+///
+/// Le widget règle la luminosité de l'écran où il est affiché, pas celle de l'écran
+/// principal : c'est lui qui désigne l'écran cible au service de luminosité, puisqu'il est le
+/// seul à savoir où il se trouve.
 @MainActor
 final class BrightnessOverlayController {
 
@@ -71,6 +75,10 @@ final class BrightnessOverlayController {
         containerView.frame = NSRect(origin: .zero, size: panelSize)
         panel.contentView = containerView
 
+        // L'écran cible est résolu à chaque lecture/écriture, donc toujours à jour : inutile
+        // de le reposer quand le panel change d'écran.
+        controller.targetDisplay = { [weak panel] in NSScreen.hosting(panel)?.displayID }
+
         containerView.onScroll = { [weak self] delta in self?.handleScroll(delta) }
         containerView.sunButton.onTap = { [weak self] in self?.handleSunTap() }
 
@@ -124,7 +132,7 @@ final class BrightnessOverlayController {
         panel.setFrame(frame, display: true)
         containerView.frame = NSRect(origin: .zero, size: panelSize)
 
-        if viewModel.isVisible, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+        if viewModel.isVisible, let screen = NSScreen.underCursor {
             position(on: screen)
         }
     }
@@ -150,11 +158,13 @@ final class BrightnessOverlayController {
     }
 
     private func reveal() {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) else { return }
+        guard let screen = NSScreen.underCursor else { return }
         position(on: screen)
 
         // La luminosité a pu changer pendant que le widget était fermé (touches clavier,
         // Réglages Système...) : on se resynchronise avant d'afficher, sans jouer de son/tick.
+        // Après `position(on:)` et jamais avant : c'est la luminosité de l'écran d'arrivée
+        // qu'il faut lire, et l'écran cible se déduit de la position du panel.
         viewModel.syncWithSystem()
         containerView.updateBrightness(activeTickCount: viewModel.activeTickCount, animated: false)
 
