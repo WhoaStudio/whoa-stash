@@ -96,7 +96,7 @@ final class SidePanelContentView: NSView {
     override func layout() {
         super.layout()
 
-        let path = panelPath(in: bounds)
+        let path = PanelGeometry.silhouette(in: bounds, anchoredTo: .right, cornerRadius: cornerRadius)
         backgroundLayer.frame = bounds
         backgroundLayer.path = path
         strokeLayer.frame = bounds
@@ -106,75 +106,13 @@ final class SidePanelContentView: NSView {
         strokeLayer.path = path
 
         // Boîte de contenu : tout ce qui est peint reste sous la ligne où le bord supérieur se
-        // relève vers le bord de l'écran pour former l'évasement (voir `panelPath`).
+        // relève vers le bord de l'écran pour former l'évasement (voir `PanelGeometry.silhouette`).
         let box = bounds.insetBy(
             dx: SidePanelGeometry.contentHorizontalInset,
             dy: SidePanelGeometry.contentVerticalInset
         )
 
         stack.frame = box
-    }
-
-    /// Silhouette complète en un seul chemin fermé : deux coins convexes du côté intérieur, et
-    /// deux raccords **concaves** là où le panneau rejoint le bord de l'écran, qui l'évasent comme
-    /// un onglet de navigateur s'évase dans sa barre. Les arcs concaves sont décrits avec
-    /// `addArc(center:radius:startAngle:endAngle:clockwise:)` et non avec la variante
-    /// `tangent1End:tangent2End:`, qui ne sait produire que des coins convexes.
-    ///
-    /// Tout est dans le même `CGPath` : aucune couture entre le corps et les raccords, et tout ce
-    /// qui est hors du chemin reste non peint, donc réellement transparent.
-    private func panelPath(in rect: CGRect) -> CGPath {
-        let r = min(cornerRadius, min(rect.width, rect.height) / 2)
-        let right = rect.maxX      // bord de l'écran
-        let left = rect.minX
-        let top = rect.maxY
-        let bottom = rect.minY
-
-        let path = CGMutablePath()
-
-        // Haut : évasement concave depuis le bord, tangent vertical au contact de celui-ci.
-        path.move(to: CGPoint(x: right, y: top))
-        path.addArc(
-            center: CGPoint(x: right - r, y: top),
-            radius: r,
-            startAngle: 0,
-            endAngle: -.pi / 2,
-            clockwise: true
-        )
-
-        // Coin convexe haut-intérieur.
-        path.addLine(to: CGPoint(x: left + r, y: top - r))
-        path.addArc(
-            center: CGPoint(x: left + r, y: top - 2 * r),
-            radius: r,
-            startAngle: .pi / 2,
-            endAngle: .pi,
-            clockwise: false
-        )
-
-        // Côté intérieur droit, puis coin convexe bas-intérieur.
-        path.addLine(to: CGPoint(x: left, y: bottom + 2 * r))
-        path.addArc(
-            center: CGPoint(x: left + r, y: bottom + 2 * r),
-            radius: r,
-            startAngle: .pi,
-            endAngle: 3 * .pi / 2,
-            clockwise: false
-        )
-
-        // Bas : évasement concave symétrique.
-        path.addLine(to: CGPoint(x: right - r, y: bottom + r))
-        path.addArc(
-            center: CGPoint(x: right - r, y: bottom),
-            radius: r,
-            startAngle: .pi / 2,
-            endAngle: 0,
-            clockwise: true
-        )
-
-        // Remontée le long du bord de l'écran : le panneau y reste en contact sur toute sa hauteur.
-        path.closeSubpath()
-        return path
     }
 
     // MARK: - Animation

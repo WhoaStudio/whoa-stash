@@ -4,12 +4,16 @@ import Combine
 /// Fenêtre flottante (NSPanel) qui héberge le widget de luminosité.
 /// Sans titre, transparente, toujours au-dessus, ne prend jamais le focus.
 ///
-/// Apparaît quand le curseur atteint le bord configuré de l'écran, reste affichée tant que
+/// Apparaît quand le curseur atteint la zone sensible du bord configuré, reste affichée tant que
 /// le curseur est au-dessus d'elle (ou que l'utilisateur scrolle), et se referme peu après
 /// que le curseur l'a quittée — comme un contrôle qui "suit" l'utilisateur plutôt qu'un
-/// widget qui s'impose pendant deux secondes fixes. Chaque aspect visible (taille, position,
-/// délai de fermeture, intensité du glow, affichage du pourcentage) suit `Brightness` dans
-/// les Préférences en direct.
+/// widget qui s'impose pendant deux secondes fixes. Chaque aspect visible (position, délai de
+/// fermeture, intensité du glow, affichage du pourcentage) suit `Brightness` dans les
+/// Préférences en direct.
+///
+/// Le cadre, lui, ne vient pas des Préférences : c'est celui d'une bande de bord
+/// (`PanelGeometry`), partagé avec le panneau latéral pour que les deux se répondent d'un bord
+/// à l'autre de l'écran.
 ///
 /// Le widget règle la luminosité de l'écran où il est affiché, pas celle de l'écran
 /// principal : c'est lui qui désigne l'écran cible au service de luminosité, puisqu'il est le
@@ -24,21 +28,22 @@ final class BrightnessOverlayController {
     private var closeWorkItem: DispatchWorkItem?
     private var settingsCancellable: AnyCancellable?
 
-    private var panelSize: NSSize
+    /// Taille de la bande — celle du panneau latéral. La fenêtre est créée avec, puis recadrée
+    /// sur l'écran d'arrivée par `position(on:)`.
+    private static let panelSize = NSSize(width: PanelGeometry.panelWidth, height: PanelGeometry.minimumPanelHeight)
+
     private var closeDelay: TimeInterval
     private var glowIntensity: Double
     private var showPercentage: Bool
     private var widgetPosition: EdgePosition
     private var isEnabled = false
 
-    private let edgeThreshold: CGFloat = 2
     private let hideAnimationDuration: TimeInterval = 0.45
 
     /// `storage` n'est lu qu'ici : au-delà de l'init, l'état courant arrive par
     /// `settingsCancellable`, pas par une relecture du stockage.
     init(controller: BrightnessControlling, storage: SettingsStorage = .shared) {
         let brightness = storage.settings.brightness
-        panelSize = brightness.widgetSize.panelSize
         closeDelay = brightness.autoHideDelay
         glowIntensity = brightness.glowIntensity
         showPercentage = brightness.showPercentage
@@ -53,7 +58,7 @@ final class BrightnessOverlayController {
         )
 
         panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: panelSize),
+            contentRect: NSRect(origin: .zero, size: Self.panelSize),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -72,7 +77,8 @@ final class BrightnessOverlayController {
 
         let initialPalette = OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
         containerView = BrightnessView(tickCount: BrightnessViewModel.tickCount, initialPalette: initialPalette)
-        containerView.frame = NSRect(origin: .zero, size: panelSize)
+        containerView.frame = NSRect(origin: .zero, size: Self.panelSize)
+        containerView.edge = widgetPosition
         panel.contentView = containerView
 
         // L'écran cible est résolu à chaque lecture/écriture, donc toujours à jour : inutile
@@ -99,16 +105,18 @@ final class BrightnessOverlayController {
 
         closeDelay = brightness.autoHideDelay
         showPercentage = brightness.showPercentage
-        widgetPosition = brightness.widgetPosition
+
+        if widgetPosition != brightness.widgetPosition {
+            widgetPosition = brightness.widgetPosition
+            containerView.edge = widgetPosition
+            if viewModel.isVisible, let screen = NSScreen.underCursor {
+                position(on: screen)
+            }
+        }
 
         if glowIntensity != brightness.glowIntensity {
             glowIntensity = brightness.glowIntensity
             containerView.applyPalette(OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity))
-        }
-
-        if panelSize != brightness.widgetSize.panelSize {
-            panelSize = brightness.widgetSize.panelSize
-            resizePanel()
         }
 
         setEnabled(brightness.enableOverlay)
@@ -126,17 +134,6 @@ final class BrightnessOverlayController {
         }
     }
 
-    private func resizePanel() {
-        var frame = panel.frame
-        frame.size = panelSize
-        panel.setFrame(frame, display: true)
-        containerView.frame = NSRect(origin: .zero, size: panelSize)
-
-        if viewModel.isVisible, let screen = NSScreen.underCursor {
-            position(on: screen)
-        }
-    }
-
     private func handlePointerMove(_ location: NSPoint) {
         if viewModel.isVisible {
             if panel.frame.contains(location) {
@@ -144,17 +141,17 @@ final class BrightnessOverlayController {
             } else {
                 scheduleClose()
             }
-        } else if isAtEdge(location) {
+        } else if isInHotZone(location) {
             reveal()
         }
     }
 
-    private func isAtEdge(_ location: NSPoint) -> Bool {
+    /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : un coin,
+    /// pas tout le bord. La bande est accrochée en haut — appelée depuis le bas de l'écran, elle
+    /// s'ouvrirait à l'autre bout, loin du curseur.
+    private func isInHotZone(_ location: NSPoint) -> Bool {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }) else { return false }
-        switch widgetPosition {
-        case .left: return location.x <= screen.frame.minX + edgeThreshold
-        case .right: return location.x >= screen.frame.maxX - edgeThreshold
-        }
+        return PanelGeometry.hotZone(on: screen, anchoredTo: widgetPosition).contains(location)
     }
 
     private func reveal() {
@@ -180,10 +177,12 @@ final class BrightnessOverlayController {
 
     private func position(on screen: NSScreen) {
         // Le panel démarre pile au bord de l'écran : le curseur qui déclenche l'apparition
-        // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol.
-        let x = widgetPosition == .right ? screen.frame.maxX - panelSize.width : screen.frame.minX
-        let y = screen.frame.midY - panelSize.height / 2
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol. Le cadre
+        // vient de la géométrie commune — accroché en haut, sous la barre de menus, comme le
+        // panneau latéral, pour que les deux bandes soient à la même place sur leur bord.
+        let frame = PanelGeometry.panelFrame(on: screen, anchoredTo: widgetPosition)
+        panel.setFrame(frame, display: true)
+        containerView.frame = NSRect(origin: .zero, size: frame.size)
     }
 
     private func handleScroll(_ deltaY: CGFloat) {
