@@ -120,13 +120,36 @@ final class NotchTabBarView: NSView {
         )
     }
 
+    /// Pose la rangée d'onglets dans la place que l'engrenage lui laisse, puis l'engrenage.
+    ///
+    /// La rangée est resserrée plutôt que rognée quand elle est à l'étroit : chaque onglet garde
+    /// la largeur de son intitulé, mesurée en gras et sur une seule ligne, et ce sont l'écart
+    /// entre onglets d'abord, les marges des pastilles ensuite, qui cèdent. En deçà, la rangée
+    /// déborde — un intitulé n'est jamais ni replié ni rogné.
     override func layout() {
         super.layout()
 
+        let count = CGFloat(items.count)
+        let available = max(0, bounds.width - TabBarMetrics.gearButtonSize - TabBarMetrics.gearGap)
+
+        // Largeur incompressible : les intitulés, leurs glyphes, et les marges minimales.
+        let incompressible = items.reduce(0) { $0 + $1.minimumWidth }
+        let paddingSlack = 2 * count * (TabBarMetrics.pillHorizontalPadding - TabBarMetrics.pillMinimumHorizontalPadding)
+        let spacingSlack = max(0, count - 1) * TabBarMetrics.tabSpacing
+
+        // Le reste est rendu aux marges d'abord, aux écarts ensuite : à l'étroit, les pastilles
+        // se rapprochent avant de se serrer autour de leur contenu.
+        let slack = max(0, available - incompressible)
+        let padding = TabBarMetrics.pillMinimumHorizontalPadding + min(paddingSlack, slack) / (2 * count)
+        let spacing = count > 1
+            ? min(spacingSlack, max(0, slack - paddingSlack)) / (count - 1)
+            : 0
+
         var x = bounds.minX
         for item in items {
+            item.horizontalPadding = padding
             item.frame = NSRect(x: x, y: bounds.minY, width: item.preferredWidth, height: bounds.height)
-            x += item.frame.width + TabBarMetrics.tabSpacing
+            x += item.frame.width + spacing
         }
 
         let gear = TabBarMetrics.gearButtonSize
@@ -184,6 +207,11 @@ private final class NotchTabItemView: NSView {
         label.drawsBackground = false
         label.isEditable = false
         label.isSelectable = false
+        // Un intitulé d'onglet tient sur une ligne, quelle que soit la place qu'on lui laisse :
+        // la barre resserre la rangée, elle ne la replie pas.
+        label.usesSingleLineMode = true
+        label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byClipping
         addSubview(label)
 
         applyContentStyle()
@@ -213,16 +241,39 @@ private final class NotchTabItemView: NSView {
         needsLayout = true
     }
 
+    /// Marges de la pastille de part et d'autre du couple icône + intitulé. La barre les réduit,
+    /// jusqu'à `TabBarMetrics.pillMinimumHorizontalPadding`, quand la rangée est à l'étroit.
+    var horizontalPadding = TabBarMetrics.pillHorizontalPadding {
+        didSet {
+            guard horizontalPadding != oldValue else { return }
+            invalidateIntrinsicContentSize()
+            needsLayout = true
+        }
+    }
+
     /// Largeur réclamée : les deux marges de la pastille autour du couple icône + intitulé.
-    /// Mesurée en gras quelle que soit l'état de l'onglet, pour que sa largeur — et donc la place
-    /// de ses voisins — ne bouge pas quand il devient actif.
     var preferredWidth: CGFloat {
-        let bold = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .bold)
-        let width = (tab.title as NSString).size(withAttributes: [.font: bold]).width
-        return 2 * TabBarMetrics.pillHorizontalPadding
+        2 * horizontalPadding
             + TabBarMetrics.iconSize
             + TabBarMetrics.iconLabelGap
-            + ceil(width)
+            + labelWidth
+    }
+
+    /// Largeur en deçà de laquelle l'intitulé serait rogné : la même, aux marges minimales.
+    var minimumWidth: CGFloat {
+        2 * TabBarMetrics.pillMinimumHorizontalPadding
+            + TabBarMetrics.iconSize
+            + TabBarMetrics.iconLabelGap
+            + labelWidth
+    }
+
+    /// Largeur de l'intitulé, toujours mesurée en gras quel que soit l'état de l'onglet : c'est
+    /// la graisse la plus large, donc celle qui fixe la place à réserver. Sans quoi la largeur de
+    /// l'onglet — et la place de ses voisins — bougerait quand il devient actif, et son intitulé
+    /// serait rogné au passage en gras.
+    private var labelWidth: CGFloat {
+        let bold = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .bold)
+        return ceil((tab.title as NSString).size(withAttributes: [.font: bold]).width)
     }
 
     override var intrinsicContentSize: NSSize {
@@ -233,15 +284,21 @@ private final class NotchTabItemView: NSView {
         super.layout()
 
         let icon = TabBarMetrics.iconSize
-        let x = TabBarMetrics.pillHorizontalPadding
-        iconView.frame = NSRect(x: x, y: bounds.midY - icon / 2, width: icon, height: icon)
+        iconView.frame = NSRect(
+            x: horizontalPadding,
+            y: bounds.midY - icon / 2,
+            width: icon,
+            height: icon
+        )
 
-        let labelSize = label.intrinsicContentSize
+        // Largeur prise à la mesure en gras et non à `intrinsicContentSize`, qui suit la graisse
+        // du moment : l'intitulé garde ainsi son cadre d'un état à l'autre.
+        let labelHeight = label.intrinsicContentSize.height
         label.frame = NSRect(
             x: iconView.frame.maxX + TabBarMetrics.iconLabelGap,
-            y: bounds.midY - labelSize.height / 2,
-            width: labelSize.width,
-            height: labelSize.height
+            y: bounds.midY - labelHeight / 2,
+            width: labelWidth,
+            height: labelHeight
         )
     }
 

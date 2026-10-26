@@ -2,10 +2,9 @@ import AppKit
 
 /// Contenu du panneau de l'encoche : une silhouette sombre suspendue au haut de l'écran, qui
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
-/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global porte la semaine en
-/// tête, puis les deux colonnes d'origine — les bagues d'utilisation **en ligne** à gauche, la
-/// carte détaillée à droite ; Tray et AI reprennent les vues partagées avec la bande du bord
-/// droit.
+/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global porte la semaine ; AI
+/// porte les deux colonnes d'utilisation — les bagues **en ligne** à gauche, la carte détaillée
+/// à droite ; Tray reprend le bac à fichiers partagé avec la bande du bord droit.
 ///
 /// Les deux silhouettes sont décrites par la même recette de chemin, dans le même ordre de
 /// segments : Core Animation peut donc interpoler l'une vers l'autre, et c'est ce qui constitue
@@ -31,12 +30,14 @@ final class NotchPanelContentView: NSView {
 
     private let tabBar = NotchTabBarView(selectedTab: .global)
 
-    /// La semaine et les deux colonnes réunies : elles se montrent et se cachent d'un bloc avec
-    /// l'onglet Global.
-    private let globalColumns = NSView()
+    /// L'onglet Global : la semaine, seule.
+    private let globalTab = NSView()
     private let weekStrip = WeekStripView()
     private let fileTray = FileTrayView()
-    private let aiTab = AIPlaceholderView()
+
+    /// L'onglet AI : les deux colonnes d'utilisation — les bagues et la carte —, qui se montrent
+    /// et se cachent d'un bloc avec lui.
+    private let aiColumns = NSView()
 
     private var selectedTab: NotchTab = .global
 
@@ -92,33 +93,32 @@ final class NotchPanelContentView: NSView {
         highlightLayer.shadowRadius = 10
         highlightLayer.shadowOffset = .zero
         highlightLayer.opacity = 0
-        globalColumns.wantsLayer = true
-        globalColumns.layer?.addSublayer(highlightLayer)
-        contentContainer.addSubview(globalColumns)
+        aiColumns.wantsLayer = true
+        aiColumns.layer?.addSublayer(highlightLayer)
+        contentContainer.addSubview(aiColumns)
 
-        rings.forEach(globalColumns.addSubview)
+        rings.forEach(aiColumns.addSubview)
         // Les cases sans source partent — et restent — sur un anneau vide, comme dans la bande
         // du bord droit.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
             ring.apply(.unavailable(reason: "Not connected"), animated: false)
         }
 
-        globalColumns.layer?.addSublayer(dividerLayer)
+        aiColumns.layer?.addSublayer(dividerLayer)
 
         // Les deux bords de la colonne de droite sont symétriques : rien ne la pousse contre un
         // bord d'écran, contrairement à la carte de la bande latérale.
         card.trailingInset = card.leadingInset
-        globalColumns.addSubview(card)
+        aiColumns.addSubview(card)
 
-        globalColumns.addSubview(weekStrip)
+        globalTab.addSubview(weekStrip)
+        contentContainer.addSubview(globalTab)
 
         tabBar.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
         tabBar.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
         contentContainer.addSubview(tabBar)
 
-        for view in [fileTray, aiTab] {
-            contentContainer.addSubview(view)
-        }
+        contentContainer.addSubview(fileTray)
         applySelection(animated: false)
 
         // Aucune ombre portée : la silhouette se détache par sa teinte et son filet, et la
@@ -153,17 +153,17 @@ final class NotchPanelContentView: NSView {
 
     /// Cadre d'une bague dans le repère de cette vue : `NotchPanelWindow` le convertit en
     /// coordonnées écran pour que le contrôleur puisse y confronter le curseur.
-    /// `nil` hors de l'onglet Global : les bagues y sont masquées, et le contrôleur ne doit pas
-    /// y confronter le curseur.
+    /// `nil` hors de l'onglet AI : les bagues y sont masquées, et le contrôleur ne doit pas y
+    /// confronter le curseur.
     func ringFrame(at index: Int) -> NSRect? {
-        guard selectedTab == .global, rings.indices.contains(index) else { return nil }
-        return globalColumns.convert(rings[index].frame, to: self)
+        guard selectedTab == .ai, rings.indices.contains(index) else { return nil }
+        return aiColumns.convert(rings[index].frame, to: self)
     }
 
     /// Met en avant la bague survolée et déplace la plaque d'accent sous elle. Le panneau ne
     /// reçoit aucun événement de souris : c'est le contrôleur qui désigne la bague.
     func setHighlightedRing(_ index: Int?) {
-        let index = selectedTab == .global ? index : nil
+        let index = selectedTab == .ai ? index : nil
         for (position, ring) in rings.enumerated() {
             ring.setHighlighted(position == index)
         }
@@ -184,13 +184,13 @@ final class NotchPanelContentView: NSView {
 
     // MARK: - Onglets
 
-    private var tabContentViews: [NSView] { [globalColumns, fileTray, aiTab] }
+    private var tabContentViews: [NSView] { [globalTab, fileTray, aiColumns] }
 
     private func contentView(for tab: NotchTab) -> NSView {
         switch tab {
-        case .global: globalColumns
+        case .global: globalTab
         case .tray: fileTray
-        case .ai: aiTab
+        case .ai: aiColumns
         }
     }
 
@@ -268,23 +268,27 @@ final class NotchPanelContentView: NSView {
             height: max(0, bodyTop - bodyBottom)
         )
         for view in tabContentViews {
-            view.frame = view === globalColumns
+            // Les colonnes de l'onglet AI posent elles-mêmes leur marge, bague par bague et
+            // colonne par colonne ; les autres onglets reçoivent un corps déjà marginé.
+            view.frame = view === aiColumns
                 ? body
                 : body.insetBy(dx: inset, dy: 0)
         }
 
-        // Dans le repère de `globalColumns` : la semaine en tête, les deux colonnes sous elle.
-        // La semaine s'étend sur toute la largeur utile, les colonnes se partagent le reste.
+        // Dans le repère de `globalTab` : la semaine en tête, sur toute la largeur utile. Le
+        // corps est plus haut qu'elle — c'est l'onglet AI qui le dimensionne — et elle reste en
+        // tête plutôt que centrée, à la place qu'elle occupait quand les colonnes la suivaient.
         let weekHeight = NotchPanelGeometry.weekStripHeight
         weekStrip.frame = NSRect(
-            x: inset,
-            y: globalColumns.bounds.maxY - weekHeight,
-            width: max(0, globalColumns.bounds.width - 2 * inset),
+            x: globalTab.bounds.minX,
+            y: globalTab.bounds.maxY - weekHeight,
+            width: globalTab.bounds.width,
             height: weekHeight
         )
 
-        let columnsTop = weekStrip.frame.minY - NotchPanelGeometry.weekStripGap
-        let columnsBottom = globalColumns.bounds.minY
+        // Dans le repère de `aiColumns` : les deux colonnes se partagent toute sa hauteur.
+        let columnsTop = aiColumns.bounds.maxY
+        let columnsBottom = aiColumns.bounds.minY
         let columnsMidY = (columnsTop + columnsBottom) / 2
 
         // Colonne de gauche : les bagues en ligne, centrées sur la hauteur restante.

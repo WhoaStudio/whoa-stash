@@ -47,13 +47,13 @@ enum NotchPanelGeometry {
     /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
     static let tabBarGap = PanelGeometry.contentSpacing
 
-    /// Bande de la semaine, en tête de l'onglet Global, au-dessus des deux colonnes. Même vue
-    /// que dans la bande du bord droit, donc même hauteur.
+    /// Bande de la semaine, tout le contenu de l'onglet Global. Même vue que dans la bande du
+    /// bord droit, donc même hauteur.
     static let weekStripHeight: CGFloat = 54
-    static let weekStripGap = PanelGeometry.contentSpacing
 
-    /// Colonne de gauche : les bagues d'utilisation posées **en ligne** et non empilées, c'est
-    /// tout ce qui distingue cette mise en page de celle de la bande du bord droit.
+    /// Colonne de gauche de l'onglet AI : les bagues d'utilisation posées **en ligne** et non
+    /// empilées, c'est tout ce qui distingue cette mise en page de celle de la bande du bord
+    /// droit.
     static let ringTileSize: CGFloat = 60
     static let ringSpacing: CGFloat = 20
 
@@ -61,7 +61,7 @@ enum NotchPanelGeometry {
     static let columnGap: CGFloat = 24
     static let dividerWidth: CGFloat = 1
 
-    /// Colonne de droite : la carte d'utilisation détaillée, aux dimensions que
+    /// Colonne de droite de l'onglet AI : la carte d'utilisation détaillée, aux dimensions que
     /// `ClaudeUsagePanelView` demande pour tenir son en-tête et ses deux lignes.
     static let cardSize = NSSize(width: 320, height: 190)
 
@@ -70,10 +70,11 @@ enum NotchPanelGeometry {
         return count * ringTileSize + max(0, count - 1) * ringSpacing
     }
 
-    /// Hauteur du contenu d'un onglet, sous la barre : c'est l'onglet Global, le plus haut, qui
-    /// la fixe, pour que la silhouette dépliée ne change pas de taille d'un onglet à l'autre.
+    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut — AI, qui
+    /// porte la carte —, pour que la silhouette dépliée ne change pas de taille d'un onglet à
+    /// l'autre.
     static var tabContentHeight: CGFloat {
-        weekStripHeight + weekStripGap + cardSize.height
+        max(weekStripHeight, cardSize.height)
     }
 
     static var expandedSize: NSSize {
