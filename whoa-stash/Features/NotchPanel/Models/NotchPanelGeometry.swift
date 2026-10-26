@@ -6,8 +6,9 @@ import AppKit
 /// coordonnées globales AppKit (origine en bas à gauche de l'écran principal, axe Y vers le haut).
 ///
 /// Jumelle de `SidePanelGeometry`, qui reste la géométrie du panneau du bord droit : les deux
-/// placements coexistent et ne partagent aucune constante, leurs silhouettes n'ayant rien en
-/// commun.
+/// placements coexistent, chacun avec son bord d'accroche et sa silhouette, mais ils tiennent
+/// leur rayon, leurs marges, leurs écarts et leur filet de `PanelGeometry` — c'est ce qui les
+/// fait se lire comme deux états d'une même surface.
 enum NotchPanelGeometry {
 
     // MARK: - Silhouette
@@ -15,12 +16,14 @@ enum NotchPanelGeometry {
     /// Rayon des deux raccords **concaves** du haut, là où le panneau s'évase dans le bord
     /// auquel il est suspendu — le haut de l'écran sur un Mac à encoche, le bas de la barre de
     /// menus sinon.
+    /// Le rayon replié reste propre à cet état : la silhouette doit s'y confondre avec
+    /// l'encoche matérielle, qui est trop basse pour porter celui du panneau.
     static let collapsedShoulderRadius: CGFloat = 7
-    static let expandedShoulderRadius: CGFloat = 14
+    static let expandedShoulderRadius = PanelGeometry.cornerRadius
 
     /// Rayon des deux coins **convexes** du bas.
     static let collapsedBottomRadius: CGFloat = 10
-    static let expandedBottomRadius: CGFloat = 28
+    static let expandedBottomRadius = PanelGeometry.cornerRadius
 
     // MARK: - État replié
 
@@ -34,19 +37,20 @@ enum NotchPanelGeometry {
 
     // MARK: - État déplié
 
-    /// Marges intérieures du contenu. Le haut est généreux parce que les raccords concaves
-    /// rognent la zone peinte près du bord auquel le panneau est suspendu.
-    static let contentInsetX: CGFloat = 28
-    static let contentInsetTop: CGFloat = 16
-    static let contentInsetBottom: CGFloat = 12
+    /// Marges intérieures du contenu, celles du panneau du bord droit : la marge verticale vaut
+    /// au moins le rayon de la silhouette, puisque les raccords rognent la zone peinte près du
+    /// bord auquel le panneau est suspendu.
+    static let contentInsetX = PanelGeometry.contentHorizontalInset
+    static let contentInsetTop = PanelGeometry.contentVerticalInset
+    static let contentInsetBottom = PanelGeometry.contentVerticalInset
 
     /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
-    static let tabBarGap: CGFloat = 12
+    static let tabBarGap = PanelGeometry.contentSpacing
 
     /// Bande de la semaine, en tête de l'onglet Global, au-dessus des deux colonnes. Même vue
     /// que dans la bande du bord droit, donc même hauteur.
     static let weekStripHeight: CGFloat = 54
-    static let weekStripGap: CGFloat = 12
+    static let weekStripGap = PanelGeometry.contentSpacing
 
     /// Colonne de gauche : les bagues d'utilisation posées **en ligne** et non empilées, c'est
     /// tout ce qui distingue cette mise en page de celle de la bande du bord droit.

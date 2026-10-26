@@ -3,12 +3,13 @@ import AppKit
 /// Contenu du panneau latéral : une surface quasi opaque accrochée au bord droit de l'écran,
 /// arrondie du côté intérieur et évasée dans le bord.
 ///
-/// Porte la semaine et les bagues d'utilisation (`SidePanelStackView`). La carte détaillée d'une
-/// bague, elle, vit dans la bulle qui s'ouvre à son survol (`UsageCalloutWindow`).
+/// Porte les bagues d'utilisation (`SidePanelStackView`). La carte détaillée d'une bague, elle,
+/// vit dans la bulle qui s'ouvre à son survol (`UsageCalloutWindow`).
 ///
-/// Pas d'onglets ici : ils appartiennent au panneau de l'encoche. La bande n'est à l'écran que le
-/// temps d'un survol et ne reçoit aucun clic, deux raisons pour lesquelles une rangée d'onglets y
-/// serait à la fois peu atteignable et coûteuse — il faudrait lui ouvrir les événements souris.
+/// Ni onglets ni semaine ici : ils appartiennent au panneau de l'encoche. La bande n'est à l'écran
+/// que le temps d'un survol et ne reçoit aucun clic, deux raisons pour lesquelles une rangée
+/// d'onglets y serait à la fois peu atteignable et coûteuse — il faudrait lui ouvrir les
+/// événements souris.
 ///
 /// Porte aussi l'animation d'entrée/sortie (glissement depuis le bord droit + fondu), appliquée
 /// à son propre calque.
@@ -49,19 +50,14 @@ final class SidePanelContentView: NSView {
         layer?.addSublayer(backgroundLayer)
 
         strokeLayer.fillColor = nil
-        strokeLayer.lineWidth = 1
+        strokeLayer.lineWidth = PanelGeometry.strokeWidth
         layer?.addSublayer(strokeLayer)
 
         addSubview(stack)
 
-        // L'ombre est portée ici plutôt que par la fenêtre : l'ombre système serait calculée sur
-        // le cadre complet et resterait donc visible au bord de l'écran pendant que le contenu
-        // est encore hors champ, au tout début du glissement.
+        // Aucune ombre portée : le panneau se détache par sa propre teinte et son filet, et la
+        // fenêtre est elle aussi sans ombre (`SidePanelWindow`).
         layer?.masksToBounds = false
-        layer?.shadowColor = NSColor.black.cgColor
-        layer?.shadowOpacity = 0.28
-        layer?.shadowRadius = 12
-        layer?.shadowOffset = CGSize(width: -2, height: 0)
 
         applyPalette()
     }
@@ -97,12 +93,6 @@ final class SidePanelContentView: NSView {
 
     var ringCount: Int { stack.ringCount }
 
-    /// Remet la semaine à la bonne date avant chaque apparition : la bande reste en mémoire d'un
-    /// survol à l'autre, et parfois d'un jour à l'autre.
-    func prepareForDisplay() {
-        stack.refreshWeek()
-    }
-
     override func layout() {
         super.layout()
 
@@ -114,7 +104,6 @@ final class SidePanelContentView: NSView {
         // uniforme ferait *grandir* le rayon concave là où il rétrécit les rayons convexes, ce qui
         // décollerait la bordure du fond précisément au niveau des raccords.
         strokeLayer.path = path
-        layer?.shadowPath = path
 
         // Boîte de contenu : tout ce qui est peint reste sous la ligne où le bord supérieur se
         // relève vers le bord de l'écran pour former l'évasement (voir `panelPath`).

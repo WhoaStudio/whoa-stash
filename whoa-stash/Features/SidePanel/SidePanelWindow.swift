@@ -73,7 +73,6 @@ final class SidePanelWindow {
         guard !isRevealed else { return }
         isRevealed = true
 
-        contentView.prepareForDisplay()
         contentView.prepareForReveal()
         panel.orderFrontRegardless()
         contentView.animateIn()

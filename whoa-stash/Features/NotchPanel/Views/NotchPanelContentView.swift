@@ -74,7 +74,7 @@ final class NotchPanelContentView: NSView {
         layer?.addSublayer(backgroundLayer)
 
         strokeLayer.fillColor = nil
-        strokeLayer.lineWidth = 1
+        strokeLayer.lineWidth = PanelGeometry.strokeWidth
         layer?.addSublayer(strokeLayer)
 
         contentContainer.wantsLayer = true
@@ -121,13 +121,9 @@ final class NotchPanelContentView: NSView {
         }
         applySelection(animated: false)
 
-        // L'ombre est portée par le calque et non par la fenêtre : l'ombre système serait
-        // calculée sur le cadre complet et cernerait l'encoche alors que le panneau est replié.
+        // Aucune ombre portée : la silhouette se détache par sa teinte et son filet, et la
+        // fenêtre est elle aussi sans ombre (`NotchPanelWindow`).
         layer?.masksToBounds = false
-        layer?.shadowColor = NSColor.black.cgColor
-        layer?.shadowOpacity = 0
-        layer?.shadowRadius = 18
-        layer?.shadowOffset = CGSize(width: 0, height: -6)
 
         applyPalette()
     }
@@ -419,7 +415,6 @@ final class NotchPanelContentView: NSView {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
         let path = expanded ? expandedPath() : collapsedPath()
-        let shadowOpacity: Float = expanded ? 0.45 : 0
         let contentOpacity: Float = expanded ? 1 : 0
 
         guard animated else {
@@ -429,8 +424,6 @@ final class NotchPanelContentView: NSView {
                 shape.frame = bounds
                 shape.path = path
             }
-            layer?.shadowPath = path
-            layer?.shadowOpacity = shadowOpacity
             contentContainer.layer?.opacity = contentOpacity
             CATransaction.commit()
             return
@@ -441,8 +434,6 @@ final class NotchPanelContentView: NSView {
             shape.springAnimate(keyPath: "path", to: path, preset: .gentle)
         }
 
-        layer?.shadowPath = path
-        animate(layer, keyPath: "shadowOpacity", to: shadowOpacity)
         // Le contenu suit le dépliage en fondu plutôt qu'en ressort : il doit avoir disparu
         // avant que la silhouette ne soit redevenue trop étroite pour le contenir.
         animate(contentContainer.layer, keyPath: "opacity", to: contentOpacity)

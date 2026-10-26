@@ -26,25 +26,15 @@ enum SidePanelGeometry {
     /// Rayon de la silhouette du panneau, partagé avec `SidePanelContentView` : c'est lui qui
     /// décide de la marge haute et basse, puisque les raccords concaves rognent la zone peinte
     /// près des deux extrémités.
-    static let panelCornerRadius: CGFloat = 28
+    static let panelCornerRadius = PanelGeometry.cornerRadius
 
     // MARK: - Boîte de contenu
 
     /// Marges intérieures du panneau. Les marges haute et basse valent au moins le rayon de la
     /// silhouette : au-dessus de cette ligne, le bord peint se relève vers le bord de l'écran
     /// pour former l'évasement, et tout contenu qui y monterait sortirait du chemin.
-    static let contentVerticalInset: CGFloat = panelCornerRadius + 6
-    static let contentHorizontalInset: CGFloat = 14
-
-    /// Écart entre deux blocs empilés dans le corps du panneau (barre d'onglets, bande des jours,
-    /// rangée de bagues).
-    static let contentSpacing: CGFloat = 14
-
-    // MARK: - Bande des jours
-
-    /// Hauteur de la bande de la semaine : l'initiale du jour, et le numéro posé dessous dans sa
-    /// pastille.
-    static let weekStripHeight: CGFloat = 54
+    static let contentVerticalInset = PanelGeometry.contentVerticalInset
+    static let contentHorizontalInset = PanelGeometry.contentHorizontalInset
 
     // MARK: - Bande de bagues
 
@@ -68,8 +58,8 @@ enum SidePanelGeometry {
 
     // MARK: - Cadre du panneau
 
-    /// La bande est large depuis qu'elle porte la semaine : sept jours ne tiennent pas dans la
-    /// largeur d'une bague, qui était celle de la bande d'origine.
+    /// La bande est large : les bagues s'alignent sur une seule rangée, ce que la largeur d'une
+    /// bague — celle de la bande d'origine — ne permettait pas.
     static let panelWidth: CGFloat = 380
 
     /// Hauteur plancher, pour que la bande garde une silhouette posée même quand son contenu
@@ -77,10 +67,7 @@ enum SidePanelGeometry {
     static let minimumPanelHeight: CGFloat = 300
 
     static var panelHeight: CGFloat {
-        let content = 2 * contentVerticalInset
-            + weekStripHeight
-            + contentSpacing
-            + ringTileSize
+        let content = 2 * contentVerticalInset + ringTileSize
         return max(content, minimumPanelHeight)
     }
 
