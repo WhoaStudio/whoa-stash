@@ -1,18 +1,39 @@
 import AppKit
 
-/// Contenu du panneau latéral : les bagues d'utilisation.
+/// Contenu du panneau latéral : les bagues d'utilisation, empilées verticalement.
 ///
 /// La bande n'a ni onglets ni semaine — ils appartiennent au panneau de l'encoche, qui a la
 /// largeur et la permanence pour les porter. Ce qu'elle montre tient sur une seule vue, et
 /// celle-ci existe pour que `SidePanelContentView` n'ait pas à mêler la silhouette et son contenu.
+///
+/// La liste vit dans un défilement : la pile peut réclamer plus de hauteur que le panneau n'en a,
+/// une fois celui-ci arrêté par la zone visible de l'écran (`SidePanelGeometry.panelFrame`).
+/// L'ascenseur est en surimpression et s'efface de lui-même, pour ne rien ajouter à la surface
+/// quand tout tient.
 final class SidePanelStackView: NSView {
 
+    private let scrollView = NSScrollView()
     private let ringStrip = ClaudeUsageRingStripView()
+
+    /// Dernière hauteur donnée à la vue de document : le retour en haut de liste ne vaut que
+    /// pour une pile qui change de taille, pas pour chaque mise en page — sans quoi la moindre
+    /// repose du cadre annulerait le défilement en cours.
+    private var lastDocumentHeight: CGFloat?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        addSubview(ringStrip)
+
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.verticalScrollElasticity = .allowed
+        scrollView.contentView.drawsBackground = false
+        scrollView.documentView = ringStrip
+        addSubview(scrollView)
     }
 
     @available(*, unavailable)
@@ -38,6 +59,19 @@ final class SidePanelStackView: NSView {
 
     override func layout() {
         super.layout()
-        ringStrip.frame = bounds
+        scrollView.frame = bounds
+
+        // La vue de document prend toute la largeur offerte et au moins la hauteur visible : en
+        // deçà, rien ne défile et la pile se centre d'elle-même dans ce qu'elle a.
+        let visible = scrollView.contentView.bounds.size
+        let height = max(ringStrip.contentHeight, visible.height)
+        ringStrip.frame = NSRect(x: 0, y: 0, width: visible.width, height: height)
+
+        // Le haut de la liste d'abord : la vue de document n'est pas retournée, donc son origine
+        // naturelle est en bas.
+        guard lastDocumentHeight != height else { return }
+        lastDocumentHeight = height
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: height - visible.height))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 }

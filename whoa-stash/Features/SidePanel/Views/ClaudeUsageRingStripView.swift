@@ -1,11 +1,13 @@
 import AppKit
 
-/// Rangée des bagues d'utilisation, une par case déclarée dans `SidePanelGeometry.ringSlots`.
+/// Liste des bagues d'utilisation, une par case déclarée dans `SidePanelGeometry.ringSlots`.
 /// Celles qui n'ont pas encore de source restent vides, avec leur marque en teinte neutre —
 /// elles ne sont pas alimentées par l'instantané Claude.
 ///
-/// Les bagues sont alignées **horizontalement** depuis que le panneau est large : elles étaient
-/// empilées du temps de la bande étroite d'une seule bague.
+/// Les bagues sont empilées **verticalement**, de haut en bas : la liste s'allonge du sens dans
+/// lequel le panneau est suspendu, et non en travers de sa largeur. Quand elle dépasse la hauteur
+/// offerte, c'est `SidePanelStackView` qui la fait défiler — la vue, elle, n'annonce que la
+/// hauteur dont elle a besoin (`contentHeight`).
 ///
 /// La vue ne gère pas le survol elle-même : c'est `SidePanelController` qui décide, depuis la
 /// position globale du curseur, quelle bague est survolée et le lui dit par
@@ -57,22 +59,27 @@ final class ClaudeUsageRingStripView: NSView {
 
     var ringCount: Int { rings.count }
 
+    /// Hauteur réclamée par la pile — ce que `SidePanelStackView` donne à la vue de document de
+    /// son défilement.
+    var contentHeight: CGFloat { SidePanelGeometry.ringStripHeight }
+
     override func layout() {
         super.layout()
 
         let tile = SidePanelGeometry.ringTileSize
         let spacing = SidePanelGeometry.ringSpacing
 
-        // Le groupe est centré dans la largeur disponible, avec un écart fixe entre bagues : les
-        // répartir sur toute la largeur les éloignerait trop les unes des autres sur un panneau
-        // large, alors qu'elles forment une seule rangée à lire d'un coup.
-        let total = CGFloat(rings.count) * tile + CGFloat(max(0, rings.count - 1)) * spacing
-        var x = bounds.midX - total / 2
-        let y = bounds.midY - tile / 2
+        // Le groupe est centré dans la largeur comme dans la hauteur offerte, avec un écart fixe
+        // entre bagues : les répartir sur toute la hauteur les éloignerait trop les unes des
+        // autres, alors qu'elles forment une seule liste à lire d'un coup. Quand la hauteur
+        // manque, la pile part du haut et c'est le défilement qui donne accès au reste.
+        let total = contentHeight
+        let x = bounds.midX - tile / 2
+        var y = bounds.height > total ? bounds.midY + total / 2 - tile : bounds.maxY - tile
 
         for ring in rings {
             ring.frame = NSRect(x: x, y: y, width: tile, height: tile)
-            x += tile + spacing
+            y -= tile + spacing
         }
     }
 }
