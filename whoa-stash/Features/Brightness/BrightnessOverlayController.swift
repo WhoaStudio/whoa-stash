@@ -59,7 +59,7 @@ final class BrightnessOverlayController {
         // lit donc une seule et même source de préférences.
         viewModel = BrightnessViewModel(
             controller: controller,
-            feedback: SystemBrightnessFeedback(storage: storage),
+            feedback: SystemOverlayFeedback(storage: storage),
             storage: storage
         )
 

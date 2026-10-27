@@ -56,7 +56,7 @@ final class VolumeDialController {
         panel.hidesOnDeactivate = false
 
         dialView = VolumeDialView(
-            initialPalette: OverlayPalette.resolved(for: panel.effectiveAppearance)
+            initialPalette: VolumeDialView.palette(for: panel.effectiveAppearance)
         )
         dialView.frame = NSRect(x: 0, y: 0, width: side, height: side)
         panel.contentView = dialView
@@ -211,6 +211,6 @@ final class VolumeDialController {
     }
 
     private func refreshPalette() {
-        dialView.applyPalette(OverlayPalette.resolved(for: panel.effectiveAppearance))
+        dialView.applyPalette(VolumeDialView.palette(for: panel.effectiveAppearance))
     }
 }

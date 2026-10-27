@@ -26,7 +26,7 @@ final class VolumeDialView: NSView {
     private let ticksRing: VolumeTicksRing
     private let trackLayer = CAShapeLayer()
     private let fillLayer = CAShapeLayer()
-    private let handleLayer = CALayer()
+    private let handleLayer = CAShapeLayer()
     private let valueLayer = CATextLayer()
     private let captionLayer = CATextLayer()
 
@@ -97,6 +97,18 @@ final class VolumeDialView: NSView {
         fillLayer.zPosition = Depth.fill
         fillLayer.strokeEnd = 0
 
+        // La poignée n'est pas un point qu'on déplace le long du bandeau : c'est **le bout du
+        // bandeau lui-même**, tracé sur le même chemin, avec un bout rond et une épaisseur plus
+        // grande. Un segment minuscule suffit — ce qu'on voit est son embout.
+        //
+        // C'est ce qui la tient sur la ligne en toutes circonstances. Une position animée
+        // joindrait deux points par la corde et couperait à travers le cadran ; un support qu'on
+        // ferait tourner resterait bien sur le cercle, mais le ressort le ferait déborder la
+        // course aux deux bouts, là où `strokeEnd` est borné par Core Animation et s'arrête net.
+        // Né du même chemin et borné de la même façon, le point ne peut plus s'en détacher.
+        handleLayer.fillColor = nil
+        handleLayer.lineWidth = VolumeDialGeometry.handleDiameter
+        handleLayer.lineCap = .round
         handleLayer.shadowOffset = .zero
         handleLayer.zPosition = Depth.handle
         contentLayer.addSublayer(handleLayer)
@@ -156,10 +168,11 @@ final class VolumeDialView: NSView {
         fillLayer.frame = disc
         fillLayer.path = arcPath
 
-        let handleSide = VolumeDialGeometry.handleDiameter
-        handleLayer.bounds = CGRect(x: 0, y: 0, width: handleSide, height: handleSide)
-        handleLayer.cornerRadius = handleSide / 2
-        handleLayer.position = handlePosition(forFraction: currentFraction)
+        handleLayer.frame = disc
+        handleLayer.path = arcPath
+        let handle = handleStroke(forFraction: currentFraction)
+        handleLayer.strokeStart = handle.start
+        handleLayer.strokeEnd = handle.end
 
         // Le chiffre est posé un cheveu au-dessus du centre et la légende juste en dessous :
         // les deux ensemble, et non le seul chiffre, doivent se lire comme centrées dans le
@@ -259,15 +272,20 @@ final class VolumeDialView: NSView {
 
         ticksRing.setActiveCount(activeTickCount, animated: animated)
 
-        let handleTarget = NSValue(point: handlePosition(forFraction: currentFraction))
+        // Le bandeau et la poignée reçoivent le même ressort sur la même grandeur : ils
+        // s'élancent, débordent et se stabilisent ensemble, donc le point reste sur le bout de
+        // la ligne même en plein débattement.
+        let handle = handleStroke(forFraction: currentFraction)
         if animated {
             fillLayer.springAnimate(keyPath: "strokeEnd", to: currentFraction)
-            handleLayer.springAnimate(keyPath: "position", to: handleTarget)
+            handleLayer.springAnimate(keyPath: "strokeStart", to: handle.start)
+            handleLayer.springAnimate(keyPath: "strokeEnd", to: handle.end)
         } else {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             fillLayer.strokeEnd = currentFraction
-            handleLayer.position = handlePosition(forFraction: currentFraction)
+            handleLayer.strokeStart = handle.start
+            handleLayer.strokeEnd = handle.end
             CATransaction.commit()
         }
 
@@ -279,17 +297,30 @@ final class VolumeDialView: NSView {
         CATransaction.commit()
     }
 
-    private func handlePosition(forFraction fraction: CGFloat) -> CGPoint {
-        let disc = CGRect(origin: .zero, size: bounds.size)
-        let radius = VolumeDialGeometry.arcRadius(in: disc)
-        let angle = VolumeDialGeometry.angle(forFraction: fraction)
-        return CGPoint(
-            x: disc.midX + cos(angle) * radius,
-            y: disc.midY + sin(angle) * radius
-        )
+    /// Les deux bouts du segment qui fait la poignée : une longueur dérisoire finissant au
+    /// niveau courant. Ce n'est pas lui qu'on voit mais son embout rond, large de
+    /// `handleDiameter` — d'où le soin à le garder minuscule, pour que le point soit rond et
+    /// non allongé.
+    ///
+    /// Sa longueur ne varie jamais, même à zéro, où le segment serait sinon vide et le point
+    /// disparaîtrait : au plus bas il est repoussé au départ de la course, qu'il marque. Le
+    /// bandeau, lui, est bel et bien vide à zéro — c'est le niveau qu'il montre, pas la position.
+    private func handleStroke(forFraction fraction: CGFloat) -> (start: CGFloat, end: CGFloat) {
+        let length = VolumeDialGeometry.handleStrokeLength
+        let end = max(min(max(fraction, 0), 1), length)
+        return (end - length, end)
     }
 
     // MARK: - Matière
+
+    /// Palette du cadran : celle de l'overlay, ré-accentuée en orange. Le cadran ne suit pas
+    /// l'accent choisi dans les Préférences, qui habille les graduations de la luminosité et la
+    /// bague survolée du panneau de l'encoche — le son a sa couleur, et c'est l'orange de macOS.
+    /// Définie ici, et non chez le contrôleur, pour que la repeinte sur changement d'apparence
+    /// ne puisse pas retomber sur la palette accentuée d'ailleurs.
+    static func palette(for appearance: NSAppearance) -> OverlayPalette {
+        OverlayPalette.resolved(for: appearance).accented(with: .orange, in: appearance)
+    }
 
     func applyPalette(_ palette: OverlayPalette) {
         discLayer.backgroundColor = palette.panelBackground
@@ -299,7 +330,7 @@ final class VolumeDialView: NSView {
         trackLayer.strokeColor = palette.inactiveTickColor.copy(alpha: 0.18)
         fillLayer.strokeColor = palette.activeTickColor.copy(alpha: 0.85)
 
-        handleLayer.backgroundColor = palette.activeTickColor
+        handleLayer.strokeColor = palette.activeTickColor
         handleLayer.shadowColor = palette.activeTickColor
         handleLayer.shadowOpacity = palette.glowOpacity
         handleLayer.shadowRadius = palette.glowRadius
@@ -310,7 +341,7 @@ final class VolumeDialView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        applyPalette(OverlayPalette.resolved(for: effectiveAppearance))
+        applyPalette(Self.palette(for: effectiveAppearance))
     }
 
     // MARK: - Événements

@@ -20,7 +20,11 @@ final class ClaudeUsageRingStripView: NSView {
 
     override init(frame frameRect: NSRect) {
         rings = SidePanelGeometry.ringSlots.map { slot in
-            ClaudeUsageRingView(tileSize: SidePanelGeometry.ringTileSize, mark: slot.mark)
+            ClaudeUsageRingView(
+                tileSize: SidePanelGeometry.ringTileSize,
+                mark: slot.mark,
+                serviceName: slot.serviceName
+            )
         }
         super.init(frame: frameRect)
         wantsLayer = true
@@ -28,7 +32,7 @@ final class ClaudeUsageRingStripView: NSView {
 
         // Les cases sans source partent — et restent — sur un anneau vide.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(.unavailable(reason: "Not connected"), animated: false)
+            ring.apply(.unavailable(reason: "Usage unavailable"), animated: false)
         }
     }
 
