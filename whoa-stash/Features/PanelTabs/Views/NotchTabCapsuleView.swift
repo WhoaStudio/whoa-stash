@@ -82,7 +82,7 @@ final class NotchTabCapsuleView: NSView {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         layer?.backgroundColor = palette.tabCapsuleFill
         layer?.borderColor = palette.strokeColor
-        circleLayer.backgroundColor = palette.tabPillFill
+        circleLayer.backgroundColor = palette.tabCircleFill
         items.forEach { $0.applyPalette(palette) }
         gearButton.applyPalette(palette)
     }

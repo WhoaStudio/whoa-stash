@@ -45,6 +45,10 @@ final class NotchPanelContentView: NSView {
 
     private var selectedTab: NotchTab = .global
 
+    /// Place de repos de la capsule, relevée à chaque mise en page : c'est de là qu'elle part
+    /// en sortant, et c'est là qu'elle revient en entrant.
+    private var capsuleRestingPosition: CGPoint = .zero
+
     /// Silhouette courante, retenue pour le test de contact : le cadre de la fenêtre vaut
     /// toujours le cadre déplié, donc la vue est bien plus large que ce qu'elle dessine, et
     /// seule la forme peinte doit répondre (voir `hitTest(_:)`).
@@ -327,6 +331,11 @@ final class NotchPanelContentView: NSView {
         contentContainer.frame = bounds
 
         capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds)
+        // La place de repos est relevée ici, une fois le cadre posé et avant que l'entrée ou la
+        // sortie ne décale le calque : c'est le point d'arrivée de la course, et il ne peut pas
+        // être lu plus tard, quand la capsule est justement ailleurs.
+        capsuleRestingPosition = capsule.layer?.position ?? .zero
+        applyCapsuleReveal(animated: false)
 
         // Corps de l'onglet : tout l'intérieur du panneau. Les trois onglets l'occupent en entier
         // et se relaient dedans.
@@ -390,6 +399,42 @@ final class NotchPanelContentView: NSView {
         )
     }
 
+    // MARK: - Entrée et sortie de la capsule
+
+    /// Course de la capsule : ce dont elle est décalée, repliée, sous sa place de repos.
+    ///
+    /// Elle sort par le **bas** et non vers le panneau : glisser de dessous lui demanderait
+    /// qu'elle soit derrière lui dans l'ordre d'affichage, alors qu'elle est posée par-dessus —
+    /// elle lui passerait sur le ventre au lieu d'en sortir.
+    private static let capsuleTravel: CGFloat = 14
+
+    /// Fait monter la capsule à sa place, ou l'en fait redescendre. Le ressort est celui du
+    /// dépliage (`SpringPreset.gentle`) et le fondu celui du contenu : les deux gestes sont
+    /// simultanés et doivent se lire comme un seul.
+    ///
+    /// Posée sèchement quand il n'y a rien à animer — une mise en page doit déjà trouver la
+    /// capsule dans son état courant à la première image.
+    private func applyCapsuleReveal(animated: Bool) {
+        guard let layer = capsule.layer, capsuleRestingPosition != .zero else { return }
+
+        let target = isExpanded
+            ? capsuleRestingPosition
+            : CGPoint(x: capsuleRestingPosition.x, y: capsuleRestingPosition.y - Self.capsuleTravel)
+        let opacity: Float = isExpanded ? 1 : 0
+
+        guard animated else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.position = target
+            layer.opacity = opacity
+            CATransaction.commit()
+            return
+        }
+
+        layer.springAnimate(keyPath: "position", to: target, preset: .gentle)
+        PanelFold.fade(layer, to: opacity)
+    }
+
     // MARK: - Silhouette
 
     /// Les deux états, tirés de la même recette que les bandes de flanc
@@ -439,11 +484,15 @@ final class NotchPanelContentView: NSView {
         // Le contenu suit le dépliage en fondu plutôt qu'au ressort, et il est découpé par la
         // silhouette elle-même (`contentMask`) : pendant le dépliage il ne doit rien dépasser de
         // la forme, qui est encore plus étroite que lui.
+        // La capsule ne se contente pas de suivre le fondu du contenu : elle monte à sa place et
+        // y redescend, puisqu'elle est la seule surface à ne pas être portée par la silhouette.
+        applyCapsuleReveal(animated: animated)
+
         PanelFold.apply(
             path: path,
             to: [backgroundLayer, strokeLayer, contentMask],
             in: bounds,
-            fading: [contentContainer.layer, capsule.layer].compactMap { $0 },
+            fading: contentContainer.layer.map { [$0] } ?? [],
             to: expanded ? 1 : 0,
             animated: animated
         )
