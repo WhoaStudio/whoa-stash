@@ -3,28 +3,31 @@ import AppKit
 /// Onglet Tray : une zone de dépôt qui retient les fichiers qu'on y lâche, avec leur icône et
 /// leur nom.
 ///
-/// Les fichiers ne sont que **référencés** — rien n'est copié ni déplacé sur le disque, et la
-/// liste ne survit pas au redémarrage de l'app. C'est la version minimale : de quoi poser des
-/// fichiers le temps d'une session, pas encore un bac persistant.
+/// La vue n'est qu'une lecture de `FileShelfStore` — c'est lui qui retient les fichiers, et donc
+/// le bac survit au repli du panneau, au changement d'onglet et au relancement de l'app. Les
+/// fichiers ne sont que **référencés** : rien n'est copié ni déplacé sur le disque.
+///
+/// Un fichier en ressort comme de n'importe quel bac du système : on le glisse vers le Finder ou
+/// une autre app, et il ne quitte le bac qu'une fois le dépôt abouti (voir `FileTrayRowView`).
 final class FileTrayView: NSView {
 
     private let emptyLabel = NSTextField(labelWithString: "Drop files here")
     private let dropHighlightLayer = CAShapeLayer()
     private var rows: [FileTrayRowView] = []
 
-    /// Fichiers retenus, dans l'ordre où ils ont été déposés.
-    private var urls: [URL] = []
-
-    /// Au-delà, les derniers déposés chassent les premiers : la zone n'a de place que pour
-    /// quelques lignes et ne défile pas encore.
-    private let maximumVisibleRows = 4
+    private let store: FileShelfStore
+    /// `nonisolated(unsafe)` pour pouvoir être retiré depuis `deinit`, qui n'est pas isolé sur
+    /// le main actor : le jeton n'est touché qu'à l'installation et à la destruction de la vue,
+    /// toutes deux sur le main actor de fait.
+    nonisolated(unsafe) private var storeObserver: NSObjectProtocol?
 
     private let rowHeight: CGFloat = 26
     private let rowSpacing: CGFloat = 4
 
     private var isDropTarget = false
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect = .zero, store: FileShelfStore = .shared) {
+        self.store = store
         super.init(frame: frameRect)
         wantsLayer = true
         setUp()
@@ -33,6 +36,12 @@ final class FileTrayView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let storeObserver {
+            NotificationCenter.default.removeObserver(storeObserver)
+        }
     }
 
     private func setUp() {
@@ -52,7 +61,18 @@ final class FileTrayView: NSView {
         addSubview(emptyLabel)
 
         registerForDraggedTypes([.fileURL])
-        applyPalette()
+
+        // Il y a une vue par écran, et elles vont et viennent avec les fenêtres : chacune suit
+        // le bac partagé plutôt que d'être tenue par lui.
+        storeObserver = NotificationCenter.default.addObserver(
+            forName: FileShelfStore.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.rebuildRows() }
+        }
+
+        rebuildRows()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -71,9 +91,7 @@ final class FileTrayView: NSView {
     // MARK: - Dépôt
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions) else {
-            return []
-        }
+        guard accepts(sender) else { return [] }
         isDropTarget = true
         applyPalette()
         return .copy
@@ -89,6 +107,7 @@ final class FileTrayView: NSView {
         applyPalette()
 
         guard
+            accepts(sender),
             let dropped = sender.draggingPasteboard.readObjects(
                 forClasses: [NSURL.self],
                 options: readingOptions
@@ -96,16 +115,16 @@ final class FileTrayView: NSView {
             !dropped.isEmpty
         else { return false }
 
-        // Un même fichier déposé deux fois ne fait pas deux lignes : il remonte simplement en fin
-        // de liste, là où l'utilisateur vient de le poser.
-        urls.removeAll { dropped.contains($0) }
-        urls.append(contentsOf: dropped)
-        if urls.count > maximumVisibleRows {
-            urls.removeFirst(urls.count - maximumVisibleRows)
-        }
-
-        rebuildRows()
+        store.add(dropped)
         return true
+    }
+
+    /// Un glisser venu d'une ligne du bac lui-même n'est pas un dépôt : relâcher là d'où l'on
+    /// vient doit se lire comme un glisser annulé, qui laisse le fichier en place, et non comme
+    /// un dépôt abouti qui l'en retirerait.
+    private func accepts(_ sender: any NSDraggingInfo) -> Bool {
+        guard !(sender.draggingSource is FileTrayRowView) else { return false }
+        return sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions)
     }
 
     private var readingOptions: [NSPasteboard.ReadingOptionKey: Any] {
@@ -114,9 +133,9 @@ final class FileTrayView: NSView {
 
     private func rebuildRows() {
         rows.forEach { $0.removeFromSuperview() }
-        rows = urls.map(FileTrayRowView.init(url:))
+        rows = store.urls.map { FileTrayRowView(url: $0, store: store) }
         rows.forEach(addSubview)
-        emptyLabel.isHidden = !urls.isEmpty
+        emptyLabel.isHidden = !store.isEmpty
         applyPalette()
         needsLayout = true
     }
@@ -157,14 +176,28 @@ final class FileTrayView: NSView {
 // MARK: - Une ligne
 
 /// Une ligne du bac : l'icône que le Finder donne au fichier, et son nom.
-private final class FileTrayRowView: NSView {
+///
+/// C'est aussi la source du glisser vers l'extérieur. Le fichier ne quitte le bac que si le
+/// dépôt a abouti — `draggingSession(_:endedAt:operation:)` reçoit alors une opération non
+/// vide ; un glisser annulé, ou relâché dans le vide, en reçoit une vide et laisse la ligne en
+/// place.
+private final class FileTrayRowView: NSView, NSDraggingSource {
 
+    private let url: URL
+    private let store: FileShelfStore
     private let iconView = NSImageView()
     private let label = NSTextField(labelWithString: "")
 
     private let iconSize: CGFloat = 16
 
-    init(url: URL) {
+    /// Distance à parcourir avant qu'un `mouseDragged` devienne un glisser : sans ce seuil, le
+    /// moindre tremblement au clic en lancerait un.
+    private let dragThreshold: CGFloat = 3
+    private var mouseDownLocation: NSPoint?
+
+    init(url: URL, store: FileShelfStore) {
+        self.url = url
+        self.store = store
         super.init(frame: .zero)
         wantsLayer = true
 
@@ -191,6 +224,62 @@ private final class FileTrayRowView: NSView {
 
     func applyPalette(_ palette: OverlayPalette) {
         label.textColor = palette.tabActiveContent
+    }
+
+    // MARK: - Glisser vers l'extérieur
+
+    override func mouseDown(with event: NSEvent) {
+        mouseDownLocation = convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let origin = mouseDownLocation else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        guard hypot(location.x - origin.x, location.y - origin.y) >= dragThreshold else { return }
+        mouseDownLocation = nil
+        beginDrag(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        mouseDownLocation = nil
+    }
+
+    private func beginDrag(with event: NSEvent) {
+        let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+        // La vignette sous le curseur est celle de la ligne — l'icône du Finder à sa taille
+        // d'affichage —, pas la ligne entière : c'est le fichier qu'on déplace.
+        let image = iconView.image
+        item.setDraggingFrame(iconView.frame, contents: image)
+
+        // Le panneau se replie dès que le curseur le quitte : il faut geler ce suivi le temps du
+        // glisser, sans quoi le bac se refermerait sous la main qui en sort un fichier.
+        store.isDraggingOut = true
+        beginDraggingSession(with: [item], event: event, source: self)
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        sourceOperationMaskFor context: NSDraggingContext
+    ) -> NSDragOperation {
+        switch context {
+        // Jamais `.move` : le Finder le prendrait au mot et déplacerait le fichier sur le
+        // disque. Le bac ne fait que référencer, il ne range pas à la place de l'utilisateur.
+        case .outsideApplication: .copy
+        // Dans l'app, il n'y a rien où déposer : relâcher sur le bac doit se lire comme un
+        // glisser annulé.
+        default: []
+        }
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        endedAt screenPoint: NSPoint,
+        operation: NSDragOperation
+    ) {
+        store.isDraggingOut = false
+        // Une opération vide, c'est un glisser annulé ou relâché dans le vide : le fichier reste.
+        guard !operation.isEmpty else { return }
+        store.remove(url)
     }
 
     override func layout() {
