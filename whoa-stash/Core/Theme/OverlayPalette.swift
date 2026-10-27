@@ -40,6 +40,23 @@ struct OverlayPalette {
     var tabActiveContent: NSColor
     var tabInactiveContent: NSColor
 
+    // MARK: - Calendrier
+
+    /// Rouge du widget calendrier : le numéro de semaine et le mois de l'en-tête, et la pastille
+    /// du jour courant. C'est la seule teinte franche du panneau — tout le reste y est blanc,
+    /// gris ou emprunté au calendrier porteur d'un événement —, et c'est ce qui fait du jour
+    /// courant le point d'accroche des deux surfaces qui le portent, la bande de la semaine et
+    /// la grille du mois.
+    var calendarAccent: NSColor
+    var calendarTodayFill: CGColor
+
+    /// Les deux teintes des jours qui ne sont pas aujourd'hui, dans la bande de la semaine comme
+    /// dans la grille du mois. La semaine ouvrée se lit franchement ; le week-end reste en
+    /// retrait, et c'est ce seul écart de gris qui le désigne — aucune des deux vues ne le
+    /// marque autrement.
+    var calendarDayContent: NSColor
+    var calendarWeekendContent: NSColor
+
     /// Accent et translucidité choisis dans les Préférences, poussés ici par
     /// `OverlayPaletteSettings`. Ils vivent sur le type plutôt que d'être passés en argument
     /// parce que toutes les vues de l'overlay appellent déjà `resolved(for:)` sans rien savoir
@@ -82,8 +99,47 @@ struct OverlayPalette {
         tabPillFill: CGColor(gray: 0.22, alpha: 1),
         tabPillContent: .white,
         tabActiveContent: .white,
-        tabInactiveContent: NSColor(white: 0.62, alpha: 1)
+        tabInactiveContent: NSColor(white: 0.62, alpha: 1),
+        calendarAccent: calendarRed,
+        calendarTodayFill: calendarRed.cgColor,
+        calendarDayContent: NSColor(white: 0.93, alpha: 1),
+        calendarWeekendContent: NSColor(white: 0.44, alpha: 1)
     )
+
+    /// Le rouge du calendrier, à la source : `calendarAccent` et `calendarTodayFill` sont la même
+    /// teinte sous deux formes, l'une pour le texte, l'autre pour une couche.
+    static let calendarRed = NSColor(srgbRed: 0xEB / 255, green: 0x53 / 255, blue: 0x4C / 255, alpha: 1)
+
+    // MARK: - Teintes d'un événement
+
+    /// Ce qu'une ligne d'agenda fait de la couleur du calendrier porteur. Elle est trop sombre
+    /// pour s'écrire telle quelle sur le fond du panneau : le titre la relève d'une part de
+    /// blanc, et l'heure reprend ce titre assombri. Les deux se déduisent donc d'une seule
+    /// couleur, celle de la barre d'accent — c'est ce qui fait tenir ensemble les trois marques
+    /// d'une même ligne, quel que soit le calendrier d'où elle sort.
+    static let agendaTitleLift: CGFloat = 0.25
+    static let agendaTimeDimming: CGFloat = 0.72
+
+    static func agendaTitleColor(for color: NSColor) -> NSColor {
+        guard let base = color.usingColorSpace(.sRGB) else { return color }
+        let lift: (CGFloat) -> CGFloat = { $0 + (1 - $0) * agendaTitleLift }
+        return NSColor(
+            srgbRed: lift(base.redComponent),
+            green: lift(base.greenComponent),
+            blue: lift(base.blueComponent),
+            alpha: 1
+        )
+    }
+
+    static func agendaTimeColor(for color: NSColor) -> NSColor {
+        guard let title = agendaTitleColor(for: color).usingColorSpace(.sRGB) else { return color }
+        return NSColor(
+            srgbRed: title.redComponent * agendaTimeDimming,
+            green: title.greenComponent * agendaTimeDimming,
+            blue: title.blueComponent * agendaTimeDimming,
+            alpha: 1
+        )
+    }
 }
 
 extension OverlayPalette {

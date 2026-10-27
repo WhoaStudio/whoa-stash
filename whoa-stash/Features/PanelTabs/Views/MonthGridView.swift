@@ -17,7 +17,11 @@ final class MonthGridView: NSView {
     /// rester en mémoire plusieurs jours sans que l'app redémarre.
     private var referenceDate = Date()
 
-    private let calendar = Calendar.current
+    private let calendar: Calendar = {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        return calendar
+    }()
 
     /// Le découpage du mois, calculé une fois par jour plutôt qu'à chaque tracé.
     private var layout: MonthGridLayout
@@ -58,7 +62,7 @@ final class MonthGridView: NSView {
             draw(
                 initial,
                 font: .systemFont(ofSize: 9, weight: .medium),
-                color: palette.tabInactiveContent,
+                color: color(ofColumn: column, palette: palette),
                 centeredIn: NSRect(
                     x: (columnWidth * CGFloat(column)).rounded(),
                     y: bounds.maxY - headerHeight,
@@ -91,19 +95,26 @@ final class MonthGridView: NSView {
                     width: side,
                     height: side
                 )
-                NSColor(cgColor: palette.tabPillFill)?.setFill()
+                NSColor(cgColor: palette.calendarTodayFill)?.setFill()
                 NSBezierPath(roundedRect: pill, xRadius: side / 2, yRadius: side / 2).fill()
             }
 
             draw(
                 "\(day)",
                 font: .systemFont(ofSize: 11, weight: isToday ? .bold : .regular),
-                // Aujourd'hui : numéro franc sur la pastille. Les autres jours restent en
-                // retrait, pour que la pastille soit le seul point d'accroche de la grille.
-                color: isToday ? palette.tabActiveContent : palette.tabInactiveContent,
+                // Aujourd'hui : numéro blanc sur la pastille rouge. Les autres jours se lisent à
+                // la teinte de leur colonne — la semaine ouvrée franche, le week-end en retrait.
+                color: isToday ? palette.tabActiveContent : color(ofColumn: column, palette: palette),
                 centeredIn: cell
             )
         }
+    }
+
+    /// Teinte d'une colonne : le week-end est le seul que la grille distingue, et elle ne le
+    /// distingue que par là.
+    private func color(ofColumn column: Int, palette: OverlayPalette) -> NSColor {
+        let isWeekend = layout.isWeekendColumn.indices.contains(column) && layout.isWeekendColumn[column]
+        return isWeekend ? palette.calendarWeekendContent : palette.calendarDayContent
     }
 
     private func draw(_ text: String, font: NSFont, color: NSColor, centeredIn rect: NSRect) {
