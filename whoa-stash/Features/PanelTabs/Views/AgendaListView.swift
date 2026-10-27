@@ -176,14 +176,18 @@ final class AgendaListView: NSView {
                 width: accentWidth,
                 height: rect.height - 6
             )
-            NSColor(cgColor: event.color.cgColor)?.setFill()
+            let accent = NSColor(cgColor: event.color.cgColor) ?? palette.tabActiveContent
+            accent.setFill()
             NSBezierPath(roundedRect: bar, xRadius: accentWidth / 2, yRadius: accentWidth / 2).fill()
 
+            // Le titre et l'heure se teintent de cette même couleur, relevée pour l'un,
+            // assombrie pour l'autre : les trois marques d'une ligne disent alors le même
+            // calendrier, là où un titre blanc et une heure grise les détachaient de leur barre.
             let textY = rect.midY - 7
             draw(
                 time(of: event),
                 font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-                color: palette.tabInactiveContent,
+                color: OverlayPalette.agendaTimeColor(for: accent),
                 at: NSPoint(x: bar.maxX + accentGap, y: textY)
             )
 
@@ -191,7 +195,7 @@ final class AgendaListView: NSView {
             draw(
                 event.title.isEmpty ? "(no title)" : event.title,
                 font: .systemFont(ofSize: 11, weight: .regular),
-                color: palette.tabActiveContent,
+                color: OverlayPalette.agendaTitleColor(for: accent),
                 at: NSPoint(x: titleX, y: textY),
                 maxWidth: rect.maxX - titleX
             )
