@@ -46,6 +46,25 @@ enum PanelGeometry {
     /// Marge sous le bas de la barre de menus, pour qu'une bande ne soit pas soudée à elle.
     static let topInset: CGFloat = 8
 
+    /// Largeur de la bande de luminosité. Elle ne remplit pas tout `panelWidth` : le reste du
+    /// cadre reste transparent et sert de marge où la bulle de valeur peut se poser hors de la
+    /// bande. Le cadre de la fenêtre, lui, garde la largeur commune — c'est la silhouette seule
+    /// qui se resserre.
+    static let brightnessBandWidth: CGFloat = 190
+
+    /// Part d'un cadre de bande réellement peinte par le widget de luminosité : la moitié
+    /// accrochée au bord configuré. Décrite sur un `CGRect` quelconque, donc valable aussi bien
+    /// dans le repère d'une vue que dans celui de l'écran — c'est le même découpage, qu'on
+    /// dessine la silhouette ou qu'on demande si le curseur est encore dessus.
+    static func brightnessBand(in frame: CGRect, anchoredTo edge: EdgePosition) -> CGRect {
+        CGRect(
+            x: edge == .right ? frame.maxX - brightnessBandWidth : frame.minX,
+            y: frame.minY,
+            width: min(brightnessBandWidth, frame.width),
+            height: frame.height
+        )
+    }
+
     /// Cadre affleurant le bord demandé, en coordonnées globales AppKit : c'est depuis ce bord
     /// que le contenu glisse, donc la bande doit y toucher — l'espacement visuel vient des coins
     /// arrondis, pas d'une marge. Le haut suit `visibleFrame` pour rester sous la barre de menus.
