@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var edgeSliderController: EdgeSliderController?
     private var brightnessOverlayController: BrightnessOverlayController?
+    private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
@@ -59,6 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             storage: settings
         )
         brightnessOverlayController?.activate()
+
+        // Cadran de volume : jaillit du curseur quand celui-ci entre dans le coin supérieur
+        // gauche, et règle le volume de sortie à la molette. Il n'a pas de réglage dans les
+        // Préférences — rien à lui passer, donc, que le fait de démarrer.
+        volumeDialController = VolumeDialController()
+        volumeDialController?.activate()
 
         // Panneau latéral : glisse depuis le bord droit quand le curseur entre dans la zone
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
@@ -124,6 +131,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // qui le rend vérifiable sur capture d'écran.
         if CommandLine.arguments.contains("--show-notch-panel") {
             notchPanelController?.togglePinnedReveal()
+        }
+
+        // Même usage pour le cadran de volume : l'ouvrir sans passer par le coin est ce qui le
+        // rend vérifiable sur capture d'écran.
+        if CommandLine.arguments.contains("--show-volume-dial") {
+            volumeDialController?.togglePinnedReveal()
         }
 
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {
