@@ -81,6 +81,12 @@ final class NotchPanelWindow {
         contentView.setHighlightedRing(index)
     }
 
+    /// Montre l'onglet Tray — appelé quand un glisser de fichiers arrive sur le panneau, quel
+    /// que soit l'onglet affiché jusque-là.
+    func revealFileShelf() {
+        contentView.select(.tray, animated: true)
+    }
+
     /// Pose la fenêtre sur son écran et l'affiche repliée. Appelé à la construction et à chaque
     /// changement de configuration d'écrans.
     func place(on screen: NSScreen) {
@@ -97,9 +103,12 @@ final class NotchPanelWindow {
             contentView.refreshWeek()
         } else {
             contentView.setHighlightedRing(nil)
-            // Le panneau rouvrira sur Global : on ne retrouve pas le bac à fichiers la fois
-            // suivante. Sans animation, le repli étant déjà en cours.
-            contentView.select(.global, animated: false)
+            // Le panneau rouvre sur Global — sauf si le bac retient des fichiers : ils doivent
+            // être là à la réouverture, pas derrière un clic sur l'onglet. Sans animation, le
+            // repli étant déjà en cours.
+            if FileShelfStore.shared.isEmpty {
+                contentView.select(.global, animated: false)
+            }
         }
         // Les onglets ne sont cliquables que dépliés — voir la note en tête de type.
         panel.ignoresMouseEvents = !expanded

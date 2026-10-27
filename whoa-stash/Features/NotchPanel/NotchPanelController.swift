@@ -12,7 +12,10 @@ import Combine
 @MainActor
 final class NotchPanelController {
 
-    private let mouseMonitor = GlobalMouseMonitor()
+    // Suit aussi le curseur bouton enfoncé : un glisser de fichiers vers l'encoche doit
+    // déplier le panneau comme un survol le ferait, sans quoi il n'y aurait rien pour recevoir
+    // le dépôt (voir `handleCursor(at:)`).
+    private let mouseMonitor = GlobalMouseMonitor(tracksDrags: true)
     private let storage: SettingsStorage
 
     /// Indexés par `CGDirectDisplayID` et non par position dans `NSScreen.screens`, qui change
@@ -149,6 +152,10 @@ final class NotchPanelController {
         // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
         guard !OverlayContextMenu.shared.isPresenting else { return }
 
+        // Un fichier en train d'être sorti du bac : le suivi est gelé pour la même raison. Le
+        // curseur emmène le fichier loin du panneau, qui se refermerait sous la main.
+        guard !FileShelfStore.shared.isDraggingOut else { return }
+
         // Un seul écran est testé, celui qui contient le curseur : avec plusieurs écrans
         // accolés, les zones sensibles du haut se touchent et tester toutes les zones déplierait
         // le panneau du mauvais écran.
@@ -171,6 +178,7 @@ final class NotchPanelController {
             // sinon il disparaîtrait avant même que le pointeur l'ait atteint.
             if overPanel {
                 hasVisitedPinnedPanel = true
+                if isDraggingFiles { window.revealFileShelf() }
                 updateRingHover(at: location, displayID: displayID)
             } else if hasVisitedPinnedPanel {
                 isPinned = false
@@ -192,7 +200,23 @@ final class NotchPanelController {
         window.setExpanded(true)
         startPolling()
 
+        // Le panneau vient de s'ouvrir sous un glisser de fichiers : c'est le bac qu'on veut
+        // voir, et c'est lui qui doit être là pour recevoir le dépôt. Le reste du dépôt est au
+        // `FileTrayView` de l'onglet Tray — il n'y a pas d'autre cible de dépôt.
+        if isDraggingFiles { window.revealFileShelf() }
+
         updateRingHover(at: location, displayID: displayID)
+    }
+
+    /// Un glisser de fichiers est-il en cours sous le curseur ? Le bouton gauche enfoncé ne
+    /// suffit pas — déplacer une fenêtre lèverait le même drapeau —, donc on regarde aussi ce
+    /// que porte le presse-papiers de glisser, que le système remplit pour tout le monde.
+    private var isDraggingFiles: Bool {
+        guard NSEvent.pressedMouseButtons & 1 != 0 else { return false }
+        return NSPasteboard(name: .drag).canReadObject(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        )
     }
 
     /// Confronte le curseur aux bagues : celle qu'il survole est mise en avant et reçoit la

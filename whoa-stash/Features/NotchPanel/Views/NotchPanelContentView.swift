@@ -4,7 +4,8 @@ import AppKit
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
 /// large portant une barre d'onglets et, dessous, l'onglet choisi. Global porte la semaine ; AI
 /// porte les deux colonnes d'utilisation — les bagues **en ligne** à gauche, la carte détaillée
-/// à droite ; Tray reprend le bac à fichiers partagé avec la bande du bord droit.
+/// à droite ; Tray affiche le bac à fichiers, qui vit hors de la vue (`FileShelfStore`) et
+/// retient donc ce qu'on y dépose d'un dépliage à l'autre, et d'un lancement à l'autre.
 ///
 /// Les deux silhouettes sont décrites par la même recette de chemin, dans le même ordre de
 /// segments : Core Animation peut donc interpoler l'une vers l'autre, et c'est ce qui constitue
