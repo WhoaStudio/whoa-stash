@@ -31,6 +31,18 @@ extension CALayer {
     /// Anime `keyPath` vers `value` avec un `CASpringAnimation`, et met à jour la valeur du
     /// modèle en parallèle pour que le calque reste dans le bon état une fois l'animation retirée.
     func springAnimate(keyPath: String, to newValue: Any, preset: SpringPreset = .snappy, completion: (() -> Void)? = nil) {
+        // Réglage `General > Enable animations` coupé : la valeur est posée sèchement, et la
+        // complétion appelée tout de suite — les appelants s'en servent pour retirer une fenêtre
+        // repliée, et attendre un ressort qui n'existe pas la laisserait à l'écran.
+        guard OverlayAnimation.isEnabled else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            setValue(newValue, forKeyPath: keyPath)
+            CATransaction.commit()
+            completion?()
+            return
+        }
+
         CATransaction.begin()
         if let completion {
             CATransaction.setCompletionBlock(completion)

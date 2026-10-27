@@ -30,6 +30,14 @@ final class SettingsStorage: ObservableObject {
         }
     }
 
+    /// Remet toutes les préférences à leur valeur d'origine. Passe par `settings` et non par
+    /// une suppression de la clé : les abonnés doivent voir le changement comme n'importe quel
+    /// autre, et les effets de bord système (lancement au démarrage) rester du ressort de leurs
+    /// services.
+    func resetToDefaults() {
+        settings = .default
+    }
+
     private func persist() {
         guard let data = try? JSONEncoder().encode(settings) else { return }
         defaults.set(data, forKey: Self.defaultsKey)

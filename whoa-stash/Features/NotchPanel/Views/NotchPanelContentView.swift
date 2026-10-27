@@ -67,6 +67,11 @@ final class NotchPanelContentView: NSView {
     }
 
     private func setUp() {
+        // Clic droit : le menu partagé par tous les panneaux de l'overlay. Posé ici plutôt que
+        // sur chaque enfant — AppKit remonte la chaîne des responders jusqu'à la première vue
+        // qui porte un menu.
+        menu = OverlayContextMenu.shared.menu
+
         // Fond plein et non `NSVisualEffectView` : sur un Mac à encoche la silhouette repliée
         // doit se confondre avec du noir matériel, qu'aucun matériau translucide n'imite.
         layer?.addSublayer(backgroundLayer)
@@ -84,8 +89,7 @@ final class NotchPanelContentView: NSView {
 
         // Plaque d'accent derrière la bague survolée — l'équivalent ici de l'onglet actif de la
         // référence, le seul endroit où le panneau a quelque chose d'« actif » à désigner.
-        highlightLayer.backgroundColor = OverlayPalette.activeGreen.copy(alpha: 0.14)
-        highlightLayer.shadowColor = OverlayPalette.activeGreen
+        // Teinte et ombre sont posées par `applyPalette()`, appelé en fin d'installation.
         highlightLayer.shadowOpacity = 0.35
         highlightLayer.shadowRadius = 10
         highlightLayer.shadowOffset = .zero
@@ -135,6 +139,10 @@ final class NotchPanelContentView: NSView {
         backgroundLayer.fillColor = palette.panelBackground
         strokeLayer.strokeColor = palette.strokeColor
         dividerLayer.backgroundColor = palette.strokeColor
+        // La plaque de survol suit la couleur d'accent choisie, comme les graduations du widget
+        // de luminosité : c'est la même teinte « active » des deux côtés de l'overlay.
+        highlightLayer.backgroundColor = palette.activeTickColor.copy(alpha: 0.14)
+        highlightLayer.shadowColor = palette.activeTickColor
     }
 
     // MARK: - État

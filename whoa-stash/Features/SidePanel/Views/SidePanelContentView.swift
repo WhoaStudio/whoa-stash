@@ -7,9 +7,9 @@ import AppKit
 /// vit dans la bulle qui s'ouvre à son survol (`UsageCalloutWindow`).
 ///
 /// Ni onglets ni semaine ici : ils appartiennent au panneau de l'encoche. La bande n'est à l'écran
-/// que le temps d'un survol et ne reçoit aucun clic, deux raisons pour lesquelles une rangée
-/// d'onglets y serait à la fois peu atteignable et coûteuse — il faudrait lui ouvrir les
-/// événements souris.
+/// que le temps d'un survol, raison pour laquelle une rangée d'onglets y serait peu atteignable.
+/// Le seul clic qu'elle sert est le clic droit, qui ouvre le menu partagé de l'overlay
+/// (`OverlayContextMenu`).
 ///
 /// Porte aussi le dépliage : la bande se déplie depuis son bord comme le panneau de l'encoche se
 /// déplie depuis le haut de l'écran, du même geste et par le même moteur (`PanelFold`). Rien ne
@@ -61,6 +61,11 @@ final class SidePanelContentView: NSView {
     }
 
     private func setUp() {
+        // Clic droit : le menu partagé par tous les panneaux de l'overlay. Posé ici plutôt que
+        // sur chaque enfant — AppKit remonte la chaîne des responders jusqu'à la première vue
+        // qui porte un menu.
+        menu = OverlayContextMenu.shared.menu
+
         // Fond plein plutôt qu'un `NSVisualEffectView` : le matériau laissait remonter le fond
         // d'écran et délavait le panneau en gris, alors qu'il doit rester franchement sombre.
         layer?.addSublayer(backgroundLayer)

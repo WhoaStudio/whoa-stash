@@ -183,9 +183,9 @@ final class ClaudeUsageRingView: NSView {
 
     // MARK: - Survol
 
-    /// Ressort de survol, séparé des événements de souris : dans la bande latérale, la fenêtre
-    /// laisse passer tous les clics et aucun `mouseEntered` n'arrive jamais — c'est le
-    /// contrôleur qui déduit le survol de la position du curseur et l'annonce ici.
+    /// Ressort de survol, séparé des événements de souris : la bande latérale n'installe aucune
+    /// `NSTrackingArea`, donc aucun `mouseEntered` n'y arrive jamais — c'est le contrôleur qui
+    /// déduit le survol de la position du curseur et l'annonce ici.
     func setHighlighted(_ highlighted: Bool) {
         guard highlighted != isHighlighted else { return }
         isHighlighted = highlighted

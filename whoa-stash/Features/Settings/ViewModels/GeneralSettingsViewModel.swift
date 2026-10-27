@@ -63,4 +63,22 @@ final class GeneralSettingsViewModel: ObservableObject {
     func setNotchPanelEnabled(_ enabled: Bool) {
         storage.settings.notchPanel.enabled = enabled
     }
+
+    func setPanelOpacity(_ opacity: Double) {
+        storage.settings.general.panelOpacity = opacity
+    }
+
+    func setTogglePanelShortcut(_ shortcut: GlobalShortcut) {
+        storage.settings.general.togglePanelShortcut = shortcut
+    }
+
+    /// Remet tout à zéro, y compris l'effet de bord système : `resetToDefaults` ne touche que le
+    /// modèle, donc le lancement au démarrage doit être désenregistré explicitement.
+    func resetToDefaults() {
+        let wasLaunchingAtLogin = settings.launchAtLogin
+        storage.resetToDefaults()
+        if wasLaunchingAtLogin != AppSettings.default.general.launchAtLogin {
+            launchAtLoginService.setEnabled(AppSettings.default.general.launchAtLogin)
+        }
+    }
 }

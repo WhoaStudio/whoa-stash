@@ -1,9 +1,9 @@
 import AppKit
 import Combine
 
-/// Écran "General" : lancement au démarrage, apparence, couleur d'accent, animations,
-/// retour haptique et sonore. Ne contient aucune logique — tout transite par
-/// `GeneralSettingsViewModel`.
+/// Écran "General" : lancement au démarrage, apparence, couleur d'accent, translucidité des
+/// panneaux, raccourci global, animations, retour haptique et sonore, et remise à zéro. Ne
+/// contient aucune logique — tout transite par `GeneralSettingsViewModel`.
 final class GeneralSettingsViewController: SettingsSectionViewController {
 
     private let viewModel = GeneralSettingsViewModel()
@@ -17,6 +17,9 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private let hapticSwitch = NSSwitch()
     private let soundSwitch = NSSwitch()
     private let notchPanelSwitch = NSSwitch()
+    private let panelOpacitySlider = LabeledSliderView(minValue: 0.35, maxValue: 1, value: 1)
+    private let shortcutPopUp = NSPopUpButton()
+    private let resetButton = NSButton(title: "Reset…", target: nil, action: nil)
 
     override func makeCards() -> [SettingsCardView] {
         launchAtLoginSwitch.target = self
@@ -43,13 +46,26 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             SettingsRowView(title: "Launch at login", accessory: launchAtLoginSwitch),
         ])
 
+        panelOpacitySlider.formatter = { String(format: "%.0f%%", $0 * 100) }
+        panelOpacitySlider.onChange = { [weak self] in self?.viewModel.setPanelOpacity($0) }
+
         let appearanceCard = SettingsCardView(title: "Appearance", rows: [
             SettingsRowView(title: "Appearance", accessory: appearancePopUp),
             SettingsRowView(title: "Accent color", accessory: accentColorPopUp),
+            SettingsRowView(title: "Panel opacity", accessory: panelOpacitySlider),
         ])
 
         notchPanelSwitch.target = self
         notchPanelSwitch.action = #selector(notchPanelChanged)
+
+        shortcutPopUp.target = self
+        shortcutPopUp.action = #selector(shortcutChanged)
+        GlobalShortcut.allCases.forEach { shortcutPopUp.addItem(withTitle: $0.displayName) }
+
+        resetButton.target = self
+        resetButton.action = #selector(resetTapped)
+        resetButton.bezelStyle = .rounded
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
 
         let feedbackCard = SettingsCardView(title: "Feedback", rows: [
             SettingsRowView(title: "Enable animations", accessory: animationsSwitch),
@@ -59,9 +75,14 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
         let notchPanelCard = SettingsCardView(title: "Notch Panel", rows: [
             SettingsRowView(title: "Show notch panel", accessory: notchPanelSwitch),
+            SettingsRowView(title: "Toggle shortcut", accessory: shortcutPopUp),
         ])
 
-        return [startupCard, appearanceCard, notchPanelCard, feedbackCard]
+        let resetCard = SettingsCardView(title: "Reset", rows: [
+            SettingsRowView(title: "Restore all settings to their defaults", accessory: resetButton),
+        ])
+
+        return [startupCard, appearanceCard, notchPanelCard, feedbackCard, resetCard]
     }
 
     override func viewDidLoad() {
@@ -79,6 +100,8 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         animationsSwitch.state = settings.enableAnimations ? .on : .off
         hapticSwitch.state = settings.enableHapticFeedback ? .on : .off
         soundSwitch.state = settings.enableSoundFeedback ? .on : .off
+        panelOpacitySlider.setValue(settings.panelOpacity)
+        shortcutPopUp.selectItem(at: GlobalShortcut.allCases.firstIndex(of: settings.togglePanelShortcut) ?? 0)
     }
 
     @objc private func launchAtLoginChanged() {
@@ -107,5 +130,23 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func notchPanelChanged() {
         viewModel.setNotchPanelEnabled(notchPanelSwitch.state == .on)
+    }
+
+    @objc private func shortcutChanged() {
+        viewModel.setTogglePanelShortcut(GlobalShortcut.allCases[shortcutPopUp.indexOfSelectedItem])
+    }
+
+    /// Remise à zéro irréversible, donc confirmée : l'alerte est le seul endroit des
+    /// Préférences où une action demande un accord avant d'agir.
+    @objc private func resetTapped() {
+        let alert = NSAlert()
+        alert.messageText = "Restore default settings?"
+        alert.informativeText = "Every setting goes back to its original value. This cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Reset")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        viewModel.resetToDefaults()
     }
 }

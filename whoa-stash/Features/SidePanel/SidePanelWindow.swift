@@ -1,8 +1,9 @@
 import AppKit
 
-/// Fenêtre flottante du panneau latéral, une par écran. Ne prend jamais le focus, n'apparaît pas
-/// dans le Dock (l'app est déjà `LSUIElement`) et laisse passer tous les clics : rien n'y est
-/// cliquable — les onglets et leur engrenage appartiennent au panneau de l'encoche.
+/// Fenêtre flottante du panneau latéral, une par écran. Ne prend jamais le focus et n'apparaît
+/// pas dans le Dock (l'app est déjà `LSUIElement`). Rien n'y est cliquable au bouton gauche —
+/// les onglets et leur engrenage appartiennent au panneau de l'encoche —, mais elle prend les
+/// clics **révélée**, le temps que son menu contextuel soit atteignable.
 ///
 /// Le survol est déduit de la position globale du curseur par `SidePanelController`, et non de
 /// `NSTrackingArea` : il doit continuer de fonctionner pendant que le curseur traverse la bulle,
@@ -31,6 +32,10 @@ final class SidePanelWindow {
         panel.backgroundColor = .clear
         // Voir `SidePanelContentView` : l'ombre est portée par le calque du contenu.
         panel.hasShadow = false
+        // Repliée, la fenêtre laisse tout passer : `reveal(in:)` et `hide()` ouvrent et
+        // referment ce robinet, comme le panneau de l'encoche le fait au dépliage. Les accepter
+        // tout le temps lui ferait avaler les clics du bord droit entre deux survols.
+        // `.nonactivatingPanel` fait que recevoir un clic n'active pas l'app pour autant.
         panel.ignoresMouseEvents = true
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
@@ -53,6 +58,12 @@ final class SidePanelWindow {
     /// suivre l'apparence système : c'est lui qui décide si le panneau est anthracite ou clair.
     func apply(appearanceMode: AppearanceMode) {
         panel.appearance = appearanceMode.nsAppearance
+    }
+
+    /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change
+    /// dans les Préférences, et non quand l'apparence système bascule (AppKit s'en charge).
+    func refreshPalette() {
+        contentView.refreshOverlayPalette()
     }
 
     var isVisible: Bool { isRevealed }
@@ -78,6 +89,7 @@ final class SidePanelWindow {
         guard !isRevealed else { return }
         isRevealed = true
 
+        panel.ignoresMouseEvents = false
         contentView.prepareForReveal()
         panel.orderFrontRegardless()
         contentView.setExpanded(true)
@@ -87,6 +99,9 @@ final class SidePanelWindow {
         guard isRevealed else { return }
         isRevealed = false
 
+        // Dès le début du repli, pas à sa fin : la bande s'efface, le bord doit redevenir
+        // traversable tout de suite.
+        panel.ignoresMouseEvents = true
         contentView.setExpanded(false) { [weak self] in
             // Un nouveau survol pendant le repli relance `reveal` : dans ce cas il ne faut
             // surtout pas retirer la fenêtre une fois l'ancien dépliage terminé.
@@ -105,6 +120,7 @@ final class SidePanelWindow {
     /// Retrait immédiat, sans animation : l'écran correspondant vient de disparaître.
     func close() {
         isRevealed = false
+        panel.ignoresMouseEvents = true
         panel.orderOut(nil)
     }
 }
