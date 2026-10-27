@@ -43,7 +43,6 @@ final class BrightnessOverlayController {
     private var widgetSize: WidgetSize
     private var isEnabled = false
 
-    private let hideAnimationDuration: TimeInterval = 0.45
 
     /// `storage` n'est lu qu'ici : au-delà de l'init, l'état courant arrive par
     /// `settingsCancellable`, pas par une relecture du stockage.
@@ -200,6 +199,9 @@ final class BrightnessOverlayController {
 
         if !panel.isVisible {
             panel.alphaValue = 1
+            // La silhouette repliée est posée avant que la fenêtre ne passe devant : la première
+            // image montrée doit être le début du dépliage, et non la bande en place.
+            containerView.prepareForReveal()
             panel.orderFrontRegardless()
         }
         panel.ignoresMouseEvents = false
@@ -250,10 +252,11 @@ final class BrightnessOverlayController {
         cancelClose()
         guard viewModel.isVisible else { return }
         viewModel.setVisible(false)
-        containerView.setVisible(false)
         panel.ignoresMouseEvents = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + hideAnimationDuration) { [weak self] in
+        containerView.setVisible(false) { [weak self] in
+            // Un nouveau survol pendant le repli relance `reveal` : dans ce cas il ne faut
+            // surtout pas retirer la fenêtre une fois l'ancien dépliage terminé.
             guard let self, !self.viewModel.isVisible else { return }
             self.panel.orderOut(nil)
         }
