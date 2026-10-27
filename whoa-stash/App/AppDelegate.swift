@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
+    private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
 
@@ -95,6 +96,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         usageViewModel.activate()
+
+        // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
+        // a un par écran.
+        // `--calendar-agenda=denied` substitue une journée fixe à la vraie source (voir
+        // `MockCalendarAgendaProvider`), pour atteindre l'écriteau d'accès refusé sans révoquer
+        // l'autorisation de l'app dans les Réglages Système.
+        let calendarProvider: CalendarAgendaProviding =
+            MockCalendarAgendaProvider.fromLaunchArguments() ?? EventKitCalendarService()
+        let calendarViewModel = CalendarAgendaViewModel(provider: calendarProvider)
+        calendarAgendaViewModel = calendarViewModel
+
+        calendarViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.calendarAgendaViewModel?.state else { return }
+            self.notchPanelController?.apply(agendaState: state)
+        }
+
+        calendarViewModel.activate()
 
         // Ouvre la bande sans passer par le survol du coin — c'est ce qui la rend vérifiable
         // sur capture d'écran, au même titre que `--show-settings` pour les Préférences.

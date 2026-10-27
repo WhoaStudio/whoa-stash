@@ -110,4 +110,46 @@ struct NotchPanelGeometryTests {
         let notchHeight: CGFloat = 38
         #expect(NotchPanelGeometry.contentInsetTop(forCollapsedHeight: notchHeight) > notchHeight)
     }
+
+    // MARK: - Onglet Global
+
+    /// C'est désormais l'onglet Global qui dimensionne le panneau : la bande de la semaine, son
+    /// écart, et le widget calendrier doivent tenir dans la hauteur qu'il réclame, sans quoi le
+    /// widget serait rogné par le bas du corps.
+    @Test("la semaine et le widget calendrier tiennent dans la hauteur de l'onglet Global")
+    func globalTabHoldsWeekStripAndCalendar() {
+        let stacked = NotchPanelGeometry.weekStripHeight + NotchPanelGeometry.calendarTopGap
+        #expect(stacked < NotchPanelGeometry.globalTabHeight, "il ne reste rien pour le widget")
+
+        // Ce qui revient au widget doit encore porter la grille du mois : sa ligne d'initiales et
+        // ses six lignes de semaine, à une hauteur de case qui ne tasse pas les chiffres.
+        let calendarHeight = NotchPanelGeometry.globalTabHeight - stacked
+        #expect(
+            calendarHeight >= 15 + CGFloat(MonthGridLayout.weekRowCount) * 20,
+            "la grille du mois serait tassée dans \(calendarHeight) pt"
+        )
+    }
+
+    /// Le panneau garde une seule taille d'un onglet à l'autre, et c'est le plus haut qui la
+    /// fixe. L'invariant vaut quel que soit celui qui prend la tête.
+    @Test("la hauteur de contenu couvre tous les onglets")
+    func tabContentHeightCoversEveryTab() {
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.globalTabHeight)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.cardSize.height)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.weekStripHeight)
+    }
+
+    /// Les deux colonnes du widget se partagent la largeur de l'onglet : la grille du mois est
+    /// calée à droite, et il doit rester de quoi écrire un agenda à gauche.
+    @Test("la grille du mois laisse une colonne utile à l'agenda")
+    func monthGridLeavesRoomForTheAgenda() {
+        let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
+        let bodyWidth = size.width - 2 * NotchPanelGeometry.contentInsetX
+        let agendaWidth = bodyWidth
+            - NotchPanelGeometry.monthGridWidth
+            - NotchPanelGeometry.columnGap
+            - NotchPanelGeometry.dividerWidth
+
+        #expect(agendaWidth > NotchPanelGeometry.monthGridWidth, "l'agenda porte du texte, il doit rester le plus large")
+    }
 }

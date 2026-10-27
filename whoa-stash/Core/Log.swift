@@ -32,4 +32,7 @@ enum Log {
 
     /// Panneau latéral et récupération de l'utilisation Claude.
     nonisolated static let sidePanel = Logger(subsystem: subsystem, category: "side-panel")
+
+    /// Widget calendrier : droit d'accès et lecture des événements.
+    nonisolated static let calendar = Logger(subsystem: subsystem, category: "calendar")
 }

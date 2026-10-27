@@ -53,6 +53,10 @@ final class NotchPanelWindow {
         set { contentView.onOpenSettings = newValue }
     }
 
+    func apply(agendaState: CalendarAgendaState) {
+        contentView.apply(agendaState: agendaState)
+    }
+
     func apply(usageState: ClaudeUsageState, animated: Bool) {
         contentView.apply(usageState: usageState, animated: animated)
     }
