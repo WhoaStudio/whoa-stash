@@ -22,6 +22,7 @@ final class NotchPanelController {
 
     private var screenObserver: NSObjectProtocol?
     private var enabledCancellable: AnyCancellable?
+    private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
 
     private var usageState: ClaudeUsageState = .loading
@@ -54,6 +55,16 @@ final class NotchPanelController {
             .sink { [weak self] enabled in
                 enabled ? self?.start() : self?.stop()
             }
+
+        // Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
+        // c'est à nous de demander la repeinte des fenêtres déjà construites.
+        paletteObserver = NotificationCenter.default.addObserver(
+            forName: OverlayPalette.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.windows.values.forEach { $0.refreshPalette() } }
+        }
     }
 
     private func start() {
@@ -134,6 +145,10 @@ final class NotchPanelController {
     // MARK: - Suivi du curseur
 
     private func handleCursor(at location: NSPoint) {
+        // Menu contextuel ouvert : le suivi est gelé. Le pointeur descend dans le menu, hors du
+        // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
+        guard !OverlayContextMenu.shared.isPresenting else { return }
+
         // Un seul écran est testé, celui qui contient le curseur : avec plusieurs écrans
         // accolés, les zones sensibles du haut se touchent et tester toutes les zones déplierait
         // le panneau du mauvais écran.

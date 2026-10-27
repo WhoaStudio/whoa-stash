@@ -61,6 +61,12 @@ final class NotchPanelWindow {
         contentView.apply(usageState: usageState, animated: animated)
     }
 
+    /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change
+    /// dans les Préférences, et non quand l'apparence système bascule (AppKit s'en charge).
+    func refreshPalette() {
+        contentView.refreshOverlayPalette()
+    }
+
     var ringCount: Int { contentView.ringCount }
 
     /// Cadre d'une bague en coordonnées globales AppKit, le repère dans lequel raisonnent

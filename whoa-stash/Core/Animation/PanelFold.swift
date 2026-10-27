@@ -42,7 +42,9 @@ enum PanelFold {
         animated: Bool,
         completion: (() -> Void)? = nil
     ) {
-        guard animated, let leading = shapes.first else {
+        // `OverlayAnimation` coupe le mouvement de tout l'overlay d'un seul réglage : le
+        // chemin « pose l'état final » existe déjà, il suffit de l'emprunter.
+        guard animated, OverlayAnimation.isEnabled, let leading = shapes.first else {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             for shape in shapes {
@@ -82,6 +84,11 @@ enum PanelFold {
     /// Fondu d'opacité : `easeOut` sur `fadeDuration`, la valeur du modèle posée en parallèle pour
     /// que le calque reste dans le bon état une fois l'animation retirée.
     static func fade(_ layer: CALayer, to opacity: Float) {
+        guard OverlayAnimation.isEnabled else {
+            layer.opacity = opacity
+            return
+        }
+
         let animation = CABasicAnimation(keyPath: "opacity")
         animation.fromValue = layer.presentation()?.opacity ?? layer.opacity
         animation.toValue = opacity

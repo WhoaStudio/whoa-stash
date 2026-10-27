@@ -23,6 +23,7 @@ final class SidePanelController {
 
     private var screenObserver: NSObjectProtocol?
     private var appearanceCancellable: AnyCancellable?
+    private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
 
     private var usageState: ClaudeUsageState = .loading
@@ -72,11 +73,26 @@ final class SidePanelController {
             .sink { [weak self] mode in
                 self?.apply(appearanceMode: mode)
             }
+
+        paletteObserver = NotificationCenter.default.addObserver(
+            forName: OverlayPalette.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applyPaletteChange() }
+        }
     }
 
     private func apply(appearanceMode: AppearanceMode) {
         windows.values.forEach { $0.apply(appearanceMode: appearanceMode) }
         callouts.values.forEach { $0.apply(appearanceMode: appearanceMode) }
+    }
+
+    /// Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
+    /// c'est à nous de demander la repeinte.
+    private func applyPaletteChange() {
+        windows.values.forEach { $0.refreshPalette() }
+        callouts.values.forEach { $0.refreshPalette() }
     }
 
     /// Diffuse le dernier instantané à toutes les fenêtres, y compris celles qui ne sont pas
@@ -124,6 +140,10 @@ final class SidePanelController {
     // MARK: - Suivi du curseur
 
     private func handleCursor(at location: NSPoint) {
+        // Menu contextuel ouvert : le suivi est gelé. Le pointeur descend dans le menu, hors du
+        // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
+        guard !OverlayContextMenu.shared.isPresenting else { return }
+
         // Un seul écran est testé, celui qui contient le curseur : avec des écrans accolés, le bord
         // droit de l'un recouvre le bord gauche du suivant, et tester toutes les zones ferait
         // apparaître la bande du mauvais écran.

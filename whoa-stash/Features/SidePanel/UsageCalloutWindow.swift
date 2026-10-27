@@ -45,6 +45,12 @@ final class UsageCalloutWindow {
         panel.appearance = appearanceMode.nsAppearance
     }
 
+    /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change
+    /// dans les Préférences, et non quand l'apparence système bascule (AppKit s'en charge).
+    func refreshPalette() {
+        contentView.refreshOverlayPalette()
+    }
+
     func reveal(_ callout: SidePanelGeometry.Callout) {
         // La pointe d'abord : elle décide du sens du glissement et de la mise en page du
         // contenu, que `setFrame` va justement appliquer.

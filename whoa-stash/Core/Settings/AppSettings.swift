@@ -26,27 +26,59 @@ enum AppearanceMode: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Couleur d'accent de l'application. Une seule couleur est proposée aujourd'hui, mais le
-/// type est prêt à accueillir de nouveaux cas (le picker s'étend automatiquement).
+/// Couleur d'accent de l'overlay : la teinte des graduations actives du widget de luminosité
+/// et de la plaque derrière la bague survolée du panneau de l'encoche.
+///
+/// `.green` est la valeur par défaut parce que c'est la teinte historique de l'app — le vert
+/// était écrit en dur dans `OverlayPalette` avant que ce réglage ne pilote quoi que ce soit.
+/// `.system` suit la couleur d'accent de macOS, et se résout donc à chaque apparence.
 enum AccentColor: String, Codable, CaseIterable, Identifiable, Sendable {
+    case green
     case system
+    case blue
+    case purple
+    case orange
+    case pink
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
+        case .green: return "Whoa Green"
         case .system: return "System"
+        case .blue: return "Blue"
+        case .purple: return "Purple"
+        case .orange: return "Orange"
+        case .pink: return "Pink"
         }
     }
 
     var color: NSColor {
         switch self {
+        case .green: return NSColor(cgColor: OverlayPalette.activeGreen) ?? .systemGreen
         case .system: return .controlAccentColor
+        case .blue: return .systemBlue
+        case .purple: return .systemPurple
+        case .orange: return .systemOrange
+        case .pink: return .systemPink
         }
+    }
+
+    /// Résout la couleur *dans* une apparence donnée : `.system` et les couleurs système sont
+    /// dynamiques, et leur `cgColor` dépend de l'apparence courante au moment de la lecture.
+    /// Les panneaux dessinent dans leur propre apparence, pas celle de l'app.
+    func cgColor(for appearance: NSAppearance) -> CGColor {
+        var resolved = OverlayPalette.activeGreen
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = color.cgColor
+        }
+        return resolved
     }
 }
 
-/// Taille du widget de luminosité.
+/// Taille du widget de luminosité — sa hauteur seule. La largeur d'une bande de bord est
+/// partagée avec le panneau latéral (`PanelGeometry.panelWidth`) pour que les deux se
+/// répondent d'un bord à l'autre : elle ne se règle pas.
 enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
     case small
     case medium
@@ -62,11 +94,13 @@ enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var panelSize: NSSize {
+    /// `.medium` vaut la hauteur plancher de la géométrie commune : c'est la taille que le
+    /// widget avait avant que ce réglage ne le pilote.
+    var panelHeight: CGFloat {
         switch self {
-        case .small: return NSSize(width: 108, height: 210)
-        case .medium: return NSSize(width: 126, height: 260)
-        case .large: return NSSize(width: 144, height: 320)
+        case .small: return PanelGeometry.minimumPanelHeight - 60
+        case .medium: return PanelGeometry.minimumPanelHeight
+        case .large: return PanelGeometry.minimumPanelHeight + 80
         }
     }
 }
@@ -74,10 +108,16 @@ enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
 struct GeneralSettings: Codable, Equatable, Sendable {
     var launchAtLogin: Bool = false
     var appearanceMode: AppearanceMode = .system
-    var accentColor: AccentColor = .system
+    var accentColor: AccentColor = .green
     var enableAnimations: Bool = true
     var enableHapticFeedback: Bool = true
     var enableSoundFeedback: Bool = true
+    /// Opacité du fond des panneaux de l'overlay, de 0,35 (très translucide) à 1 (plein).
+    /// Les fenêtres sont déjà `isOpaque = false` : c'est la silhouette peinte à l'intérieur qui
+    /// porte le fond, donc baisser cette valeur laisse réellement voir le bureau à travers.
+    var panelOpacity: Double = 1.0
+    /// Raccourci global qui déplie/replie le panneau de l'encoche.
+    var togglePanelShortcut: GlobalShortcut = .disabled
 }
 
 struct BrightnessSettings: Codable, Equatable, Sendable {

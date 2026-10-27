@@ -27,15 +27,20 @@ final class BrightnessOverlayController {
     private let mouseMonitor = GlobalMouseMonitor()
     private var closeWorkItem: DispatchWorkItem?
     private var settingsCancellable: AnyCancellable?
+    private var paletteObserver: NSObjectProtocol?
 
-    /// Taille de la bande — celle du panneau latéral. La fenêtre est créée avec, puis recadrée
-    /// sur l'écran d'arrivée par `position(on:)`.
-    private static let panelSize = NSSize(width: PanelGeometry.panelWidth, height: PanelGeometry.minimumPanelHeight)
+    /// Taille de la bande : la largeur est celle du panneau latéral, la hauteur suit
+    /// `Brightness > Widget size`. La fenêtre est créée avec, puis recadrée sur l'écran
+    /// d'arrivée par `position(on:)`.
+    private var panelSize: NSSize {
+        NSSize(width: PanelGeometry.panelWidth, height: widgetSize.panelHeight)
+    }
 
     private var closeDelay: TimeInterval
     private var glowIntensity: Double
     private var showPercentage: Bool
     private var widgetPosition: EdgePosition
+    private var widgetSize: WidgetSize
     private var isEnabled = false
 
     private let hideAnimationDuration: TimeInterval = 0.45
@@ -48,6 +53,7 @@ final class BrightnessOverlayController {
         glowIntensity = brightness.glowIntensity
         showPercentage = brightness.showPercentage
         widgetPosition = brightness.widgetPosition
+        widgetSize = brightness.widgetSize
 
         // Le feedback partage le même `storage` que le view model : tout le graphe de l'overlay
         // lit donc une seule et même source de préférences.
@@ -58,7 +64,7 @@ final class BrightnessOverlayController {
         )
 
         panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Self.panelSize),
+            contentRect: NSRect(origin: .zero, size: NSSize(width: PanelGeometry.panelWidth, height: brightness.widgetSize.panelHeight)),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -77,7 +83,7 @@ final class BrightnessOverlayController {
 
         let initialPalette = OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
         containerView = BrightnessView(tickCount: BrightnessViewModel.tickCount, initialPalette: initialPalette)
-        containerView.frame = NSRect(origin: .zero, size: Self.panelSize)
+        containerView.frame = NSRect(origin: .zero, size: panelSize)
         containerView.edge = widgetPosition
         panel.contentView = containerView
 
@@ -94,6 +100,14 @@ final class BrightnessOverlayController {
             .sink { [weak self] settings in
                 self?.apply(general: settings.general, brightness: settings.brightness)
             }
+
+        paletteObserver = NotificationCenter.default.addObserver(
+            forName: OverlayPalette.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshPalette() }
+        }
     }
 
     func activate() {
@@ -114,12 +128,27 @@ final class BrightnessOverlayController {
             }
         }
 
+        if widgetSize != brightness.widgetSize {
+            widgetSize = brightness.widgetSize
+            if let screen = NSScreen.hosting(panel) ?? NSScreen.underCursor {
+                position(on: screen)
+            }
+        }
+
         if glowIntensity != brightness.glowIntensity {
             glowIntensity = brightness.glowIntensity
-            containerView.applyPalette(OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity))
+            refreshPalette()
         }
 
         setEnabled(brightness.enableOverlay)
+    }
+
+    /// Seule voie de repeinte du widget : le glow des Préférences s'applique par-dessus la
+    /// palette résolue, qui porte déjà l'accent et la translucidité choisis.
+    private func refreshPalette() {
+        containerView.applyPalette(
+            OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
+        )
     }
 
     private func setEnabled(_ enabled: Bool) {
@@ -135,6 +164,10 @@ final class BrightnessOverlayController {
     }
 
     private func handlePointerMove(_ location: NSPoint) {
+        // Menu contextuel ouvert : le suivi est gelé. Le pointeur descend dans le menu, hors du
+        // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
+        guard !OverlayContextMenu.shared.isPresenting else { return }
+
         if viewModel.isVisible {
             if panel.frame.contains(location) {
                 cancelClose()
@@ -180,7 +213,7 @@ final class BrightnessOverlayController {
         // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol. Le cadre
         // vient de la géométrie commune — accroché en haut, sous la barre de menus, comme le
         // panneau latéral, pour que les deux bandes soient à la même place sur leur bord.
-        let frame = PanelGeometry.panelFrame(on: screen, anchoredTo: widgetPosition)
+        let frame = PanelGeometry.panelFrame(on: screen, anchoredTo: widgetPosition, height: widgetSize.panelHeight)
         panel.setFrame(frame, display: true)
         containerView.frame = NSRect(origin: .zero, size: frame.size)
     }

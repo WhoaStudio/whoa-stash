@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -15,8 +16,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
+    private var overlayPaletteSettings: OverlayPaletteSettings?
+    private var shortcutCancellable: AnyCancellable?
+
+    /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
+    /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
+    /// ce garde-fou, une simple passe de tests brancherait les moniteurs de souris globaux,
+    /// piloterait la luminosité par DDC et lirait le trousseau. On s'arrête donc avant toute
+    /// composition — les tests n'ont besoin que des types, pas de l'app en marche.
+    private var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningUnitTests else { return }
+
+        // Avant toute fenêtre : les vues de l'overlay résolvent la palette dès leur
+        // construction, donc accent, translucidité et interrupteur d'animation doivent déjà
+        // porter les valeurs de l'utilisateur.
+        overlayPaletteSettings = OverlayPaletteSettings(storage: settings)
+
         // Icône dans la menu bar (en haut à droite de l'écran)
         statusBarController = StatusBarController()
 
@@ -42,6 +62,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // indépendant de la bande du bord droit, que le réglage Général permet de couper.
         notchPanelController = NotchPanelController(storage: settings)
         notchPanelController?.activate()
+
+        // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
+        // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.
+        GlobalShortcutService.shared.onTrigger = { [weak self] in
+            self?.notchPanelController?.togglePinnedReveal()
+        }
+        shortcutCancellable = settings.$settings
+            .map(\.general.togglePanelShortcut)
+            .removeDuplicates()
+            .sink { GlobalShortcutService.shared.apply($0) }
 
         // Utilisation Claude : le modèle de vue alimente la bande latérale, et un seul appel
         // réseau la sert.

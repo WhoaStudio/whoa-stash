@@ -54,6 +54,11 @@ final class BrightnessView: NSView {
     }
 
     private func setUp(palette: OverlayPalette) {
+        // Clic droit : le menu partagé par tous les panneaux de l'overlay. Posé ici plutôt que
+        // sur chaque enfant — AppKit remonte la chaîne des responders jusqu'à la première vue
+        // qui porte un menu.
+        menu = OverlayContextMenu.shared.menu
+
         // Fond plein plutôt qu'un `NSVisualEffectView`, comme le panneau latéral : le matériau
         // laissait remonter le fond d'écran et délavait la surface en gris.
         backgroundLayer.zPosition = Depth.background
