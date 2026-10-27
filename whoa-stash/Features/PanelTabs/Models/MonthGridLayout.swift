@@ -23,8 +23,15 @@ nonisolated struct MonthGridLayout: Equatable {
     /// Initiales des sept colonnes, dans l'ordre d'affichage.
     let weekdayInitials: [String]
 
+    /// Colonnes qui tombent le week-end, dans le même ordre. La grille s'en sert pour les tenir
+    /// en retrait ; comme `weekdayInitials`, cela dépend du premier jour de la semaine chez
+    /// l'utilisateur, et de ce que son calendrier appelle un week-end — qui n'est pas partout
+    /// le samedi et le dimanche.
+    let isWeekendColumn: [Bool]
+
     init(date: Date, calendar: Calendar = .current, today: Date = Date()) {
         self.weekdayInitials = Self.initials(calendar: calendar)
+        self.isWeekendColumn = Self.weekendColumns(calendar: calendar, reference: date)
 
         guard
             let month = calendar.dateInterval(of: .month, for: date),
@@ -52,6 +59,18 @@ nonisolated struct MonthGridLayout: Equatable {
             self.todayIndex = leading + calendar.component(.day, from: today) - 1
         } else {
             self.todayIndex = nil
+        }
+    }
+
+    /// Déduites d'une vraie semaine plutôt que d'une liste de jours codée en dur : `isDateInWeekend`
+    /// est le seul endroit qui sache ce que le calendrier de l'utilisateur appelle un week-end.
+    private static func weekendColumns(calendar: Calendar, reference: Date) -> [Bool] {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: reference) else {
+            return Array(repeating: false, count: columnCount)
+        }
+        return (0..<columnCount).map { column in
+            guard let day = calendar.date(byAdding: .day, value: column, to: week.start) else { return false }
+            return calendar.isDateInWeekend(day)
         }
     }
 

@@ -24,6 +24,11 @@ final class CalendarWidgetView: NSView {
     /// en mémoire d'un jour à l'autre.
     private var referenceDate = Date()
 
+    /// L'en-tête tel que le format local l'écrit — « Mon 27 », « 27 oct. ». Gardé à part de la
+    /// vue parce que sa teinte se recompose à chaque repeinte : `applyPalette()` doit pouvoir le
+    /// réécrire sans redemander la date.
+    private var dayText = ""
+
     private let calendar = Calendar.current
 
     private let dayFormatter: DateFormatter = {
@@ -84,13 +89,14 @@ final class CalendarWidgetView: NSView {
     /// construit.
     func refresh(now date: Date = Date()) {
         referenceDate = date
-        dayLabel.stringValue = dayFormatter.string(from: date)
+        dayText = dayFormatter.string(from: date)
 
         // « W44 » : l'interface de l'app est en anglais, seules les dates suivent la langue du
         // système — comme les initiales de `WeekStripView`.
         let week = calendar.component(.weekOfYear, from: date)
         contextLabel.stringValue = "W\(week) · \(monthFormatter.string(from: date))"
 
+        applyPalette()
         monthGrid.refresh(now: date)
         needsLayout = true
     }
@@ -99,9 +105,33 @@ final class CalendarWidgetView: NSView {
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        dayLabel.textColor = palette.tabActiveContent
-        contextLabel.textColor = palette.tabInactiveContent
+        dayLabel.attributedStringValue = dayHeading(palette: palette)
+        contextLabel.textColor = palette.calendarAccent
         dividerLayer.backgroundColor = palette.strokeColor
+    }
+
+    /// L'en-tête en deux teintes : le quantième en blanc, le nom du jour en rouge. Le partage se
+    /// fait sur les chiffres et non sur un découpage du format, qui ne tiendrait pas d'une langue
+    /// à l'autre — « Mon 27 » ici, « 27 oct. » ailleurs, et dans les deux cas c'est le nombre
+    /// qu'il faut détacher.
+    private func dayHeading(palette: OverlayPalette) -> NSAttributedString {
+        let heading = NSMutableAttributedString(
+            string: dayText,
+            attributes: [.font: dayLabel.font as Any, .foregroundColor: palette.calendarAccent]
+        )
+        var location = 0
+        for character in dayText {
+            let length = String(character).utf16.count
+            if character.isNumber {
+                heading.addAttribute(
+                    .foregroundColor,
+                    value: palette.tabActiveContent,
+                    range: NSRange(location: location, length: length)
+                )
+            }
+            location += length
+        }
+        return heading
     }
 
     override func viewDidChangeEffectiveAppearance() {
