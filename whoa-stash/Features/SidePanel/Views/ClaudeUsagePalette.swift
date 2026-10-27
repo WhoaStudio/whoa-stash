@@ -30,7 +30,7 @@ enum ClaudeUsagePalette {
 
     /// Teinte neutre quand aucune donnée n'est disponible : la jauge reste lisible comme un
     /// contenant vide, sans suggérer « 0 % consommé ».
-    static let unavailable = CGColor(gray: 1, alpha: 0.28)
+    static let unavailable = CGColor(gray: 1, alpha: 0.62)
 }
 
 /// Mise en forme des instants de réinitialisation, partagée par la bague (info-bulle) et le

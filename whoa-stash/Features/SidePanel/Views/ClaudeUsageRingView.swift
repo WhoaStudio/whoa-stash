@@ -118,7 +118,7 @@ final class ClaudeUsageRingView: NSView {
             percentLayer.string = "–"
             toolTip = "\(serviceName) — chargement de l'utilisation…"
         case .unavailable(let reason):
-            percentLayer.string = "–"
+            percentLayer.string = serviceName == "GitHub Copilot" ? "N/A" : "–"
             toolTip = "\(serviceName) — \(reason)"
         }
     }
