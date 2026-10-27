@@ -2,7 +2,8 @@ import AppKit
 
 /// Contenu du panneau de l'encoche : une silhouette sombre suspendue au haut de l'écran, qui
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
-/// large portant une barre d'onglets et, dessous, l'onglet choisi. Global porte la semaine ; AI
+/// large portant l'onglet choisi, surmonté d'une capsule de navigation détachée, posée sous lui
+/// et qui n'est donc pas un morceau de sa silhouette. Global porte la semaine ; AI
 /// porte les deux colonnes d'utilisation — les bagues **en ligne** à gauche, la carte détaillée
 /// à droite ; Tray affiche le bac à fichiers, qui vit hors de la vue (`FileShelfStore`) et
 /// retient donc ce qu'on y dépose d'un dépliage à l'autre, et d'un lancement à l'autre.
@@ -26,10 +27,12 @@ final class NotchPanelContentView: NSView {
     private let rings: [ClaudeUsageRingView]
     private let card = ClaudeUsagePanelView()
 
-    /// Appelé au clic sur l'engrenage de la barre d'onglets, relayé jusqu'au contrôleur.
+    /// Appelé au clic sur l'engrenage de la capsule, relayé jusqu'au contrôleur.
     var onOpenSettings: (() -> Void)?
 
-    private let tabBar = NotchTabBarView(selectedTab: .global)
+    /// La capsule de navigation, posée sous le panneau et détachée de lui : elle vit donc hors
+    /// de `contentContainer`, que la silhouette découpe.
+    private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
     /// L'onglet Global : la semaine, seule.
     private let globalTab = NSView()
@@ -41,6 +44,10 @@ final class NotchPanelContentView: NSView {
     private let aiColumns = NSView()
 
     private var selectedTab: NotchTab = .global
+
+    /// Place de repos de la capsule, relevée à chaque mise en page : c'est de là qu'elle part
+    /// en sortant, et c'est là qu'elle revient en entrant.
+    private var capsuleRestingPosition: CGPoint = .zero
 
     /// Silhouette courante, retenue pour le test de contact : le cadre de la fenêtre vaut
     /// toujours le cadre déplié, donc la vue est bien plus large que ce qu'elle dessine, et
@@ -121,11 +128,15 @@ final class NotchPanelContentView: NSView {
         globalTab.addSubview(weekStrip)
         contentContainer.addSubview(globalTab)
 
-        tabBar.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
-        tabBar.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
-        contentContainer.addSubview(tabBar)
-
         contentContainer.addSubview(fileTray)
+
+        // Hors du conteneur de contenu, et donc hors du masque de la silhouette : la capsule est
+        // justement ce qui se trouve en dehors d'elle. Elle part invisible et suit le dépliage en
+        // fondu, comme le contenu.
+        capsule.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
+        capsule.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
+        capsule.layer?.opacity = 0
+        addSubview(capsule)
         applySelection(animated: false)
 
         // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -221,7 +232,7 @@ final class NotchPanelContentView: NSView {
     func select(_ tab: NotchTab, animated: Bool) {
         guard tab != selectedTab else { return }
         selectedTab = tab
-        tabBar.select(tab, animated: animated)
+        capsule.select(tab, animated: animated)
         // La plaque d'accent suit une bague : elle n'a plus rien à désigner ailleurs.
         setHighlightedRing(nil)
         applySelection(animated: animated)
@@ -261,8 +272,20 @@ final class NotchPanelContentView: NSView {
     /// fenêtre dès que celle-ci accepte les glissers (`setFileDragActive(_:)`).
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let silhouette else { return super.hitTest(point) }
-        guard silhouette.contains(convert(point, from: superview)) else { return nil }
+        let local = convert(point, from: superview)
+        // La capsule est hors de la silhouette — c'est tout l'objet de sa forme détachée — donc
+        // elle répond pour elle-même, et seulement dépliée : repliée elle est invisible, et rien
+        // d'invisible ne doit avaler un clic.
+        guard silhouette.contains(local) || (isExpanded && capsuleShape().contains(local)) else { return nil }
         return super.hitTest(point)
+    }
+
+    /// Le contour de la capsule, pour le test de contact : son cadre est un rectangle, mais ses
+    /// extrémités sont arrondies et ce qui les déborde doit passer dessous.
+    private func capsuleShape() -> CGPath {
+        let frame = capsule.frame
+        let radius = frame.height / 2
+        return CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }
 
     // MARK: - Dépôt
@@ -301,25 +324,27 @@ final class NotchPanelContentView: NSView {
         let tile = NotchPanelGeometry.ringTileSize
         let rowWidth = NotchPanelGeometry.ringRowWidth
 
+        // Le panneau n'occupe pas tout le cadre : la bande basse revient à la capsule. Le
+        // conteneur, lui, garde le cadre entier — son masque est la silhouette, qui est décrite
+        // dans ce repère-là.
+        let panel = NotchPanelGeometry.panelRect(in: bounds)
         contentContainer.frame = bounds
 
-        // Barre d'onglets en haut, sous la marge que laissent les raccords concaves.
-        let barHeight = TabBarMetrics.barHeight
-        tabBar.frame = NSRect(
-            x: inset,
-            y: bounds.maxY - NotchPanelGeometry.contentInsetTop(forCollapsedHeight: collapsedSize.height) - barHeight,
-            width: max(0, bounds.width - 2 * inset),
-            height: barHeight
-        )
+        capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds)
+        // La place de repos est relevée ici, une fois le cadre posé et avant que l'entrée ou la
+        // sortie ne décale le calque : c'est le point d'arrivée de la course, et il ne peut pas
+        // être lu plus tard, quand la capsule est justement ailleurs.
+        capsuleRestingPosition = capsule.layer?.position ?? .zero
+        applyCapsuleReveal(animated: false)
 
-        // Corps de l'onglet : tout ce qui reste sous la barre. Les trois onglets l'occupent en
-        // entier et se relaient dedans.
-        let bodyTop = tabBar.frame.minY - NotchPanelGeometry.tabBarGap
-        let bodyBottom = bounds.minY + NotchPanelGeometry.contentInsetBottom
+        // Corps de l'onglet : tout l'intérieur du panneau. Les trois onglets l'occupent en entier
+        // et se relaient dedans.
+        let bodyTop = panel.maxY - NotchPanelGeometry.contentInsetTop(forCollapsedHeight: collapsedSize.height)
+        let bodyBottom = panel.minY + NotchPanelGeometry.contentInsetBottom
         let body = NSRect(
-            x: bounds.minX,
+            x: panel.minX,
             y: bodyBottom,
-            width: bounds.width,
+            width: panel.width,
             height: max(0, bodyTop - bodyBottom)
         )
         for view in tabContentViews {
@@ -374,6 +399,42 @@ final class NotchPanelContentView: NSView {
         )
     }
 
+    // MARK: - Entrée et sortie de la capsule
+
+    /// Course de la capsule : ce dont elle est décalée, repliée, sous sa place de repos.
+    ///
+    /// Elle sort par le **bas** et non vers le panneau : glisser de dessous lui demanderait
+    /// qu'elle soit derrière lui dans l'ordre d'affichage, alors qu'elle est posée par-dessus —
+    /// elle lui passerait sur le ventre au lieu d'en sortir.
+    private static let capsuleTravel: CGFloat = 14
+
+    /// Fait monter la capsule à sa place, ou l'en fait redescendre. Le ressort est celui du
+    /// dépliage (`SpringPreset.gentle`) et le fondu celui du contenu : les deux gestes sont
+    /// simultanés et doivent se lire comme un seul.
+    ///
+    /// Posée sèchement quand il n'y a rien à animer — une mise en page doit déjà trouver la
+    /// capsule dans son état courant à la première image.
+    private func applyCapsuleReveal(animated: Bool) {
+        guard let layer = capsule.layer, capsuleRestingPosition != .zero else { return }
+
+        let target = isExpanded
+            ? capsuleRestingPosition
+            : CGPoint(x: capsuleRestingPosition.x, y: capsuleRestingPosition.y - Self.capsuleTravel)
+        let opacity: Float = isExpanded ? 1 : 0
+
+        guard animated else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.position = target
+            layer.opacity = opacity
+            CATransaction.commit()
+            return
+        }
+
+        layer.springAnimate(keyPath: "position", to: target, preset: .gentle)
+        PanelFold.fade(layer, to: opacity)
+    }
+
     // MARK: - Silhouette
 
     /// Les deux états, tirés de la même recette que les bandes de flanc
@@ -385,7 +446,7 @@ final class NotchPanelContentView: NSView {
 
     private func collapsedPath() -> CGPath {
         PanelGeometry.silhouette(
-            in: bounds,
+            in: NotchPanelGeometry.panelRect(in: bounds),
             anchoredTo: .top,
             size: collapsedSize,
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
@@ -395,7 +456,7 @@ final class NotchPanelContentView: NSView {
 
     private func expandedPath() -> CGPath {
         PanelGeometry.silhouette(
-            in: bounds,
+            in: NotchPanelGeometry.panelRect(in: bounds),
             anchoredTo: .top,
             shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
             farRadius: NotchPanelGeometry.expandedBottomRadius
@@ -423,6 +484,10 @@ final class NotchPanelContentView: NSView {
         // Le contenu suit le dépliage en fondu plutôt qu'au ressort, et il est découpé par la
         // silhouette elle-même (`contentMask`) : pendant le dépliage il ne doit rien dépasser de
         // la forme, qui est encore plus étroite que lui.
+        // La capsule ne se contente pas de suivre le fondu du contenu : elle monte à sa place et
+        // y redescend, puisqu'elle est la seule surface à ne pas être portée par la silhouette.
+        applyCapsuleReveal(animated: animated)
+
         PanelFold.apply(
             path: path,
             to: [backgroundLayer, strokeLayer, contentMask],

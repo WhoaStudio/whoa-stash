@@ -18,12 +18,26 @@ struct OverlayPalette {
     var panelBackground: CGColor
     var strokeColor: CGColor
 
+    /// Fond de la capsule de navigation, posée sous le panneau de l'encoche et détachée de lui.
+    /// Translucide : elle flotte au-dessus du bureau, elle n'est pas un morceau de la silhouette.
+    var tabCapsuleFill: CGColor
+
+    /// Cercle de l'onglet actif dans la capsule. Franchement plus clair que la capsule qui le
+    /// porte — c'est la seule chose qui désigne l'onglet choisi, les glyphes étant tous de la
+    /// même taille. Distinct de `tabPillFill`, qui est la même marque posée sur le **panneau**,
+    /// bien plus sombre : la même teinte aux deux endroits serait invisible à l'un ou criarde à
+    /// l'autre.
+    var tabCircleFill: CGColor
+
     var buttonSymbolColor: NSColor
     var buttonGlowColor: CGColor
 
     /// Pastille de l'onglet actif dans la barre du panneau, et les deux teintes de son contenu.
     /// L'onglet actif est franc sur sa pastille ; les autres restent en retrait, sans pastille.
     var tabPillFill: CGColor
+    /// Teinte du glyphe posé **sur** la pastille. Distincte de `tabActiveContent`, qui est celle
+    /// d'un contenu franc posé à même la capsule.
+    var tabPillContent: NSColor
     var tabActiveContent: NSColor
     var tabInactiveContent: NSColor
 
@@ -65,9 +79,12 @@ struct OverlayPalette {
         backgroundTint: CGColor(gray: 0, alpha: 0.35),
         panelBackground: CGColor(gray: 0.04, alpha: 1),
         strokeColor: CGColor(gray: 1, alpha: 0.08),
+        tabCapsuleFill: CGColor(gray: 0.12, alpha: 0.80),
+        tabCircleFill: CGColor(gray: 0.42, alpha: 1),
         buttonSymbolColor: .white,
         buttonGlowColor: CGColor(gray: 1, alpha: 0.5),
         tabPillFill: CGColor(gray: 0.22, alpha: 1),
+        tabPillContent: .white,
         tabActiveContent: .white,
         tabInactiveContent: NSColor(white: 0.62, alpha: 1)
     )
@@ -81,9 +98,12 @@ struct OverlayPalette {
         backgroundTint: CGColor(gray: 1, alpha: 0.4),
         panelBackground: CGColor(gray: 0.97, alpha: 1),
         strokeColor: CGColor(gray: 0, alpha: 0.06),
+        tabCapsuleFill: CGColor(gray: 1, alpha: 0.80),
+        tabCircleFill: CGColor(gray: 0.78, alpha: 1),
         buttonSymbolColor: .black.withAlphaComponent(0.75),
         buttonGlowColor: CGColor(gray: 0, alpha: 0.35),
         tabPillFill: CGColor(gray: 0.86, alpha: 1),
+        tabPillContent: NSColor(white: 0.10, alpha: 1),
         tabActiveContent: NSColor(white: 0.10, alpha: 1),
         tabInactiveContent: NSColor(white: 0.42, alpha: 1)
     )

@@ -72,8 +72,18 @@ enum NotchPanelGeometry {
         max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + topClearance)
     }
 
-    /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
-    static let tabBarGap = PanelGeometry.contentSpacing
+    // MARK: - Capsule de navigation
+
+    /// Écart entre le bas du panneau et la capsule de navigation, qui flotte sous lui. Il est
+    /// bien visible : la capsule n'est pas un morceau de la silhouette, et c'est ce vide qui le
+    /// dit.
+    static let capsuleGap: CGFloat = 10
+
+    /// Bande basse du cadre de la fenêtre, sous la silhouette du panneau : l'écart, puis la
+    /// capsule. Le panneau ne peint rien là — seule la capsule s'y pose.
+    static var capsuleBandHeight: CGFloat {
+        capsuleGap + TabBarMetrics.capsuleHeight
+    }
 
     /// Bande de la semaine, tout le contenu de l'onglet Global. Même vue que dans la bande du
     /// bord droit, donc même hauteur.
@@ -110,17 +120,19 @@ enum NotchPanelGeometry {
         ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width
     }
 
-    /// Taille dépliée. La largeur est celle du plus large de ce que le panneau porte : les deux
-    /// colonnes de l'onglet AI, ou la rangée d'onglets elle-même quand des intitulés longs la
-    /// réclament — c'est le panneau qui s'élargit, jamais la barre qui déborde de la silhouette.
+    /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
+    /// est donc celle du panneau **plus** la bande basse où flotte la capsule.
+    ///
+    /// La largeur est celle du plus large de ce que la fenêtre porte : les deux colonnes de
+    /// l'onglet AI, ou la capsule — c'est le panneau qui s'élargit, jamais la capsule qui
+    /// déborde de lui.
     static func expandedSize(collapsedHeight: CGFloat) -> NSSize {
         NSSize(
-            width: 2 * contentInsetX + max(tabContentWidth, NotchTabBarView.minimumRowWidth),
+            width: 2 * contentInsetX + max(tabContentWidth, NotchTabCapsuleView.width),
             height: contentInsetTop(forCollapsedHeight: collapsedHeight)
-                + TabBarMetrics.barHeight
-                + tabBarGap
                 + tabContentHeight
                 + contentInsetBottom
+                + capsuleBandHeight
         )
     }
 
@@ -169,6 +181,29 @@ enum NotchPanelGeometry {
     }
 
     // MARK: - Cadres
+
+    /// Le panneau proprement dit dans le cadre de la fenêtre : tout sauf la bande basse, qui
+    /// revient à la capsule. C'est ce rectangle, et non le cadre entier, que la silhouette
+    /// occupe et dans lequel le contenu se pose.
+    static func panelRect(in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.minX,
+            y: bounds.minY + capsuleBandHeight,
+            width: bounds.width,
+            height: max(0, bounds.height - capsuleBandHeight)
+        )
+    }
+
+    /// Cadre de la capsule : tout en bas, centrée sous le panneau.
+    static func capsuleRect(in bounds: CGRect) -> CGRect {
+        let width = min(NotchTabCapsuleView.width, bounds.width)
+        return CGRect(
+            x: bounds.midX - width / 2,
+            y: bounds.minY,
+            width: width,
+            height: TabBarMetrics.capsuleHeight
+        )
+    }
 
     /// Cadre de la fenêtre, identique replié comme déplié : c'est la silhouette qui s'anime à
     /// l'intérieur, jamais la fenêtre, qui redimensionnée à chaque image hacherait le dépliage.

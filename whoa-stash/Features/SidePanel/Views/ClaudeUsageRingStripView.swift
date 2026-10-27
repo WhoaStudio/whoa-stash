@@ -11,7 +11,7 @@ import AppKit
 ///
 /// La vue ne gère pas le survol elle-même : c'est `SidePanelController` qui décide, depuis la
 /// position globale du curseur, quelle bague est survolée et le lui dit par
-/// `setHighlightedRing(_:)`. La fenêtre reçoit désormais les clics (la barre d'onglets en a
+/// `setHighlightedRing(_:)`. La fenêtre reçoit désormais les clics (la capsule de navigation en a
 /// besoin), mais le suivi des bagues reste global — il doit aussi fonctionner pendant que le
 /// curseur traverse la bulle, qui est une autre fenêtre.
 final class ClaudeUsageRingStripView: NSView {

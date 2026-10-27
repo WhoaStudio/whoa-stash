@@ -6,7 +6,7 @@ import OSLog
 /// garantit qu'un clic droit montre partout les deux mêmes entrées.
 ///
 /// Les actions ne sont pas réimplémentées ici : « Open Settings » appelle le même
-/// `SettingsWindowController.shared.show()` que l'engrenage de la barre d'onglets et que l'entrée
+/// `SettingsWindowController.shared.show()` que l'engrenage de la capsule de navigation et que l'entrée
 /// « Préférences… » de la menu bar, et « Quit Whoa Stash » appelle `NSApp.terminate(_:)`, comme
 /// l'entrée homonyme du menu de la menu bar.
 ///
