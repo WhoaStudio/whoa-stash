@@ -26,7 +26,8 @@ final class SidePanelStackView: NSView {
 
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
+        // Keep wheel/trackpad scrolling without showing a scrollbar in the narrow side panel.
+        scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.scrollerStyle = .overlay
