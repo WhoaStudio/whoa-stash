@@ -86,8 +86,14 @@ enum VolumeDialGeometry {
     static let arcWidth: CGFloat = 7
     static let arcSpacing: CGFloat = 9
 
-    /// Diamètre de la poignée qui court sur le bandeau.
+    /// Diamètre de la poignée qui court sur le bandeau — l'épaisseur du trait dont elle est
+    /// l'embout, et non la taille d'une pastille posée dessus.
     static let handleDiameter: CGFloat = 15
+
+    /// Longueur de ce trait, en part de la course. Assez courte pour que ses deux embouts se
+    /// confondent en un point rond, assez longue pour que Core Animation ait bien un segment à
+    /// tracer : un segment vide ne rend rien du tout.
+    static let handleStrokeLength: CGFloat = 0.002
 
     /// Rayon sur lequel courent le bandeau et la poignée, pour un disque de `bounds`.
     static func arcRadius(in bounds: CGRect) -> CGFloat {
