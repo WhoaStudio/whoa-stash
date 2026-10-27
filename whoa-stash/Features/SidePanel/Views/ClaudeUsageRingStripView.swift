@@ -32,7 +32,10 @@ final class ClaudeUsageRingStripView: NSView {
 
         // Les cases sans source partent — et restent — sur un anneau vide.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(.unavailable(reason: "Usage unavailable"), animated: false)
+            let reason = SidePanelGeometry.ringSlots[position].mark == .copilot
+                ? "Individual quota unavailable from GitHub"
+                : "Usage unavailable"
+            ring.apply(.unavailable(reason: reason), animated: false)
         }
     }
 
