@@ -51,16 +51,19 @@ enum SidePanelGeometry {
     /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
     /// neutre — en attendant que leur fournisseur soit raccordé.
     struct RingSlot: Equatable {
+        let serviceName: String
         let mark: UsageMarkPath
         let isConnected: Bool
     }
 
-    /// Les bagues alignées, de gauche à droite. Seule celle de Claude a une source aujourd'hui ;
-    /// c'est aussi la seule à ouvrir la bulle de détail.
+    /// Les bagues alignées verticalement. Claude est alimenté par son fournisseur live ; Copilot
+    /// reste visible comme entrée dédiée, mais son quota individuel n'est pas exposé par une API
+    /// GitHub publique stable.
     static let ringSlots: [RingSlot] = [
-        RingSlot(mark: .claude, isConnected: true),
-        RingSlot(mark: .codex, isConnected: false),
-        RingSlot(mark: .gemini, isConnected: false),
+        RingSlot(serviceName: "Claude Code", mark: .claude, isConnected: true),
+        RingSlot(serviceName: "GitHub Copilot", mark: .copilot, isConnected: false),
+        RingSlot(serviceName: "Codex", mark: .codex, isConnected: false),
+        RingSlot(serviceName: "Gemini", mark: .gemini, isConnected: false),
     ]
 
     static var ringCount: Int { ringSlots.count }
@@ -84,10 +87,10 @@ enum SidePanelGeometry {
     /// survols.
     static let collapsedSize = PanelGeometry.collapsedHandleSize
 
-    static var panelHeight: CGFloat {
-        let content = 2 * contentVerticalInset + ringStripHeight
-        return max(content, minimumPanelHeight)
-    }
+    /// Hauteur fixe de la bande : au-delà de la hauteur visible, la liste défile au lieu
+    /// d'agrandir la silhouette. Cela garde le panneau compact et rend les fournisseurs
+    /// supplémentaires atteignables avec le geste de défilement, même sur les grands écrans.
+    static var panelHeight: CGFloat { minimumPanelHeight }
 
     /// Bord auquel la bande est accrochée. Une valeur et non un réglage : le flanc opposé est
     /// celui du widget de luminosité, qui lui répond. Tout ce qui dépend du bord — la zone

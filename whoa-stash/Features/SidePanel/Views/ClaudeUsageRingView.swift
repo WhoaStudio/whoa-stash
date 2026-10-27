@@ -1,7 +1,7 @@
 import AppKit
 
-/// Bague d'utilisation de la session Claude : un anneau qui se remplit dans le sens horaire
-/// depuis midi, l'étoile Claude au centre, et le pourcentage dessous.
+/// Bague d'utilisation d'un fournisseur : un anneau qui se remplit dans le sens horaire depuis
+/// midi, la marque du fournisseur au centre, et le pourcentage dessous.
 ///
 /// Tout est en calques, le texte aussi, pour que le ressort de survol emporte l'ensemble d'un
 /// seul bloc. La vue ne reçoit aucun événement — la fenêtre de la bande laisse tout passer —
@@ -25,9 +25,11 @@ final class ClaudeUsageRingView: NSView {
     private let markDiameterRatio: CGFloat = 0.46
 
     private let mark: UsageMarkPath
+    private let serviceName: String
 
-    init(tileSize: CGFloat, mark: UsageMarkPath = .claude) {
+    init(tileSize: CGFloat, mark: UsageMarkPath = .claude, serviceName: String = "Claude Code") {
         self.mark = mark
+        self.serviceName = serviceName
         super.init(frame: NSRect(x: 0, y: 0, width: tileSize, height: tileSize))
         wantsLayer = true
         setUp()
@@ -111,13 +113,13 @@ final class ClaudeUsageRingView: NSView {
         switch state {
         case .loaded(let snapshot):
             percentLayer.string = "\(snapshot.session.percentage)%"
-            toolTip = "Claude — session \(snapshot.session.percentage) % · tous modèles \(snapshot.allModels.percentage) %"
+            toolTip = "\(serviceName) — session \(snapshot.session.percentage) % · tous modèles \(snapshot.allModels.percentage) %"
         case .loading:
             percentLayer.string = "–"
-            toolTip = "Claude — chargement de l'utilisation…"
+            toolTip = "\(serviceName) — chargement de l'utilisation…"
         case .unavailable(let reason):
-            percentLayer.string = "–"
-            toolTip = "Claude — \(reason)"
+            percentLayer.string = serviceName == "GitHub Copilot" ? "N/A" : "–"
+            toolTip = "\(serviceName) — \(reason)"
         }
     }
 
