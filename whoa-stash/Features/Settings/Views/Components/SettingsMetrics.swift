@@ -4,7 +4,10 @@ import AppKit
 /// ajuster pour garder la fenêtre cohérente.
 enum SettingsMetrics {
     static let sidebarWidth: CGFloat = 200
-    static let windowSize = NSSize(width: 760, height: 560)
+    /// Hauteur taillée sur l'écran le plus dense — « General », qui porte cinq cartes et dix
+    /// lignes. Le scroll view de `SettingsSectionViewController` reste le filet de sécurité,
+    /// mais aucun écran ne doit avoir besoin de défiler pour être lu en entier.
+    static let windowSize = NSSize(width: 760, height: 700)
 
     static let contentInset: CGFloat = 28
     static let cardSpacing: CGFloat = 20
