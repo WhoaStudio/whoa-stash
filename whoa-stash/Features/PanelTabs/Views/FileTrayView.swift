@@ -5,7 +5,7 @@ import AppKit
 ///
 /// La vue n'est qu'une lecture de `FileShelfStore` — c'est lui qui retient les fichiers, et donc
 /// le bac survit au repli du panneau, au changement d'onglet et au relancement de l'app. Les
-/// fichiers ne sont que **référencés** : rien n'est copié ni déplacé sur le disque.
+/// fichiers sont déplacés dans le dossier du bac, puis référencés par des signets.
 ///
 /// La vue **ne s'enregistre pas** comme cible de dépôt : c'est le panneau tout entier qui la
 /// porte (`NotchPanelContentView`), parce qu'un fichier se lâche sur l'encoche — en haut, là où
@@ -86,9 +86,12 @@ final class FileTrayView: NSView {
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        emptyLabel.textColor = palette.tabInactiveContent
+        let dropColor = NSColor.systemBlue
+        emptyLabel.textColor = dropColor
         // Le liseré se renforce pendant le survol d'un glisser, sans changer de teinte.
-        dropHighlightLayer.strokeColor = isDropTarget ? palette.tabActiveContent.cgColor : palette.strokeColor
+        dropHighlightLayer.strokeColor = dropColor
+            .withAlphaComponent(isDropTarget ? 1 : 0.72)
+            .cgColor
         rows.forEach { $0.applyPalette(palette) }
     }
 
@@ -113,8 +116,7 @@ final class FileTrayView: NSView {
             !dropped.isEmpty
         else { return false }
 
-        store.add(dropped)
-        return true
+        return !store.add(dropped).isEmpty
     }
 
     /// Allume le liseré pendant qu'un glisser survole le panneau. C'est lui qui dit où le
@@ -260,9 +262,9 @@ private final class FileTrayRowView: NSView, NSDraggingSource {
         sourceOperationMaskFor context: NSDraggingContext
     ) -> NSDragOperation {
         switch context {
-        // Jamais `.move` : le Finder le prendrait au mot et déplacerait le fichier sur le
-        // disque. Le bac ne fait que référencer, il ne range pas à la place de l'utilisateur.
-        case .outsideApplication: .copy
+        // Le bac possède réellement les fichiers qu'il contient : Finder doit donc déplacer
+        // le fichier hors de son dossier géré, plutôt que d'en créer une copie.
+        case .outsideApplication: .move
         // Dans l'app, il n'y a rien où déposer : relâcher sur le bac doit se lire comme un
         // glisser annulé.
         default: []

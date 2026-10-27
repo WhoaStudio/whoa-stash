@@ -45,7 +45,9 @@ enum NotchPanelGeometry {
     /// La marge horizontale vaut donc au moins le rayon de la silhouette : les deux raccords
     /// concaves rentrent les flancs peints de `expandedShoulderRadius` de chaque côté, et tout
     /// contenu posé en deçà sort du chemin.
-    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor
+    /// Extra breathing room keeps the tab content from feeling pressed against the rounded
+    /// shoulders of the notch panel.
+    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor + 8
 
     /// Ce que les coins convexes du bas rognent à l'aplomb du bord du contenu : la marge basse
     /// s'en augmente, sans quoi ce qui descend jusqu'en bas — le liseré du bac à fichiers —
@@ -87,49 +89,46 @@ enum NotchPanelGeometry {
 
     /// Bande de la semaine, en tête de l'onglet Global. Même vue que dans la bande du bord
     /// droit, donc même hauteur.
-    static let weekStripHeight: CGFloat = 54
-
-    /// Air entre la bande de la semaine et le widget calendrier, sous elle.
-    static let calendarTopGap: CGFloat = 14
+    static let weekStripHeight: CGFloat = 46
 
     /// Air entre l'en-tête de date et la liste des événements, dans le widget.
     static let calendarHeaderGap: CGFloat = 10
 
-    /// Largeur de la grille du mois, colonne de droite du widget : sept colonnes d'environ 33 pt,
-    /// la plus petite largeur où deux chiffres tiennent sans se toucher.
-    static let monthGridWidth: CGFloat = 231
+    /// Largeur de la grille du mois, colonne de droite du widget : sept colonnes de 28 pt, la
+    /// plus petite largeur où deux chiffres tiennent sans se toucher.
+    static let monthGridWidth: CGFloat = 196
 
-    /// Hauteur du contenu de l'onglet Global : la bande de la semaine, puis le widget calendrier,
-    /// dont la grille du mois fixe le plancher — six lignes de semaine plus leurs initiales.
+    /// Hauteur du contenu de l'onglet Calendar, dont la grille du mois fixe le plancher — six
+    /// lignes de semaine plus leurs initiales.
     ///
     /// C'est cet onglet qui est désormais le plus haut, et donc lui qui dimensionne le panneau
     /// (voir `tabContentHeight`).
-    static let globalTabHeight: CGFloat = 264
+    static let calendarTabHeight: CGFloat = 210
 
     /// Colonne de gauche de l'onglet AI : les bagues d'utilisation posées **en ligne** et non
     /// empilées, c'est tout ce qui distingue cette mise en page de celle de la bande du bord
-    /// droit.
-    static let ringTileSize: CGFloat = 60
-    static let ringSpacing: CGFloat = 20
+    /// droit. Elles sont plus petites que celles de la bande : le panneau est resserré, et
+    /// c'est la rangée entière qui doit tenir à côté de la carte.
+    static let ringTileSize: CGFloat = 50
+    static let ringSpacing: CGFloat = 16
 
     /// Écart de chaque côté du filet qui sépare les deux colonnes.
-    static let columnGap: CGFloat = 24
+    static let columnGap: CGFloat = 18
     static let dividerWidth: CGFloat = 1
 
     /// Colonne de droite de l'onglet AI : la carte d'utilisation détaillée, aux dimensions que
     /// `ClaudeUsagePanelView` demande pour tenir son en-tête et ses deux lignes.
-    static let cardSize = NSSize(width: 320, height: 190)
+    static let cardSize = NSSize(width: 270, height: 190)
 
     static var ringRowWidth: CGFloat {
         let count = CGFloat(SidePanelGeometry.ringCount)
         return count * ringTileSize + max(0, count - 1) * ringSpacing
     }
 
-    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut — Global,
-    /// depuis qu'il porte le widget calendrier —, pour que la silhouette dépliée ne change pas de
-    /// taille d'un onglet à l'autre.
+    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut, pour que la
+    /// silhouette dépliée ne change pas de taille d'un onglet à l'autre.
     static var tabContentHeight: CGFloat {
-        max(globalTabHeight, cardSize.height)
+        max(calendarTabHeight, cardSize.height)
     }
 
     /// Largeur du contenu de l'onglet le plus large — AI, avec ses deux colonnes.

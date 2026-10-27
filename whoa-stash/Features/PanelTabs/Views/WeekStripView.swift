@@ -40,7 +40,8 @@ final class WeekStripView: NSView {
             WeekDayCellView(
                 initial: initial(for: day),
                 dayNumber: calendar.component(.day, from: day),
-                isToday: calendar.isDateInToday(day)
+                isToday: calendar.isDateInToday(day),
+                isWeekend: calendar.isDateInWeekend(day)
             )
         }
         cells.forEach(addSubview)
@@ -93,12 +94,14 @@ private final class WeekDayCellView: NSView {
     private let numberLabel = NSTextField(labelWithString: "")
     private let pillLayer = CALayer()
     private let isToday: Bool
+    private let isWeekend: Bool
 
     /// Côté de la pastille du jour courant.
     private let pillSize: CGFloat = 24
 
-    init(initial: String, dayNumber: Int, isToday: Bool) {
+    init(initial: String, dayNumber: Int, isToday: Bool, isWeekend: Bool) {
         self.isToday = isToday
+        self.isWeekend = isWeekend
         super.init(frame: .zero)
         wantsLayer = true
 
@@ -129,11 +132,12 @@ private final class WeekDayCellView: NSView {
 
     func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        initialLabel.textColor = palette.tabInactiveContent
-        // Aujourd'hui : numéro franc sur la pastille. Les autres jours restent en retrait, au
-        // même niveau que les initiales, pour que la pastille soit le seul point d'accroche.
-        numberLabel.textColor = isToday ? palette.tabActiveContent : palette.tabInactiveContent
-        pillLayer.backgroundColor = isToday ? palette.tabPillFill : nil
+        // La bande se lit comme la grille du mois : la semaine ouvrée franche, le week-end en
+        // retrait, et le jour courant blanc sur sa pastille rouge.
+        let dayColor = isWeekend ? palette.calendarWeekendContent : palette.calendarDayContent
+        initialLabel.textColor = dayColor
+        numberLabel.textColor = isToday ? palette.tabActiveContent : dayColor
+        pillLayer.backgroundColor = isToday ? palette.calendarTodayFill : nil
     }
 
     override func viewDidChangeEffectiveAppearance() {

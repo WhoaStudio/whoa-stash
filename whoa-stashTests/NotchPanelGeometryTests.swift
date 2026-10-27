@@ -111,19 +111,13 @@ struct NotchPanelGeometryTests {
         #expect(NotchPanelGeometry.contentInsetTop(forCollapsedHeight: notchHeight) > notchHeight)
     }
 
-    // MARK: - Onglet Global
+    // MARK: - Onglets calendrier
 
-    /// C'est désormais l'onglet Global qui dimensionne le panneau : la bande de la semaine, son
-    /// écart, et le widget calendrier doivent tenir dans la hauteur qu'il réclame, sans quoi le
-    /// widget serait rogné par le bas du corps.
-    @Test("la semaine et le widget calendrier tiennent dans la hauteur de l'onglet Global")
-    func globalTabHoldsWeekStripAndCalendar() {
-        let stacked = NotchPanelGeometry.weekStripHeight + NotchPanelGeometry.calendarTopGap
-        #expect(stacked < NotchPanelGeometry.globalTabHeight, "il ne reste rien pour le widget")
-
-        // Ce qui revient au widget doit encore porter la grille du mois : sa ligne d'initiales et
-        // ses six lignes de semaine, à une hauteur de case qui ne tasse pas les chiffres.
-        let calendarHeight = NotchPanelGeometry.globalTabHeight - stacked
+    /// La bande de la semaine reste dans Global, tandis que le nouvel onglet Calendar reçoit
+    /// toute la hauteur du contenu pour afficher la grille du mois sans la tasser.
+    @Test("l'onglet Calendar laisse la grille du mois respirer")
+    func calendarTabHoldsMonthGrid() {
+        let calendarHeight = NotchPanelGeometry.calendarTabHeight
         #expect(
             calendarHeight >= 15 + CGFloat(MonthGridLayout.weekRowCount) * 20,
             "la grille du mois serait tassée dans \(calendarHeight) pt"
@@ -134,7 +128,7 @@ struct NotchPanelGeometryTests {
     /// fixe. L'invariant vaut quel que soit celui qui prend la tête.
     @Test("la hauteur de contenu couvre tous les onglets")
     func tabContentHeightCoversEveryTab() {
-        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.globalTabHeight)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.calendarTabHeight)
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.cardSize.height)
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.weekStripHeight)
     }
