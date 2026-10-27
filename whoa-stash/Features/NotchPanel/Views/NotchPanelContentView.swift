@@ -42,6 +42,11 @@ final class NotchPanelContentView: NSView {
 
     private var selectedTab: NotchTab = .global
 
+    /// Silhouette courante, retenue pour le test de contact : le cadre de la fenêtre vaut
+    /// toujours le cadre déplié, donc la vue est bien plus large que ce qu'elle dessine, et
+    /// seule la forme peinte doit répondre (voir `hitTest(_:)`).
+    private var silhouette: CGPath?
+
     /// Taille de la silhouette repliée, décidée par l'écran : l'encoche matérielle n'a pas les
     /// mêmes dimensions d'un Mac à l'autre, et une pastille les remplace quand il n'y en a pas.
     var collapsedSize: NSSize = NotchPanelGeometry.pillSize {
@@ -122,6 +127,12 @@ final class NotchPanelContentView: NSView {
 
         contentContainer.addSubview(fileTray)
         applySelection(animated: false)
+
+        // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
+        // se lâche sur l'encoche — en haut, là où la silhouette repliée se voit —, alors que le
+        // bac occupe le bas du panneau déplié. Viser le bac demanderait de traverser tout le
+        // panneau avant de relâcher. Le bac reste seul à savoir quoi faire du dépôt.
+        registerForDraggedTypes([.fileURL])
 
         // Aucune ombre portée : la silhouette se détache par sa teinte et son filet, et la
         // fenêtre est elle aussi sans ombre (`NotchPanelWindow`).
@@ -239,6 +250,44 @@ final class NotchPanelContentView: NSView {
             view.layer?.opacity = 1
             view.layer?.add(fade, forKey: "opacity")
         }
+    }
+
+    // MARK: - Contact
+
+    /// Seule la silhouette peinte répond ; le reste du cadre laisse passer ce qui est dessous.
+    ///
+    /// Sans cela, un glisser de fichiers destiné à un autre coin du haut de l'écran — une icône
+    /// de la barre de menus, par exemple — serait avalé par le grand rectangle invisible de la
+    /// fenêtre dès que celle-ci accepte les glissers (`setFileDragActive(_:)`).
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let silhouette else { return super.hitTest(point) }
+        guard silhouette.contains(convert(point, from: superview)) else { return nil }
+        return super.hitTest(point)
+    }
+
+    // MARK: - Dépôt
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard fileTray.canAccept(sender) else { return [] }
+        // Un glisser qui arrive sur le panneau vient pour le bac : il passe devant, quel que
+        // soit l'onglet affiché jusque-là. C'est aussi ce qui garantit qu'il est bien là, et
+        // visible, au moment où le fichier tombe.
+        select(.tray, animated: true)
+        fileTray.setDropHighlighted(true)
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        fileTray.canAccept(sender) ? .copy : []
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        fileTray.setDropHighlighted(false)
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        fileTray.setDropHighlighted(false)
+        return fileTray.accept(sender)
     }
 
     // MARK: - Mise en page
@@ -366,11 +415,16 @@ final class NotchPanelContentView: NSView {
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
+        let path = expanded ? expandedPath() : collapsedPath()
+        // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
+        // le panneau déplié qu'on vient cliquer ou déposer.
+        silhouette = path
+
         // Le contenu suit le dépliage en fondu plutôt qu'au ressort, et il est découpé par la
         // silhouette elle-même (`contentMask`) : pendant le dépliage il ne doit rien dépasser de
         // la forme, qui est encore plus étroite que lui.
         PanelFold.apply(
-            path: expanded ? expandedPath() : collapsedPath(),
+            path: path,
             to: [backgroundLayer, strokeLayer, contentMask],
             in: bounds,
             fading: contentContainer.layer.map { [$0] } ?? [],

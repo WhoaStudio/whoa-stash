@@ -7,6 +7,12 @@ import AppKit
 /// le bac survit au repli du panneau, au changement d'onglet et au relancement de l'app. Les
 /// fichiers ne sont que **référencés** : rien n'est copié ni déplacé sur le disque.
 ///
+/// La vue **ne s'enregistre pas** comme cible de dépôt : c'est le panneau tout entier qui la
+/// porte (`NotchPanelContentView`), parce qu'un fichier se lâche sur l'encoche — en haut, là où
+/// la silhouette repliée se voit — et pas dans le rectangle du bac, qui est tout en bas du
+/// panneau déplié. Il n'y a donc toujours qu'une cible, simplement plus large que le bac : le
+/// panneau lui confie ce qu'il reçoit (`canAccept(_:)` / `accept(_:)`).
+///
 /// Un fichier en ressort comme de n'importe quel bac du système : on le glisse vers le Finder ou
 /// une autre app, et il ne quitte le bac qu'une fois le dépôt abouti (voir `FileTrayRowView`).
 final class FileTrayView: NSView {
@@ -60,8 +66,6 @@ final class FileTrayView: NSView {
         emptyLabel.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
         addSubview(emptyLabel)
 
-        registerForDraggedTypes([.fileURL])
-
         // Il y a une vue par écran, et elles vont et viennent avec les fenêtres : chacune suit
         // le bac partagé plutôt que d'être tenue par lui.
         storeObserver = NotificationCenter.default.addObserver(
@@ -90,24 +94,18 @@ final class FileTrayView: NSView {
 
     // MARK: - Dépôt
 
-    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard accepts(sender) else { return [] }
-        isDropTarget = true
-        applyPalette()
-        return .copy
+    /// Le glisser est-il de ceux que le bac retient ? Un glisser venu d'une ligne du bac
+    /// lui-même ne l'est pas : relâcher là d'où l'on vient doit se lire comme un glisser annulé,
+    /// qui laisse le fichier en place, et non comme un dépôt abouti qui l'en retirerait.
+    func canAccept(_ sender: any NSDraggingInfo) -> Bool {
+        guard !(sender.draggingSource is FileTrayRowView) else { return false }
+        return sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions)
     }
 
-    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
-        isDropTarget = false
-        applyPalette()
-    }
-
-    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        isDropTarget = false
-        applyPalette()
-
+    /// Range dans le bac ce que le panneau vient de recevoir.
+    func accept(_ sender: any NSDraggingInfo) -> Bool {
         guard
-            accepts(sender),
+            canAccept(sender),
             let dropped = sender.draggingPasteboard.readObjects(
                 forClasses: [NSURL.self],
                 options: readingOptions
@@ -119,12 +117,12 @@ final class FileTrayView: NSView {
         return true
     }
 
-    /// Un glisser venu d'une ligne du bac lui-même n'est pas un dépôt : relâcher là d'où l'on
-    /// vient doit se lire comme un glisser annulé, qui laisse le fichier en place, et non comme
-    /// un dépôt abouti qui l'en retirerait.
-    private func accepts(_ sender: any NSDraggingInfo) -> Bool {
-        guard !(sender.draggingSource is FileTrayRowView) else { return false }
-        return sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions)
+    /// Allume le liseré pendant qu'un glisser survole le panneau. C'est lui qui dit où le
+    /// fichier va tomber, alors que la cible, elle, est tout le panneau.
+    func setDropHighlighted(_ highlighted: Bool) {
+        guard highlighted != isDropTarget else { return }
+        isDropTarget = highlighted
+        applyPalette()
     }
 
     private var readingOptions: [NSPasteboard.ReadingOptionKey: Any] {

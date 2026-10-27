@@ -114,8 +114,8 @@ enum PanelGeometry {
 
     // MARK: - Zone sensible
 
-    /// Zone sensible d'une bande : 100 pt de haut sur 20 pt de large, mesurée depuis le coin
-    /// supérieur de son bord d'accroche. On va chercher la bande là où elle vit — ailleurs sur
+    /// Zone sensible d'une bande : 100 pt de haut sur 20 pt de large, mesurée depuis le milieu
+    /// vertical de son bord d'accroche. On va chercher la bande là où elle vit — ailleurs sur
     /// le bord, elle s'ouvrirait loin du curseur qui l'a appelée.
     static let hotZoneWidth: CGFloat = 20
     static let hotZoneHeight: CGFloat = 100
@@ -124,7 +124,7 @@ enum PanelGeometry {
         let frame = screen.frame
         return NSRect(
             x: edge == .right ? frame.maxX - hotZoneWidth : frame.minX,
-            y: frame.maxY - hotZoneHeight,
+            y: frame.midY - hotZoneHeight / 2,
             width: hotZoneWidth,
             height: hotZoneHeight
         )

@@ -156,6 +156,11 @@ final class NotchPanelController {
         // curseur emmène le fichier loin du panneau, qui se refermerait sous la main.
         guard !FileShelfStore.shared.isDraggingOut else { return }
 
+        // Tous les écrans, et pas seulement celui du curseur : un glisser traverse les écrans, et
+        // le panneau qu'il survolera ensuite doit déjà être prêt à le recevoir.
+        let draggingFiles = isDraggingFiles
+        windows.values.forEach { $0.setFileDragActive(draggingFiles) }
+
         // Un seul écran est testé, celui qui contient le curseur : avec plusieurs écrans
         // accolés, les zones sensibles du haut se touchent et tester toutes les zones déplierait
         // le panneau du mauvais écran.

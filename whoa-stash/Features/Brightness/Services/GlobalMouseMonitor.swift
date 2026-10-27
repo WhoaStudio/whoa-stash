@@ -11,7 +11,8 @@ final class GlobalMouseMonitor {
     /// Finder, par exemple — n'émet pas de `.mouseMoved` : sans cela, un panneau qui se déplie
     /// au survol resterait replié tout au long du glisser, et n'aurait jamais l'occasion de
     /// recevoir le dépôt. Hors de ce cas, les surcoûts d'un événement par image de glisser ne
-    /// servent à rien, d'où le défaut.
+    /// servent à rien, d'où le défaut. Le relâchement (`.leftMouseUp`) en fait partie : c'est
+    /// lui qui dit que le glisser est fini et que tout peut reprendre son état de repos.
     private let tracksDrags: Bool
 
     private var globalMonitor: Any?
@@ -24,7 +25,7 @@ final class GlobalMouseMonitor {
     func start() {
         stop()
 
-        let mask: NSEvent.EventTypeMask = tracksDrags ? [.mouseMoved, .leftMouseDragged] : [.mouseMoved]
+        let mask: NSEvent.EventTypeMask = tracksDrags ? [.mouseMoved, .leftMouseDragged, .leftMouseUp] : [.mouseMoved]
 
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
             self?.onMove?(NSEvent.mouseLocation)
