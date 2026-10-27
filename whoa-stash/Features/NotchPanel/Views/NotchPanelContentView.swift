@@ -34,9 +34,10 @@ final class NotchPanelContentView: NSView {
     /// de `contentContainer`, que la silhouette découpe.
     private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
-    /// L'onglet Global : la semaine, seule.
+    /// L'onglet Global : la semaine en tête, puis le widget calendrier.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
+    private let calendarWidget = CalendarWidgetView()
     private let fileTray = FileTrayView()
 
     /// L'onglet AI : les deux colonnes d'utilisation — les bagues et la carte —, qui se montrent
@@ -126,6 +127,7 @@ final class NotchPanelContentView: NSView {
         aiColumns.addSubview(card)
 
         globalTab.addSubview(weekStrip)
+        globalTab.addSubview(calendarWidget)
         contentContainer.addSubview(globalTab)
 
         contentContainer.addSubview(fileTray)
@@ -222,11 +224,15 @@ final class NotchPanelContentView: NSView {
         }
     }
 
-    /// Bascule d'onglet, au clic dans la barre ou au repli du panneau, qui ramène sur Global.
-    /// Remet la semaine à la bonne date — appelé à chaque dépliage, le panneau restant en
-    /// mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
+    func apply(agendaState: CalendarAgendaState) {
+        calendarWidget.apply(agendaState)
+    }
+
+    /// Remet la semaine **et** le widget calendrier à la bonne date — appelé à chaque dépliage,
+    /// le panneau restant en mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
     func refreshWeek() {
         weekStrip.refresh()
+        calendarWidget.refresh()
     }
 
     func select(_ tab: NotchTab, animated: Bool) {
@@ -355,15 +361,23 @@ final class NotchPanelContentView: NSView {
                 : body.insetBy(dx: inset, dy: 0)
         }
 
-        // Dans le repère de `globalTab` : la semaine en tête, sur toute la largeur utile. Le
-        // corps est plus haut qu'elle — c'est l'onglet AI qui le dimensionne — et elle reste en
-        // tête plutôt que centrée, à la place qu'elle occupait quand les colonnes la suivaient.
+        // Dans le repère de `globalTab` : la semaine en tête, sur toute la largeur utile, puis
+        // le widget calendrier qui prend tout le reste. C'est cet onglet qui est le plus haut,
+        // donc son corps est exactement ce que la géométrie lui réserve — rien ne flotte.
         let weekHeight = NotchPanelGeometry.weekStripHeight
         weekStrip.frame = NSRect(
             x: globalTab.bounds.minX,
             y: globalTab.bounds.maxY - weekHeight,
             width: globalTab.bounds.width,
             height: weekHeight
+        )
+
+        let calendarTop = weekStrip.frame.minY - NotchPanelGeometry.calendarTopGap
+        calendarWidget.frame = NSRect(
+            x: globalTab.bounds.minX,
+            y: globalTab.bounds.minY,
+            width: globalTab.bounds.width,
+            height: max(0, calendarTop - globalTab.bounds.minY)
         )
 
         // Dans le repère de `aiColumns` : les deux colonnes se partagent toute sa hauteur.
