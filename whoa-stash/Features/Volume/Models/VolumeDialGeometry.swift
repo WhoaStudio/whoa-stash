@@ -18,7 +18,7 @@ enum VolumeDialGeometry {
     /// Diamètre du disque, qui est aussi le côté de la fenêtre : rien n'est peint hors du
     /// cercle, et ce qui dépasserait ne serait qu'une zone invisible retenant le cadran ouvert
     /// sous un curseur déjà parti.
-    static let diameter: CGFloat = 196
+    static let diameter: CGFloat = 156
 
     /// Marge conservée avec les deux bords du coin — la même que celle des bandes de flanc,
     /// pour que le cadran ne soit soudé ni à la barre de menus ni au flanc de l'écran.

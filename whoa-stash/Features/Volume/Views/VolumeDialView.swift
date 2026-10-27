@@ -36,7 +36,7 @@ final class VolumeDialView: NSView {
     /// inversible, et Core Animation ne sait plus où poser ce qu'elle porte.
     private let collapsedScale: CGFloat = 0.02
 
-    private let valueFontSize: CGFloat = 44
+    private let valueFontSize: CGFloat = 34
     private let captionFontSize: CGFloat = 11
 
     // Même remarque que dans `SunButtonView` : NSView (addSubview) et CALayer (addSublayer)
@@ -181,7 +181,7 @@ final class VolumeDialView: NSView {
         let valueHeight = valueFontSize * 1.2
         valueLayer.frame = CGRect(
             x: disc.minX,
-            y: disc.midY + 30 - valueHeight,
+            y: disc.midY + 25 - valueHeight,
             width: disc.width,
             height: valueHeight
         )
