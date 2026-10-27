@@ -1,17 +1,18 @@
 import AppKit
 
-/// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// de son bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
+/// Géométrie du panneau latéral pour un écran donné : la zone sensible posée au milieu de son
+/// bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
 /// bagues. Tout est exprimé en coordonnées globales AppKit (origine en bas à gauche de l'écran
 /// principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
-    /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord d'accroche.
+    /// Zone sensible : 100 pt de haut sur 20 pt de large, centrée sur le bord d'accroche.
     static let hotZoneWidth = PanelGeometry.hotZoneWidth
     static let hotZoneHeight = PanelGeometry.hotZoneHeight
 
-    /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
-    static let topInset = PanelGeometry.topInset
+    /// Marge gardée avec le haut et le bas de la zone visible, pour que le panneau n'y soit pas
+    /// soudé quand sa pile de bagues réclame plus de hauteur que l'écran n'en offre.
+    static let screenInset = PanelGeometry.screenInset
 
     // MARK: - Bande de bagues
 
@@ -103,7 +104,7 @@ enum SidePanelGeometry {
     static func panelFrame(on screen: NSScreen) -> NSRect {
         // La pile de bagues peut réclamer plus de hauteur que l'écran n'en offre : le cadre
         // s'arrête alors à la zone visible, et c'est la liste qui défile à l'intérieur.
-        let available = screen.visibleFrame.height - topInset
+        let available = screen.visibleFrame.height - 2 * screenInset
         let height = min(panelHeight, max(minimumPanelHeight, available))
         return PanelGeometry.panelFrame(on: screen, anchoredTo: anchorEdge, height: height)
     }

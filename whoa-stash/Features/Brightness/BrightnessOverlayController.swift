@@ -179,9 +179,9 @@ final class BrightnessOverlayController {
         }
     }
 
-    /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : un coin,
-    /// pas tout le bord. La bande est accrochée en haut — appelée depuis le bas de l'écran, elle
-    /// s'ouvrirait à l'autre bout, loin du curseur.
+    /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : son milieu,
+    /// pas tout le bord. La bande est centrée sur ce bord — appelée depuis un coin de l'écran,
+    /// elle s'ouvrirait loin du curseur.
     private func isInHotZone(_ location: NSPoint) -> Bool {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }) else { return false }
         return PanelGeometry.hotZone(on: screen, anchoredTo: widgetPosition).contains(location)
@@ -214,8 +214,8 @@ final class BrightnessOverlayController {
     private func position(on screen: NSScreen) {
         // Le panel démarre pile au bord de l'écran : le curseur qui déclenche l'apparition
         // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol. Le cadre
-        // vient de la géométrie commune — accroché en haut, sous la barre de menus, comme le
-        // panneau latéral, pour que les deux bandes soient à la même place sur leur bord.
+        // vient de la géométrie commune — centré sur le milieu du bord, comme le panneau
+        // latéral, pour que les deux bandes soient à la même place sur leur bord.
         let frame = PanelGeometry.panelFrame(
             on: screen,
             anchoredTo: widgetPosition,

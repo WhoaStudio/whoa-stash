@@ -88,8 +88,10 @@ struct SettingsBehaviorTests {
 
         #expect(small.height == WidgetSize.small.panelHeight)
         #expect(large.height == WidgetSize.large.panelHeight)
-        // Les deux restent accrochées au même haut : seule la hauteur change.
-        #expect(small.maxY == large.maxY)
+        // Les deux restent centrées sur le même milieu de bord : seule la hauteur change.
+        #expect(small.midY == large.midY)
+        // Et c'est bien là que la zone sensible va les chercher.
+        #expect(PanelGeometry.hotZone(on: screen, anchoredTo: .left).midY == small.midY)
     }
 
     // MARK: - Raccourci global
