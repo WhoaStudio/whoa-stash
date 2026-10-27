@@ -33,8 +33,10 @@ enum SidePanelGeometry {
     /// Marges intérieures du panneau. Les marges haute et basse valent au moins le rayon de la
     /// silhouette : au-dessus de cette ligne, le bord peint se relève vers le bord de l'écran
     /// pour former l'évasement, et tout contenu qui y monterait sortirait du chemin.
-    static let contentVerticalInset = PanelGeometry.contentVerticalInset
-    static let contentHorizontalInset = PanelGeometry.contentHorizontalInset
+    /// La bande est suspendue à un bord **vertical** : c'est donc le haut et le bas qui courent
+    /// le long du bord d'accroche, et la gauche et la droite qui s'en éloignent en profondeur.
+    static let contentVerticalInset = PanelGeometry.contentInsetAlongAnchor
+    static let contentHorizontalInset = PanelGeometry.contentInsetAcrossAnchor
 
     // MARK: - Bande de bagues
 

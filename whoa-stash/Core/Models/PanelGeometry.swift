@@ -12,11 +12,20 @@ enum PanelGeometry {
     /// les raccords rognent la zone peinte près du bord d'accroche.
     static let cornerRadius: CGFloat = 28
 
-    /// Marges intérieures. La marge verticale vaut au moins le rayon : au-delà de cette ligne le
-    /// bord peint se relève vers le bord d'accroche, et tout contenu qui y monterait sortirait du
-    /// chemin.
-    static let contentVerticalInset: CGFloat = cornerRadius + 6
-    static let contentHorizontalInset: CGFloat = 14
+    /// Marges intérieures, décrites comme la silhouette elle-même : dans le repère du bord
+    /// d'accroche, et non dans celui de l'écran. C'est ce qui les rend justes aux trois
+    /// accroches — ce que les raccords rognent se déduit du bord auquel le panneau est suspendu,
+    /// pas d'une horizontale ou d'une verticale.
+    ///
+    /// **Le long** du bord d'accroche, la marge vaut au moins le rayon : les deux raccords
+    /// concaves y rentrent la silhouette de `cornerRadius` de chaque côté, et tout contenu posé
+    /// en deçà sortirait du chemin. C'est le haut et le bas d'une bande de flanc — et la gauche
+    /// et la droite du panneau de l'encoche, suspendu au bord du haut.
+    static let contentInsetAlongAnchor: CGFloat = cornerRadius + 6
+
+    /// **En profondeur** depuis le bord d'accroche, la silhouette est pleine : il suffit de ne
+    /// pas coller le contenu au bord peint.
+    static let contentInsetAcrossAnchor: CGFloat = 14
 
     /// Écart entre deux blocs empilés dans le corps d'un panneau.
     static let contentSpacing: CGFloat = 14
