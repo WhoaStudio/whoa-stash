@@ -66,8 +66,9 @@ enum SidePanelGeometry {
 
     // MARK: - Cadre du panneau
 
-    /// La bande est large, même si les bagues s'y empilent verticalement : la largeur vient du
-    /// fonds commun — le widget de luminosité, accroché au bord opposé, doit lui répondre.
+    /// La bande est étroite : les bagues s'y empilent verticalement, donc sa largeur n'a à
+    /// tenir qu'une case (`ringTileSize`) et ses deux marges. Elle vient du fonds commun, qui
+    /// la serre au plus près.
     static let panelWidth = PanelGeometry.panelWidth
 
     /// Hauteur plancher, pour que la bande garde une silhouette posée même quand son contenu

@@ -35,9 +35,10 @@ enum PanelGeometry {
 
     // MARK: - Cadre des bandes de bord
 
-    /// Largeur d'une bande accrochée à un bord vertical. Les deux bords la partagent : posées
-    /// face à face, les bandes doivent se répondre.
-    static let panelWidth: CGFloat = 380
+    /// Largeur d'une bande accrochée à un bord vertical : celle du panneau latéral, qui serre
+    /// sa pile de bagues (`SidePanelGeometry.ringTileSize`) au plus près. Une bande ne porte
+    /// qu'une colonne de contenu — l'élargir ne ferait que voiler l'écran derrière elle.
+    static let panelWidth: CGFloat = 96
 
     /// Hauteur plancher, pour qu'une bande garde une silhouette posée même quand son contenu
     /// tient en moins. C'est aussi la hauteur de celles qui n'ont pas de contenu à mesurer.
@@ -46,11 +47,26 @@ enum PanelGeometry {
     /// Marge sous le bas de la barre de menus, pour qu'une bande ne soit pas soudée à elle.
     static let topInset: CGFloat = 8
 
-    /// Largeur de la bande de luminosité. Elle ne remplit pas tout `panelWidth` : le reste du
-    /// cadre reste transparent et sert de marge où la bulle de valeur peut se poser hors de la
-    /// bande. Le cadre de la fenêtre, lui, garde la largeur commune — c'est la silhouette seule
-    /// qui se resserre.
-    static let brightnessBandWidth: CGFloat = 190
+    /// Largeur de la bande de luminosité : la barre de graduations et ses deux marges, rien de
+    /// plus. Le soleil, lui, vit hors de la bande, dans la marge transparente que lui laisse
+    /// `brightnessPanelWidth`.
+    static let brightnessBandWidth: CGFloat = contentInsetAcrossAnchor * 2 + brightnessBarWidth
+
+    /// Largeur de la barre de graduations — tout ce que la bande a à contenir.
+    static let brightnessBarWidth: CGFloat = 40
+
+    /// Côté de la bulle posée à côté de la bande — le soleil au repos, la valeur pendant le
+    /// réglage.
+    static let brightnessBubbleSize: CGFloat = 44
+
+    /// Écart entre le bord peint de la bande et cette bulle.
+    static let brightnessBubbleSpacing: CGFloat = 12
+
+    /// Largeur du cadre du widget de luminosité : la bande, puis la marge transparente où la
+    /// bulle se pose. Le cadre serre les deux au plus près — ce qui dépasse ne serait qu'une
+    /// zone invisible qui retiendrait le widget ouvert sous un curseur déjà parti.
+    static let brightnessPanelWidth: CGFloat =
+        brightnessBandWidth + brightnessBubbleSpacing + brightnessBubbleSize
 
     /// Part d'un cadre de bande réellement peinte par le widget de luminosité : la moitié
     /// accrochée au bord configuré. Décrite sur un `CGRect` quelconque, donc valable aussi bien
@@ -74,11 +90,12 @@ enum PanelGeometry {
     static func panelFrame(
         on screen: NSScreen,
         anchoredTo edge: EdgePosition,
-        height: CGFloat = minimumPanelHeight
+        height: CGFloat = minimumPanelHeight,
+        width: CGFloat = panelWidth
     ) -> NSRect {
         let top = screen.visibleFrame.maxY - topInset
-        let x = edge == .right ? screen.frame.maxX - panelWidth : screen.frame.minX
-        return NSRect(x: x, y: top - height, width: panelWidth, height: height)
+        let x = edge == .right ? screen.frame.maxX - width : screen.frame.minX
+        return NSRect(x: x, y: top - height, width: width, height: height)
     }
 
     // MARK: - Poignée repliée

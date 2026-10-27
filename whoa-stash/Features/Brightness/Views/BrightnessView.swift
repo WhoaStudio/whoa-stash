@@ -2,12 +2,12 @@ import AppKit
 
 /// Vue racine de l'overlay : une bande accrochée à un bord de l'écran, de la même matière que
 /// le panneau latéral — même hauteur, même silhouette évasée dans le bord, même fond plein et
-/// même filet (`PanelGeometry`). Elle est deux fois plus étroite que lui : son contenu tient en
-/// peu de place, et le reste du cadre, laissé transparent, sert de marge où la bulle de valeur
-/// se pose hors de la bande.
+/// même filet (`PanelGeometry`). Elle est bien plus étroite que lui : elle ne
+/// porte que la barre de graduations, et le reste du cadre, laissé transparent, sert de marge
+/// où le soleil se pose hors de la bande.
 ///
-/// Assemble `BrightnessBarView` et `SunButtonView` dans la boîte de contenu de la bande, pilote
-/// son dépliage et retranscrit le thème effectif (clair/sombre) vers ses enfants à chaque
+/// Assemble `BrightnessBarView` dans la boîte de contenu de la bande et `SunButtonView` à côté
+/// d'elle, pilote son dépliage et retranscrit le thème effectif (clair/sombre) vers ses enfants à chaque
 /// changement d'apparence.
 ///
 /// Elle se déplie depuis son bord comme la bande de bagues et le panneau de l'encoche, du même
@@ -18,11 +18,9 @@ import AppKit
 final class BrightnessView: NSView {
 
     let barView: BrightnessBarView
+    /// Posé hors de la bande, donc hors du masque de dépliage : il est fils de la vue racine
+    /// et non du conteneur de contenu, que la silhouette découpe.
     let sunButton: SunButtonView
-
-    /// Posée hors de la bande, donc hors du masque de dépliage : elle est fille de la vue
-    /// racine et non du conteneur de contenu, que la silhouette découpe.
-    private let valueBubble: BrightnessValueBubbleView
 
     /// Le scroll trackpad n'est exposé nulle part au niveau fenêtre par AppKit :
     /// on le capte directement ici, sur la vue qui reçoit réellement l'événement.
@@ -53,13 +51,12 @@ final class BrightnessView: NSView {
         PanelGeometry.brightnessBand(in: bounds, anchoredTo: edge)
     }
 
-    private let barWidth: CGFloat = 40
-    private let buttonSize: CGFloat = 44
-    private let buttonSpacing: CGFloat = 10
+    private let barWidth = PanelGeometry.brightnessBarWidth
+    private let buttonSize = PanelGeometry.brightnessBubbleSize
 
-    /// Écart entre le bord peint de la bande et la bulle de valeur : assez pour qu'elle se lise
-    /// comme posée à côté, et non comme un morceau de la bande.
-    private let bubbleSpacing: CGFloat = 12
+    /// Écart entre le bord peint de la bande et le soleil : assez pour qu'il se lise comme posé
+    /// à côté, et non comme un morceau de la bande.
+    private let buttonSpacing = PanelGeometry.brightnessBubbleSpacing
 
     // Même remarque que dans BrightnessBarView : NSView (addSubview) et CALayer (addSublayer)
     // mélangés comme frères n'ont pas d'ordre garanti. zPosition fige le stacking.
@@ -71,7 +68,6 @@ final class BrightnessView: NSView {
     init(tickCount: Int, initialPalette: OverlayPalette) {
         barView = BrightnessBarView(tickCount: tickCount, palette: initialPalette)
         sunButton = SunButtonView(palette: initialPalette)
-        valueBubble = BrightnessValueBubbleView(palette: initialPalette)
         super.init(frame: .zero)
         wantsLayer = true
         setUp(palette: initialPalette)
@@ -105,9 +101,8 @@ final class BrightnessView: NSView {
         addSubview(contentContainer)
 
         contentContainer.addSubview(barView)
-        contentContainer.addSubview(sunButton)
 
-        addSubview(valueBubble)
+        addSubview(sunButton)
 
         applyPalette(palette)
 
@@ -136,34 +131,27 @@ final class BrightnessView: NSView {
             dy: PanelGeometry.contentInsetAlongAnchor
         )
 
-        // La barre et le soleil restent groupés et centrés dans la boîte : la bande est plus
-        // large qu'eux, et les coller à un bord les ferait flotter de travers.
-        let groupWidth = barWidth + buttonSpacing + buttonSize
-        let groupX = box.minX + (box.width - groupWidth) / 2
+        // La barre tient seule dans la bande, centrée dans la boîte : la coller à un bord la
+        // ferait flotter de travers.
+        barView.frame = NSRect(
+            x: box.midX - barWidth / 2,
+            y: box.minY,
+            width: barWidth,
+            height: box.height
+        )
 
-        barView.frame = NSRect(x: groupX, y: box.minY, width: barWidth, height: box.height)
-
+        // Le soleil se pose hors de la bande, du côté opposé au bord d'accroche, et reste
+        // centré en hauteur sur elle : c'est là, et non dans la bande, que la valeur se lit
+        // pendant le réglage, à la place de l'icône.
+        let buttonX = edge == .right
+            ? bandRect.minX - buttonSpacing - buttonSize
+            : bandRect.maxX + buttonSpacing
         sunButton.frame = NSRect(
-            x: barView.frame.maxX + buttonSpacing,
-            y: box.midY - buttonSize / 2,
+            x: buttonX,
+            y: bandRect.midY - buttonSize / 2,
             width: buttonSize,
             height: buttonSize
         )
-
-        // La bulle se pose hors de la bande, du côté opposé au bord d'accroche, et reste
-        // centrée en hauteur sur elle. Elle entre en glissant depuis la bande : la direction
-        // dépend donc du bord, et c'est la mise en page qui la lui donne.
-        let bubbleSize = valueBubble.intrinsicSize
-        let bubbleX = edge == .right
-            ? bandRect.minX - bubbleSpacing - bubbleSize.width
-            : bandRect.maxX + bubbleSpacing
-        valueBubble.frame = NSRect(
-            x: bubbleX,
-            y: bandRect.midY - bubbleSize.height / 2,
-            width: bubbleSize.width,
-            height: bubbleSize.height
-        )
-        valueBubble.entryOffset = edge == .right ? bubbleSpacing : -bubbleSpacing
     }
 
     // MARK: - Dépliage
@@ -234,7 +222,7 @@ final class BrightnessView: NSView {
     }
 
     func showPercent(_ percent: Int) {
-        valueBubble.show(percent: percent)
+        sunButton.showPercent(percent)
     }
 
     func applyPalette(_ palette: OverlayPalette) {
@@ -242,7 +230,6 @@ final class BrightnessView: NSView {
         strokeLayer.strokeColor = palette.strokeColor
         barView.apply(palette: palette)
         sunButton.apply(palette: palette)
-        valueBubble.apply(palette: palette)
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -254,11 +241,12 @@ final class BrightnessView: NSView {
         onScroll?(event.scrollingDeltaY)
     }
 
-    /// Hors de la bande, la fenêtre est transparente : elle ne doit ni capter les clics ni
-    /// recevoir le scroll, sinon la moitié vide — qui n'est là que pour loger la bulle —
-    /// réglerait la luminosité et masquerait ce qu'il y a dessous.
+    /// Hors de la bande et du soleil, la fenêtre est transparente : elle ne doit ni capter les
+    /// clics ni recevoir le scroll, sinon le vide entre les deux réglerait la luminosité et
+    /// masquerait ce qu'il y a dessous.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bandRect.contains(convert(point, from: superview)) else { return nil }
+        let local = convert(point, from: superview)
+        guard bandRect.contains(local) || sunButton.frame.contains(local) else { return nil }
         return super.hitTest(point)
     }
 }

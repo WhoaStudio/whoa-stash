@@ -29,13 +29,12 @@ final class BrightnessOverlayController {
     private var settingsCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
 
-    /// Taille de la fenêtre : la largeur est celle du panneau latéral, la hauteur suit
-    /// `Brightness > Widget size`. La bande, elle, n'en peint que la moitié accrochée au bord
-    /// (`PanelGeometry.brightnessBandWidth`) : le reste reste transparent et loge la bulle de
-    /// valeur. La fenêtre est créée avec cette taille, puis recadrée sur l'écran d'arrivée par
+    /// Taille de la fenêtre : la largeur serre la bande et la bulle du soleil posée à côté
+    /// (`PanelGeometry.brightnessPanelWidth`), la hauteur suit `Brightness > Widget size`. La
+    /// fenêtre est créée avec cette taille, puis recadrée sur l'écran d'arrivée par
     /// `position(on:)`.
     private var panelSize: NSSize {
-        NSSize(width: PanelGeometry.panelWidth, height: widgetSize.panelHeight)
+        NSSize(width: PanelGeometry.brightnessPanelWidth, height: widgetSize.panelHeight)
     }
 
     private var closeDelay: TimeInterval
@@ -65,7 +64,7 @@ final class BrightnessOverlayController {
         )
 
         panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: NSSize(width: PanelGeometry.panelWidth, height: brightness.widgetSize.panelHeight)),
+            contentRect: NSRect(origin: .zero, size: NSSize(width: PanelGeometry.brightnessPanelWidth, height: brightness.widgetSize.panelHeight)),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -170,7 +169,7 @@ final class BrightnessOverlayController {
         guard !OverlayContextMenu.shared.isPresenting else { return }
 
         if viewModel.isVisible {
-            if bandFrame.contains(location) {
+            if panel.frame.contains(location) {
                 cancelClose()
             } else {
                 scheduleClose()
@@ -178,13 +177,6 @@ final class BrightnessOverlayController {
         } else if isInHotZone(location) {
             reveal()
         }
-    }
-
-    /// Part du cadre de la fenêtre que la bande peint vraiment. Le reste du cadre est
-    /// transparent — il ne sert qu'à loger la bulle de valeur — et le suivi du curseur doit
-    /// l'ignorer, sans quoi le widget resterait ouvert alors que le pointeur a quitté la bande.
-    private var bandFrame: NSRect {
-        PanelGeometry.brightnessBand(in: panel.frame, anchoredTo: widgetPosition)
     }
 
     /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : un coin,
@@ -224,7 +216,12 @@ final class BrightnessOverlayController {
         // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol. Le cadre
         // vient de la géométrie commune — accroché en haut, sous la barre de menus, comme le
         // panneau latéral, pour que les deux bandes soient à la même place sur leur bord.
-        let frame = PanelGeometry.panelFrame(on: screen, anchoredTo: widgetPosition, height: widgetSize.panelHeight)
+        let frame = PanelGeometry.panelFrame(
+            on: screen,
+            anchoredTo: widgetPosition,
+            height: widgetSize.panelHeight,
+            width: PanelGeometry.brightnessPanelWidth
+        )
         panel.setFrame(frame, display: true)
         containerView.frame = NSRect(origin: .zero, size: frame.size)
     }
