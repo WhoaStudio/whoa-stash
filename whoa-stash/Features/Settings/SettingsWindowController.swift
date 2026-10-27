@@ -10,7 +10,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     static let shared = SettingsWindowController()
 
     private let settingsViewModel = SettingsViewModel()
-    private var appearanceCancellable: AnyCancellable?
 
     private convenience init() {
         let window = NSWindow(
@@ -24,7 +23,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        window.appearance = SettingsStorage.shared.settings.general.appearanceMode.nsAppearance
         window.center()
 
         self.init(window: window)
@@ -35,13 +33,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             SettingsStorage.shared.settings.general.enableAnimations
         }
         window.contentViewController = root
-
-        appearanceCancellable = SettingsStorage.shared.$settings
-            .map(\.general.appearanceMode)
-            .removeDuplicates()
-            .sink { [weak self] mode in
-                self?.window?.appearance = mode.nsAppearance
-            }
     }
 
     /// Seul chemin d'ouverture de la fenêtre — la menu bar, le menu contextuel des panneaux,

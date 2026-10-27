@@ -182,7 +182,7 @@ private final class ClaudeUsageRowView: NSView {
         titleLabel.textColor = palette.buttonSymbolColor
         usedLabel.textColor = palette.buttonSymbolColor
         resetLabel.textColor = .secondaryLabelColor
-        trackLayer.backgroundColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        trackLayer.backgroundColor = ClaudeUsagePalette.track
     }
 
     func apply(window: ClaudeUsageWindow, animated: Bool) {

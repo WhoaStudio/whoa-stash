@@ -82,7 +82,7 @@ struct OverlayContextMenuTests {
     /// montrerait plus rien, sans que rien d'autre ne change.
     @Test("les trois panneaux de l'overlay portent le même menu")
     func everyPanelCarriesTheSharedMenu() {
-        let palette = OverlayPalette.base(for: NSAppearance(named: .darkAqua)!)
+        let palette = OverlayPalette.base
 
         let views: [(String, NSView)] = [
             ("bande de flanc", SidePanelContentView()),

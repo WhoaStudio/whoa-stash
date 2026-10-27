@@ -22,7 +22,6 @@ final class SidePanelController {
     private var activeDisplay: CGDirectDisplayID?
 
     private var screenObserver: NSObjectProtocol?
-    private var appearanceCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
 
@@ -67,13 +66,6 @@ final class SidePanelController {
         }
         mouseMonitor.start()
 
-        appearanceCancellable = storage.$settings
-            .map(\.general.appearanceMode)
-            .removeDuplicates()
-            .sink { [weak self] mode in
-                self?.apply(appearanceMode: mode)
-            }
-
         paletteObserver = NotificationCenter.default.addObserver(
             forName: OverlayPalette.didChangeNotification,
             object: nil,
@@ -81,11 +73,6 @@ final class SidePanelController {
         ) { [weak self] _ in
             Task { @MainActor in self?.applyPaletteChange() }
         }
-    }
-
-    private func apply(appearanceMode: AppearanceMode) {
-        windows.values.forEach { $0.apply(appearanceMode: appearanceMode) }
-        callouts.values.forEach { $0.apply(appearanceMode: appearanceMode) }
     }
 
     /// Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
@@ -247,12 +234,12 @@ final class SidePanelController {
             if let existing = windows[displayID] {
                 window = existing
             } else {
-                window = SidePanelWindow(appearanceMode: storage.settings.general.appearanceMode)
+                window = SidePanelWindow()
                 windows[displayID] = window
             }
 
             if callouts[displayID] == nil {
-                callouts[displayID] = UsageCalloutWindow(appearanceMode: storage.settings.general.appearanceMode)
+                callouts[displayID] = UsageCalloutWindow()
             }
 
             // Un écran déjà connu a pu changer de taille ou de position ; seule la bande visible

@@ -91,7 +91,7 @@ final class ClaudeUsageRingView: NSView {
 
         let fill = session.map { CGFloat($0.utilization) } ?? 0
         let color = session.map { ClaudeUsagePalette.color(for: $0.utilization) }
-            ?? ClaudeUsagePalette.unavailable(for: effectiveAppearance)
+            ?? ClaudeUsagePalette.unavailable
 
         if animated {
             progressLayer.springAnimate(keyPath: "strokeEnd", to: fill, preset: .snappy)
@@ -123,7 +123,7 @@ final class ClaudeUsageRingView: NSView {
 
     private func applyAppearance() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        trackLayer.strokeColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        trackLayer.strokeColor = ClaudeUsagePalette.track
         // Même encre que le reste de la bande : `NSColor.labelColor` se résolvait sur
         // l'apparence de dessin courante et non sur celle de la vue, ce qui donnait un
         // pourcentage noir sur fond sombre.

@@ -1,37 +1,12 @@
 import AppKit
 
-/// Thème de l'interface. `.system` suit l'apparence macOS en direct.
-enum AppearanceMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case system
-    case light
-    case dark
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
-        }
-    }
-
-    /// `nil` laisse la fenêtre hériter de l'apparence de l'app / du système.
-    var nsAppearance: NSAppearance? {
-        switch self {
-        case .system: return nil
-        case .light: return NSAppearance(named: .aqua)
-        case .dark: return NSAppearance(named: .darkAqua)
-        }
-    }
-}
-
 /// Couleur d'accent de l'overlay : la teinte des graduations actives du widget de luminosité
 /// et de la plaque derrière la bague survolée du panneau de l'encoche.
 ///
 /// `.green` est la valeur par défaut parce que c'est la teinte historique de l'app — le vert
 /// était écrit en dur dans `OverlayPalette` avant que ce réglage ne pilote quoi que ce soit.
-/// `.system` suit la couleur d'accent de macOS, et se résout donc à chaque apparence.
+/// `.system` suit la couleur d'accent de macOS, dont la résolution dépend de l'apparence de
+/// dessin courante — toujours sombre, l'app n'en a plus qu'une.
 enum AccentColor: String, Codable, CaseIterable, Identifiable, Sendable {
     case green
     case system
@@ -65,8 +40,8 @@ enum AccentColor: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     /// Résout la couleur *dans* une apparence donnée : `.system` et les couleurs système sont
-    /// dynamiques, et leur `cgColor` dépend de l'apparence courante au moment de la lecture.
-    /// Les panneaux dessinent dans leur propre apparence, pas celle de l'app.
+    /// dynamiques, et leur `cgColor` dépend de l'apparence de dessin courante au moment de la
+    /// lecture, qu'il faut donc poser explicitement.
     func cgColor(for appearance: NSAppearance) -> CGColor {
         var resolved = OverlayPalette.activeGreen
         appearance.performAsCurrentDrawingAppearance {
@@ -107,7 +82,6 @@ enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
 
 struct GeneralSettings: Codable, Equatable, Sendable {
     var launchAtLogin: Bool = false
-    var appearanceMode: AppearanceMode = .system
     var accentColor: AccentColor = .green
     var enableAnimations: Bool = true
     var enableHapticFeedback: Bool = true

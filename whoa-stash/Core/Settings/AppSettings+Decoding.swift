@@ -22,7 +22,6 @@ private extension KeyedDecodingContainer {
 extension GeneralSettings {
     enum CodingKeys: String, CodingKey {
         case launchAtLogin
-        case appearanceMode
         case accentColor
         case enableAnimations
         case enableHapticFeedback
@@ -36,7 +35,6 @@ extension GeneralSettings {
         let defaults = GeneralSettings()
         self.init(
             launchAtLogin: container.value(.launchAtLogin, defaults.launchAtLogin),
-            appearanceMode: container.value(.appearanceMode, defaults.appearanceMode),
             accentColor: container.value(.accentColor, defaults.accentColor),
             enableAnimations: container.value(.enableAnimations, defaults.enableAnimations),
             enableHapticFeedback: container.value(.enableHapticFeedback, defaults.enableHapticFeedback),

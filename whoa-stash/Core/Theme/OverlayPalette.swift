@@ -1,8 +1,7 @@
 import AppKit
 
-/// Jeu de couleurs et de matériaux résolu pour une apparence donnée (clair/sombre).
-/// Le vert des graduations actives est volontairement identique dans les deux palettes —
-/// seul l'environnement autour de lui doit s'adapter.
+/// Jeu de couleurs et de matériaux de l'overlay. L'app est sombre et ne l'est que : il n'y a
+/// qu'une palette, `base`, sur laquelle les réglages viennent se poser.
 struct OverlayPalette {
     var activeTickColor: CGColor
     var inactiveTickColor: CGColor
@@ -52,25 +51,22 @@ struct OverlayPalette {
     /// `viewDidChangeEffectiveAppearance` s'y abonnent pour la même raison.
     static let didChangeNotification = Notification.Name("whoa-stash.overlayPaletteDidChange")
 
+    /// L'apparence reste un argument : `AccentColor.system` est une couleur dynamique, dont le
+    /// `cgColor` ne se lit que dans une apparence de dessin posée explicitement.
     @MainActor
     static func resolved(for appearance: NSAppearance) -> OverlayPalette {
-        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        return (isDark ? dark : light)
+        base
             .accented(with: accent, in: appearance)
             .fadingPanel(to: panelOpacity)
-    }
-
-    /// La palette brute d'une apparence, sans les réglages. Réservée aux tests, qui vérifient
-    /// les transformations une par une.
-    static func base(for appearance: NSAppearance) -> OverlayPalette {
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
     }
 
     /// Vert d'accent de l'overlay. Partagé hors de la palette — le panneau de l'encoche
     /// s'en sert pour marquer la bague survolée — d'où sa visibilité interne.
     static let activeGreen = CGColor(red: 0x39 / 255, green: 0xFF / 255, blue: 0x88 / 255, alpha: 1)
 
-    private static let dark = OverlayPalette(
+    /// La palette brute, sans les réglages. Les tests s'en servent pour vérifier les
+    /// transformations une par une.
+    static let base = OverlayPalette(
         activeTickColor: activeGreen,
         inactiveTickColor: CGColor(gray: 0.55, alpha: 0.55),
         glowOpacity: 0.85,
@@ -87,25 +83,6 @@ struct OverlayPalette {
         tabPillContent: .white,
         tabActiveContent: .white,
         tabInactiveContent: NSColor(white: 0.62, alpha: 1)
-    )
-
-    private static let light = OverlayPalette(
-        activeTickColor: activeGreen,
-        inactiveTickColor: CGColor(gray: 0.45, alpha: 0.35),
-        glowOpacity: 0.6,
-        glowRadius: 3,
-        backgroundMaterial: .popover,
-        backgroundTint: CGColor(gray: 1, alpha: 0.4),
-        panelBackground: CGColor(gray: 0.97, alpha: 1),
-        strokeColor: CGColor(gray: 0, alpha: 0.06),
-        tabCapsuleFill: CGColor(gray: 1, alpha: 0.80),
-        tabCircleFill: CGColor(gray: 0.78, alpha: 1),
-        buttonSymbolColor: .black.withAlphaComponent(0.75),
-        buttonGlowColor: CGColor(gray: 0, alpha: 0.35),
-        tabPillFill: CGColor(gray: 0.86, alpha: 1),
-        tabPillContent: NSColor(white: 0.10, alpha: 1),
-        tabActiveContent: NSColor(white: 0.10, alpha: 1),
-        tabInactiveContent: NSColor(white: 0.42, alpha: 1)
     )
 }
 
