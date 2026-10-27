@@ -88,6 +88,18 @@ final class ClaudeUsageRingView: NSView {
         applyState(animated: animated)
     }
 
+    func applyCopilot(_ newState: CopilotUsageState, animated: Bool) {
+        apply(newState.ringState, animated: animated)
+        switch newState {
+        case .loaded(let snapshot):
+            toolTip = "\(serviceName) — premium interactions \(snapshot.premiumInteractions.percentage) %"
+        case .loading:
+            toolTip = "\(serviceName) — chargement de l'utilisation…"
+        case .unavailable(let reason):
+            toolTip = "\(serviceName) — \(reason)"
+        }
+    }
+
     private func applyState(animated: Bool) {
         let session = state.snapshot?.session
 

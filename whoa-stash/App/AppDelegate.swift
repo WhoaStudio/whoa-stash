@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
+    private var copilotUsageViewModel: CopilotUsageViewModel?
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
@@ -103,6 +104,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         usageViewModel.activate()
+
+        let copilotProvider: CopilotUsageProviding =
+            MockCopilotUsageProvider.fromLaunchArguments() ?? CopilotUsageService()
+        let copilotViewModel = CopilotUsageViewModel(provider: copilotProvider)
+        copilotUsageViewModel = copilotViewModel
+
+        copilotViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.copilotUsageViewModel?.state else { return }
+            self.sidePanelController?.apply(copilotUsageState: state)
+        }
+
+        copilotViewModel.activate()
 
         // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
         // a un par écran.

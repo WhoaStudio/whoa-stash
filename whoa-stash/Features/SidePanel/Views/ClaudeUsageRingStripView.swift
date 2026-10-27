@@ -44,9 +44,16 @@ final class ClaudeUsageRingStripView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(_ state: ClaudeUsageState, animated: Bool) {
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
         for (position, ring) in rings.enumerated() where SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(state, animated: animated)
+            switch SidePanelGeometry.ringSlots[position].mark {
+            case .claude:
+                ring.apply(claudeState, animated: animated)
+            case .copilot:
+                ring.applyCopilot(copilotState, animated: animated)
+            default:
+                break
+            }
         }
     }
 

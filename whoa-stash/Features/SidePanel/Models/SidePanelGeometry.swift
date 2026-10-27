@@ -48,20 +48,19 @@ enum SidePanelGeometry {
     // MARK: - Bande de bagues
 
     /// Une case de la bande : la marque qu'elle porte, et si une source de données l'alimente.
-    /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
-    /// neutre — en attendant que leur fournisseur soit raccordé.
+    /// Les bagues sans fournisseur sont là pour la silhouette — anneau vide, marque en teinte
+    /// neutre — en attendant leur raccordement.
     struct RingSlot: Equatable {
         let serviceName: String
         let mark: UsageMarkPath
         let isConnected: Bool
     }
 
-    /// Les bagues alignées verticalement. Claude est alimenté par son fournisseur live ; Copilot
-    /// reste visible comme entrée dédiée, mais son quota individuel n'est pas exposé par une API
-    /// GitHub publique stable.
+    /// Les bagues alignées verticalement. Claude et Copilot sont alimentés par leurs fournisseurs
+    /// respectifs ; les autres restent visibles comme emplacements futurs.
     static let ringSlots: [RingSlot] = [
         RingSlot(serviceName: "Claude Code", mark: .claude, isConnected: true),
-        RingSlot(serviceName: "GitHub Copilot", mark: .copilot, isConnected: false),
+        RingSlot(serviceName: "GitHub Copilot", mark: .copilot, isConnected: true),
         RingSlot(serviceName: "Codex", mark: .codex, isConnected: false),
         RingSlot(serviceName: "Gemini", mark: .gemini, isConnected: false),
     ]

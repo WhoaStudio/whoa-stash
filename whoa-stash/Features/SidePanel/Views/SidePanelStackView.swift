@@ -42,8 +42,8 @@ final class SidePanelStackView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        ringStrip.apply(usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
+        ringStrip.apply(claudeState: claudeState, copilotState: copilotState, animated: animated)
     }
 
     func setHighlightedRing(_ index: Int?) {

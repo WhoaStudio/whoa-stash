@@ -36,8 +36,8 @@ final class UsageCalloutWindow {
     var frame: NSRect { panel.frame }
     var isVisible: Bool { isRevealed }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        contentView.apply(usageState: usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, provider: UsageCalloutContentView.Provider, animated: Bool) {
+        contentView.apply(claudeState: claudeState, copilotState: copilotState, provider: provider, animated: animated)
     }
 
     /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change

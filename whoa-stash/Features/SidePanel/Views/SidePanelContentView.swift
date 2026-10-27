@@ -102,8 +102,8 @@ final class SidePanelContentView: NSView {
 
     /// Relayé par `SidePanelWindow` depuis le modèle de vue partagé avec la bulle : les deux
     /// surfaces montrent toujours le même instantané.
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        stack.apply(usageState: usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
+        stack.apply(claudeState: claudeState, copilotState: copilotState, animated: animated)
     }
 
     /// Met en avant la bague survolée — le contrôleur la désigne depuis la position du curseur.

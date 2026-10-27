@@ -25,7 +25,8 @@ final class SidePanelController {
     private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
 
-    private var usageState: ClaudeUsageState = .loading
+    private var claudeUsageState: ClaudeUsageState = .loading
+    private var copilotUsageState: CopilotUsageState = .loading
 
     /// Ouverture forcée, hors survol du coin (`--show-usage-panel`) : le curseur est alors
     /// n'importe où, donc le suivi normal refermerait la bande au premier mouvement.
@@ -37,6 +38,7 @@ final class SidePanelController {
     /// Bague actuellement survolée dans la bande, et donc visée par la bulle. `nil` quand le
     /// curseur est ailleurs.
     private var hoveredRingIndex: Int?
+    private var hoveredProvider: UsageCalloutContentView.Provider = .claude
 
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est téléporté,
     /// ou qu'il quitte la zone pendant un changement de Space, plus aucun événement n'arrive et
@@ -86,9 +88,27 @@ final class SidePanelController {
     /// visibles : elles doivent être déjà à jour au moment où elles glissent à l'écran, pas se
     /// remplir après coup.
     func apply(usageState newState: ClaudeUsageState) {
-        usageState = newState
-        windows.values.forEach { $0.apply(usageState: newState, animated: true) }
-        callouts.values.forEach { $0.apply(usageState: newState, animated: true) }
+        claudeUsageState = newState
+        applyCurrentUsageStates(animated: true)
+    }
+
+    func apply(copilotUsageState newState: CopilotUsageState) {
+        copilotUsageState = newState
+        applyCurrentUsageStates(animated: true)
+    }
+
+    private func applyCurrentUsageStates(animated: Bool) {
+        windows.values.forEach {
+            $0.apply(claudeState: claudeUsageState, copilotState: copilotUsageState, animated: animated)
+        }
+        callouts.values.forEach {
+            $0.apply(
+                claudeState: claudeUsageState,
+                copilotState: copilotUsageState,
+                provider: hoveredProvider,
+                animated: animated
+            )
+        }
     }
 
     /// Ouvre (ou referme) la bande de l'écran qui contient le curseur — appelé par
@@ -114,7 +134,11 @@ final class SidePanelController {
 
         isPinned = true
         hasVisitedPinnedPanel = false
-        window.apply(usageState: usageState, animated: false)
+        window.apply(
+            claudeState: claudeUsageState,
+            copilotState: copilotUsageState,
+            animated: false
+        )
         window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
         startPolling()
     }
@@ -171,7 +195,11 @@ final class SidePanelController {
             hideActive()
             activeDisplay = displayID
         }
-        window.apply(usageState: usageState, animated: false)
+        window.apply(
+            claudeState: claudeUsageState,
+            copilotState: copilotUsageState,
+            animated: false
+        )
         window.reveal(in: SidePanelGeometry.panelFrame(on: screen))
         startPolling()
 
@@ -204,15 +232,22 @@ final class SidePanelController {
 
         guard hovered != hoveredRingIndex || !callout.isVisible else { return }
         hoveredRingIndex = hovered
+        hoveredProvider = SidePanelGeometry.ringSlots[hovered].mark == .copilot ? .copilot : .claude
 
         guard let ringRect = window.ringScreenRect(at: hovered) else { return }
-        callout.apply(usageState: usageState, animated: false)
+        callout.apply(
+            claudeState: claudeUsageState,
+            copilotState: copilotUsageState,
+            provider: hoveredProvider,
+            animated: false
+        )
         callout.reveal(SidePanelGeometry.callout(anchoredTo: ringRect, on: screen))
     }
 
     private func hideActive() {
         isPinned = false
         hoveredRingIndex = nil
+        hoveredProvider = .claude
         guard let activeDisplay else { return }
         windows[activeDisplay]?.setHighlightedRing(nil)
         windows[activeDisplay]?.hide()

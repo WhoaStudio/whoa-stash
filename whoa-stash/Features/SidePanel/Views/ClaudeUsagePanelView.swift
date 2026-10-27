@@ -71,6 +71,25 @@ final class ClaudeUsagePanelView: NSView {
     // MARK: - État
 
     func apply(_ state: ClaudeUsageState, animated: Bool) {
+        apply(
+            state,
+            title: "Claude Usage",
+            primaryLabel: "Current session",
+            secondaryLabel: "All models",
+            animated: animated
+        )
+    }
+
+    func apply(
+        _ state: ClaudeUsageState,
+        title: String,
+        primaryLabel: String,
+        secondaryLabel: String,
+        animated: Bool
+    ) {
+        titleLabel.stringValue = title
+        sessionRow.title = primaryLabel
+        allModelsRow.title = secondaryLabel
         switch state {
         case .loaded(let snapshot):
             sessionRow.apply(window: snapshot.session, animated: animated)
@@ -145,6 +164,11 @@ private final class ClaudeUsageRowView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         setUp()
+    }
+
+    var title: String {
+        get { titleLabel.stringValue }
+        set { titleLabel.stringValue = newValue }
     }
 
     @available(*, unavailable)

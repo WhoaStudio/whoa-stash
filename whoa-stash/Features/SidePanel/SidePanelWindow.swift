@@ -47,8 +47,8 @@ final class SidePanelWindow {
 
     var frame: NSRect { panel.frame }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        contentView.apply(usageState: usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
+        contentView.apply(claudeState: claudeState, copilotState: copilotState, animated: animated)
     }
 
     /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change
