@@ -38,7 +38,7 @@ final class NotchPanelWindow {
         panel.ignoresMouseEvents = true
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
-        panel.level = .screenSaver
+        panel.level = Self.restingLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         // Toujours sombre, contrairement aux autres panneaux de l'overlay qui suivent le réglage
         // Général > Appearance : replié, celui-ci doit se confondre avec le noir matériel de
@@ -85,6 +85,29 @@ final class NotchPanelWindow {
     /// que soit l'onglet affiché jusque-là.
     func revealFileShelf() {
         contentView.select(.tray, animated: true)
+    }
+
+    /// Niveau de repos : au-dessus de tout, y compris la barre de menus sous laquelle le panneau
+    /// est suspendu.
+    private static let restingLevel = NSWindow.Level.screenSaver
+
+    /// Juste **sous** la fenêtre dans laquelle le système dessine le fichier qu'on glisse. Au
+    /// niveau de repos, le panneau passe devant elle : on voit le curseur disparaître derrière
+    /// l'encoche au moment précis où il faut viser. Reste très au-dessus de la barre de menus
+    /// (niveau 24), donc le panneau ne plonge pas sous elle pendant le glisser.
+    private static let belowDragImageLevel = NSWindow.Level(
+        rawValue: Int(CGWindowLevelForKey(.draggingWindow)) - 1
+    )
+
+    /// Prépare (ou non) la fenêtre à recevoir un glisser de fichiers : elle laisse passer devant
+    /// elle l'image du fichier glissé, et accepte les événements même repliée — sinon il n'y
+    /// aurait rien pour recevoir le dépôt avant qu'elle se déplie.
+    func setFileDragActive(_ active: Bool) {
+        let level = active ? Self.belowDragImageLevel : Self.restingLevel
+        if panel.level != level {
+            panel.level = level
+        }
+        panel.ignoresMouseEvents = active ? false : !isExpanded
     }
 
     /// Pose la fenêtre sur son écran et l'affiche repliée. Appelé à la construction et à chaque
