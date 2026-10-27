@@ -1,42 +1,32 @@
 import CoreGraphics
 
-/// Mesures de la barre d'onglets, partagées par les deux panneaux qui la portent : la bande du
-/// bord droit et le panneau de l'encoche.
+/// Mesures de la capsule de navigation : la barre détachée, posée sous le panneau de l'encoche,
+/// qui porte les onglets.
 ///
-/// Elles vivaient dans `SidePanelGeometry` tant qu'un seul panneau avait des onglets. Les deux
-/// barres doivent se ressembler trait pour trait — c'est le même objet d'interface à deux
-/// endroits — donc leurs mesures ne peuvent pas être dupliquées là où elles pourraient diverger.
-/// Ce qui reste propre à chaque panneau, lui, reste dans sa géométrie : où la barre se pose, et
-/// ce qu'il y a dessous.
+/// Elles vivent à part de `NotchPanelGeometry` parce qu'elles décrivent la capsule elle-même —
+/// ce qu'elle porte et comment c'est espacé — là où la géométrie du panneau ne décide que de
+/// l'endroit où elle se pose. La capsule ne se resserre jamais : ses bulles ne portent que des
+/// glyphes, donc sa largeur est une constante et non le résultat d'une mesure de texte.
 enum TabBarMetrics {
 
-    /// Hauteur de la rangée : les onglets à gauche, l'engrenage à droite.
-    static let barHeight: CGFloat = 36
+    /// Hauteur de la capsule. Les bulles sont un peu plus basses qu'elle pour qu'il lui reste de
+    /// l'air au-dessus et au-dessous.
+    static let capsuleHeight: CGFloat = 40
 
-    /// Hauteur de la pastille de l'onglet actif, un peu plus basse que la rangée pour que celle-ci
-    /// garde de l'air au-dessus et au-dessous.
-    static let pillHeight: CGFloat = 30
+    /// Côté d'une bulle : la zone cliquable d'un onglet, et le cercle de l'onglet actif.
+    static let bubbleSize: CGFloat = 32
 
-    /// Marges horizontales à l'intérieur d'une pastille, de part et d'autre du couple
-    /// icône + intitulé.
-    static let pillHorizontalPadding: CGFloat = 11
+    /// Écart entre deux bulles d'onglet. Les cercles ne se touchent jamais, pas même entre deux
+    /// onglets voisins.
+    static let bubbleSpacing: CGFloat = 6
 
-    /// Marges auxquelles la barre descend quand la rangée ne tient pas dans sa largeur : c'est
-    /// la place réservée aux intitulés qui est intouchable, pas celle qui les entoure.
-    static let pillMinimumHorizontalPadding: CGFloat = 4
+    /// Marges de la capsule de part et d'autre de la rangée de bulles.
+    static let capsuleHorizontalPadding: CGFloat = 6
 
-    static let iconSize: CGFloat = 13
-    static let iconLabelGap: CGFloat = 6
+    /// Air entre le dernier onglet et l'engrenage, plus large que l'écart entre deux onglets :
+    /// l'engrenage est dans la capsule mais n'est pas un onglet, et c'est cet écart qui le dit.
+    static let gearBubbleGap: CGFloat = 10
 
-    /// Écart entre deux onglets. Les pastilles ne se touchent jamais, même entre deux onglets
-    /// voisins tous deux larges. Il cède avant les marges des pastilles quand la rangée est à
-    /// l'étroit.
-    static let tabSpacing: CGFloat = 4
-
-    /// Côté de la zone cliquable de l'engrenage, et taille de son glyphe.
-    static let gearButtonSize: CGFloat = 28
-    static let gearIconSize: CGFloat = 15
-
-    /// Air entre le dernier onglet et l'engrenage : la rangée ne va jamais jusque sous lui.
-    static let gearGap: CGFloat = 8
+    /// Taille du glyphe au centre d'une bulle.
+    static let iconSize: CGFloat = 15
 }
