@@ -1,7 +1,7 @@
 import AppKit
 import Combine
 
-/// Écran "General" : lancement au démarrage, apparence, couleur d'accent, translucidité des
+/// Écran "General" : lancement au démarrage, couleur d'accent, translucidité des
 /// panneaux, raccourci global, animations, retour haptique et sonore, et remise à zéro. Ne
 /// contient aucune logique — tout transite par `GeneralSettingsViewModel`.
 final class GeneralSettingsViewController: SettingsSectionViewController {
@@ -11,7 +11,6 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private var notchPanelCancellable: AnyCancellable?
 
     private let launchAtLoginSwitch = NSSwitch()
-    private let appearancePopUp = NSPopUpButton()
     private let accentColorPopUp = NSPopUpButton()
     private let animationsSwitch = NSSwitch()
     private let hapticSwitch = NSSwitch()
@@ -24,10 +23,6 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     override func makeCards() -> [SettingsCardView] {
         launchAtLoginSwitch.target = self
         launchAtLoginSwitch.action = #selector(launchAtLoginChanged)
-
-        appearancePopUp.target = self
-        appearancePopUp.action = #selector(appearanceChanged)
-        AppearanceMode.allCases.forEach { appearancePopUp.addItem(withTitle: $0.displayName) }
 
         accentColorPopUp.target = self
         accentColorPopUp.action = #selector(accentColorChanged)
@@ -50,7 +45,6 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         panelOpacitySlider.onChange = { [weak self] in self?.viewModel.setPanelOpacity($0) }
 
         let appearanceCard = SettingsCardView(title: "Appearance", rows: [
-            SettingsRowView(title: "Appearance", accessory: appearancePopUp),
             SettingsRowView(title: "Accent color", accessory: accentColorPopUp),
             SettingsRowView(title: "Panel opacity", accessory: panelOpacitySlider),
         ])
@@ -95,7 +89,6 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     private func apply(_ settings: GeneralSettings) {
         launchAtLoginSwitch.state = settings.launchAtLogin ? .on : .off
-        appearancePopUp.selectItem(at: AppearanceMode.allCases.firstIndex(of: settings.appearanceMode) ?? 0)
         accentColorPopUp.selectItem(at: AccentColor.allCases.firstIndex(of: settings.accentColor) ?? 0)
         animationsSwitch.state = settings.enableAnimations ? .on : .off
         hapticSwitch.state = settings.enableHapticFeedback ? .on : .off
@@ -106,10 +99,6 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func launchAtLoginChanged() {
         viewModel.setLaunchAtLogin(launchAtLoginSwitch.state == .on)
-    }
-
-    @objc private func appearanceChanged() {
-        viewModel.setAppearanceMode(AppearanceMode.allCases[appearancePopUp.indexOfSelectedItem])
     }
 
     @objc private func accentColorChanged() {

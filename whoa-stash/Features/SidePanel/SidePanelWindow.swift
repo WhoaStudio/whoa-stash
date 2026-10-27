@@ -19,9 +19,7 @@ final class SidePanelWindow {
     private let contentView = SidePanelContentView()
     private var isRevealed = false
 
-    /// L'apparence est passée à la construction plutôt que lue depuis `SettingsStorage` : le
-    /// panneau n'a besoin que de cette valeur, et son propriétaire la tient déjà.
-    init(appearanceMode: AppearanceMode) {
+    init() {
         panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -43,7 +41,6 @@ final class SidePanelWindow {
         // dans l'overlay passent dessous.
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        panel.appearance = appearanceMode.nsAppearance
         panel.contentView = contentView
         contentView.anchorEdge = SidePanelGeometry.anchorEdge
     }
@@ -52,12 +49,6 @@ final class SidePanelWindow {
 
     func apply(usageState: ClaudeUsageState, animated: Bool) {
         contentView.apply(usageState: usageState, animated: animated)
-    }
-
-    /// Suit le réglage Général > Appearance comme les autres panneaux de l'overlay, au lieu de
-    /// suivre l'apparence système : c'est lui qui décide si le panneau est anthracite ou clair.
-    func apply(appearanceMode: AppearanceMode) {
-        panel.appearance = appearanceMode.nsAppearance
     }
 
     /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change

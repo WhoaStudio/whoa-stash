@@ -32,6 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !isRunningUnitTests else { return }
 
+        // L'app est sombre et ne suit pas l'apparence système : replié, le panneau de l'encoche
+        // doit se confondre avec le noir matériel de l'encoche, qu'une palette claire trahirait
+        // immédiatement, et les autres surfaces de l'overlay sont dessinées pour aller avec.
+        // Posée ici, avant la moindre fenêtre, elle est héritée par tous les panneaux comme par
+        // les menus et les alertes : c'est le seul endroit qui décide de l'apparence.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+
         // Avant toute fenêtre : les vues de l'overlay résolvent la palette dès leur
         // construction, donc accent, translucidité et interrupteur d'animation doivent déjà
         // porter les valeurs de l'utilisateur.
@@ -99,10 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // qui le rend vérifiable sur capture d'écran.
         if CommandLine.arguments.contains("--show-notch-panel") {
             notchPanelController?.togglePinnedReveal()
-        }
-
-        if CommandLine.arguments.contains("--dark") {
-            settings.settings.general.appearanceMode = .dark
         }
 
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {

@@ -79,7 +79,6 @@ final class BrightnessOverlayController {
         // Sans ça, le panel se cache dès que whoa-stash (app sans fenêtre, menu bar only)
         // n'est plus "active", ce qui arrive en permanence puisqu'elle ne prend jamais le focus.
         panel.hidesOnDeactivate = false
-        panel.appearance = storage.settings.general.appearanceMode.nsAppearance
 
         let initialPalette = OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
         containerView = BrightnessView(tickCount: BrightnessViewModel.tickCount, initialPalette: initialPalette)
@@ -98,7 +97,7 @@ final class BrightnessOverlayController {
 
         settingsCancellable = storage.$settings
             .sink { [weak self] settings in
-                self?.apply(general: settings.general, brightness: settings.brightness)
+                self?.apply(brightness: settings.brightness)
             }
 
         paletteObserver = NotificationCenter.default.addObserver(
@@ -114,9 +113,7 @@ final class BrightnessOverlayController {
         containerView.updateBrightness(activeTickCount: viewModel.activeTickCount, animated: false)
     }
 
-    private func apply(general: GeneralSettings, brightness: BrightnessSettings) {
-        panel.appearance = general.appearanceMode.nsAppearance
-
+    private func apply(brightness: BrightnessSettings) {
         closeDelay = brightness.autoHideDelay
         showPercentage = brightness.showPercentage
 
