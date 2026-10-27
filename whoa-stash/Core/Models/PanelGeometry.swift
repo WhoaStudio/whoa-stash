@@ -83,7 +83,7 @@ enum PanelGeometry {
 
     /// Cadre affleurant le bord demandé, en coordonnées globales AppKit : c'est depuis ce bord
     /// que le contenu glisse, donc la bande doit y toucher — l'espacement visuel vient des coins
-    /// arrondis, pas d'une marge. Le haut suit `visibleFrame` pour rester sous la barre de menus.
+    /// arrondis, pas d'une marge. Le panneau est centré verticalement sur l'écran.
     ///
     /// Deux bandes posées sur les deux bords du même écran partagent donc cadre et hauteur : ce
     /// sont bien deux images l'une de l'autre.
@@ -93,9 +93,9 @@ enum PanelGeometry {
         height: CGFloat = minimumPanelHeight,
         width: CGFloat = panelWidth
     ) -> NSRect {
-        let top = screen.visibleFrame.maxY - topInset
         let x = edge == .right ? screen.frame.maxX - width : screen.frame.minX
-        return NSRect(x: x, y: top - height, width: width, height: height)
+        let y = screen.frame.midY - height / 2
+        return NSRect(x: x, y: y, width: width, height: height)
     }
 
     // MARK: - Poignée repliée
