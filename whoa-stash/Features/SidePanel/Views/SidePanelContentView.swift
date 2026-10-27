@@ -126,7 +126,7 @@ final class SidePanelContentView: NSView {
         // La silhouette est reposée dans l'état courant : la mise en page suit un changement de
         // cadre d'écran, qui ne doit ni rejouer le dépliage ni laisser le chemin au cadre
         // précédent.
-        applyShape(expanded: isExpanded, animated: false)
+        applyExpandedShape()
 
         contentContainer.frame = bounds
 
@@ -167,6 +167,22 @@ final class SidePanelContentView: NSView {
 
     // MARK: - Dépliage
 
+    private var revealOffset: CGFloat {
+        anchorEdge == .right ? bounds.width : -bounds.width
+    }
+
+    private func applyExpandedShape() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for shape in [backgroundLayer, strokeLayer, contentMask] {
+            shape.frame = bounds
+            shape.path = expandedPath()
+        }
+        CATransaction.commit()
+    }
+
     /// Replie la bande sans animation et l'efface — à appeler avant d'afficher la fenêtre, pour
     /// que la première image montrée soit déjà le début du dépliage et non le panneau en place.
     func prepareForReveal() {
@@ -174,7 +190,8 @@ final class SidePanelContentView: NSView {
         // La mise en page est vidée tout de suite : sans cela la silhouette repliée serait posée
         // dans la même transaction que le dépliage, qui partirait alors du chemin précédent.
         layoutSubtreeIfNeeded()
-        applyShape(expanded: false, animated: false)
+        applyExpandedShape()
+        layer?.setValue(revealOffset, forKeyPath: "transform.translation.x")
     }
 
     /// Déplie ou replie la bande. `completion` est appelée une fois le ressort stabilisé, pour que
@@ -186,7 +203,27 @@ final class SidePanelContentView: NSView {
             return
         }
         isExpanded = expanded
-        applyShape(expanded: expanded, animated: animated, completion: completion)
+        guard let layer else {
+            completion?()
+            return
+        }
+
+        let target = expanded ? CGFloat(0) : revealOffset
+        guard animated else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.setValue(target, forKeyPath: "transform.translation.x")
+            CATransaction.commit()
+            completion?()
+            return
+        }
+
+        layer.springAnimate(
+            keyPath: "transform.translation.x",
+            to: target,
+            preset: .gentle,
+            completion: completion
+        )
     }
 
     private func applyShape(expanded: Bool, animated: Bool, completion: (() -> Void)? = nil) {
