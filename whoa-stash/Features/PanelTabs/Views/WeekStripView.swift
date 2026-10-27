@@ -1,24 +1,33 @@
 import AppKit
 
-/// Bande de la semaine en cours : sept cases, l'initiale du jour au-dessus de son numéro.
-/// Le jour courant porte une pastille pleine sous son numéro.
-///
-/// La semaine commence le jour que dit le calendrier de l'utilisateur (`firstWeekday`) — lundi
-/// en France, dimanche aux États-Unis — et non un lundi codé en dur.
+/// Bande horizontale de trois semaines, centrée sur le jour courant au premier affichage.
+/// Le calendrier de l'utilisateur décide du premier jour de la semaine.
 final class WeekStripView: NSView {
 
+    private static let dayWidth: CGFloat = 44
+    private static let dayGap: CGFloat = 8
+    private static let dayCount = 21
+    private static let snapDelay: TimeInterval = 0.12
+
+    private let scrollView = WeekStripScrollView()
+    private let documentView = NSView()
     private var cells: [WeekDayCellView] = []
+    private var days: [Date] = []
+    private var centeredIndex: Int?
+    private var snapWorkItem: DispatchWorkItem?
 
     /// Jour affiché comme « aujourd'hui ». Recalculé à chaque reconstruction : le panneau peut
     /// rester en mémoire plusieurs jours sans que l'app redémarre.
     private var referenceDate = Date()
 
     private let calendar = Calendar.current
+    private let feedback: OverlayFeedback
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect = .zero, feedback: OverlayFeedback = SystemOverlayFeedback()) {
+        self.feedback = feedback
         super.init(frame: frameRect)
         wantsLayer = true
-        rebuild()
+        setUp()
     }
 
     @available(*, unavailable)
@@ -26,17 +35,36 @@ final class WeekStripView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Reconstruit la semaine autour de `date`. À appeler avant chaque apparition du panneau :
-    /// sans ça, la pastille resterait sur le jour où les cases ont été créées.
+    private func setUp() {
+        scrollView.drawsBackground = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = false
+        scrollView.horizontalScrollElasticity = .none
+        scrollView.verticalScrollElasticity = .none
+        scrollView.documentView = documentView
+        scrollView.onScroll = { [weak self] event in
+            self?.handleScroll(event)
+        }
+        addSubview(scrollView)
+
+        rebuild()
+    }
+
+    /// Reconstruit les trois semaines autour de `date`. À appeler avant chaque apparition du
+    /// panneau : sans ça, la sélection resterait sur le jour où les cases ont été créées.
     func refresh(now date: Date = Date()) {
-        guard !calendar.isDate(date, inSameDayAs: referenceDate) || cells.isEmpty else { return }
+        guard !calendar.isDate(date, inSameDayAs: referenceDate) || days.isEmpty else { return }
         referenceDate = date
         rebuild()
     }
 
     private func rebuild() {
+        snapWorkItem?.cancel()
+        snapWorkItem = nil
+
         cells.forEach { $0.removeFromSuperview() }
-        cells = days(of: referenceDate).map { day in
+        days = daysAround(referenceDate)
+        cells = days.map { day in
             WeekDayCellView(
                 initial: initial(for: day),
                 dayNumber: calendar.component(.day, from: day),
@@ -44,14 +72,23 @@ final class WeekStripView: NSView {
                 isWeekend: calendar.isDateInWeekend(day)
             )
         }
-        cells.forEach(addSubview)
+        cells.forEach(documentView.addSubview)
+        centeredIndex = nil
         needsLayout = true
     }
 
-    /// Les sept jours de la semaine qui contient `date`, dans l'ordre d'affichage.
-    private func days(of date: Date) -> [Date] {
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: date) else { return [date] }
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: week.start) }
+    /// Les 21 jours allant du début de la semaine précédente à la fin de la semaine suivante.
+    private func daysAround(_ date: Date) -> [Date] {
+        guard
+            let currentWeek = calendar.dateInterval(of: .weekOfYear, for: date),
+            let firstDay = calendar.date(byAdding: .day, value: -7, to: currentWeek.start)
+        else {
+            return [date]
+        }
+
+        return (0..<Self.dayCount).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: firstDay)
+        }
     }
 
     /// Première lettre du jour, prise dans les noms très courts du calendrier plutôt que tronquée
@@ -70,17 +107,90 @@ final class WeekStripView: NSView {
 
     override func layout() {
         super.layout()
-        guard !cells.isEmpty else { return }
 
-        // Les cases se partagent toute la largeur à parts égales. Les bornes sont calculées
-        // depuis le bord puis arrondies au point, et non cumulées case après case : un arrondi
-        // par case laisserait dériver la dernière.
-        let count = CGFloat(cells.count)
+        scrollView.frame = bounds
+
+        let sideInset = max(0, (bounds.width - Self.dayWidth) / 2)
+        let documentWidth = sideInset * 2
+            + CGFloat(max(0, cells.count - 1)) * (Self.dayWidth + Self.dayGap)
+            + Self.dayWidth
+        documentView.frame = NSRect(x: 0, y: 0, width: documentWidth, height: bounds.height)
+
         for (position, cell) in cells.enumerated() {
-            let minX = (bounds.width * CGFloat(position) / count).rounded()
-            let maxX = (bounds.width * CGFloat(position + 1) / count).rounded()
-            cell.frame = NSRect(x: minX, y: bounds.minY, width: max(1, maxX - minX), height: bounds.height)
+            let x = sideInset + CGFloat(position) * (Self.dayWidth + Self.dayGap)
+            cell.frame = NSRect(x: x, y: bounds.minY, width: Self.dayWidth, height: bounds.height)
         }
+
+        if centeredIndex == nil, !days.isEmpty {
+            let today = days.firstIndex(where: { calendar.isDateInToday($0) }) ?? days.count / 2
+            centeredIndex = today
+            scrollTo(index: today, animated: false)
+        }
+    }
+
+    private func handleScroll(_ event: NSEvent) {
+        let index = nearestCenteredIndex()
+        if index != centeredIndex {
+            if let centeredIndex {
+                let step = index > centeredIndex ? 1 : -1
+                for _ in stride(from: centeredIndex + step, through: index, by: step) {
+                    feedback.tickCrossed()
+                }
+            }
+            centeredIndex = index
+        }
+
+        snapWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.scrollTo(index: index, animated: true)
+        }
+        snapWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.snapDelay, execute: workItem)
+
+        if event.phase == .ended || event.momentumPhase == .ended {
+            scrollTo(index: index, animated: true)
+        }
+    }
+
+    private func nearestCenteredIndex() -> Int {
+        guard !days.isEmpty else { return 0 }
+
+        let center = scrollView.contentView.bounds.midX
+        let sideInset = max(0, (bounds.width - Self.dayWidth) / 2)
+        let position = (center - sideInset - Self.dayWidth / 2) / (Self.dayWidth + Self.dayGap)
+        return min(max(Int(position.rounded()), 0), days.count - 1)
+    }
+
+    private func scrollTo(index: Int, animated: Bool) {
+        guard cells.indices.contains(index) else { return }
+
+        let sideInset = max(0, (bounds.width - Self.dayWidth) / 2)
+        let targetX = sideInset
+            + CGFloat(index) * (Self.dayWidth + Self.dayGap)
+            + Self.dayWidth / 2
+            - bounds.width / 2
+        let maxX = max(0, documentView.bounds.width - bounds.width)
+        let origin = NSPoint(x: min(max(targetX, 0), maxX), y: 0)
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.16
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                scrollView.contentView.animator().setBoundsOrigin(origin)
+            }
+        } else {
+            scrollView.contentView.setBoundsOrigin(origin)
+        }
+    }
+}
+
+private final class WeekStripScrollView: NSScrollView {
+
+    var onScroll: ((NSEvent) -> Void)?
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        onScroll?(event)
     }
 }
 
