@@ -76,9 +76,9 @@ enum AccentColor: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Taille du widget de luminosité — sa hauteur seule. La largeur d'une bande de bord est
-/// partagée avec le panneau latéral (`PanelGeometry.panelWidth`) pour que les deux se
-/// répondent d'un bord à l'autre : elle ne se règle pas.
+/// Taille du widget de luminosité — sa hauteur seule. Sa largeur est celle d'une bande de
+/// luminosité (`PanelGeometry.brightnessBandWidth`), plus étroite que le panneau latéral parce
+/// que son contenu tient en peu de place : elle ne se règle pas.
 enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
     case small
     case medium
