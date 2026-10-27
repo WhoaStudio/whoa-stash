@@ -89,9 +89,6 @@ enum NotchPanelGeometry {
     /// droit, donc même hauteur.
     static let weekStripHeight: CGFloat = 46
 
-    /// Air entre la bande de la semaine et le widget calendrier, sous elle.
-    static let calendarTopGap: CGFloat = 10
-
     /// Air entre l'en-tête de date et la liste des événements, dans le widget.
     static let calendarHeaderGap: CGFloat = 10
 
@@ -99,12 +96,12 @@ enum NotchPanelGeometry {
     /// plus petite largeur où deux chiffres tiennent sans se toucher.
     static let monthGridWidth: CGFloat = 196
 
-    /// Hauteur du contenu de l'onglet Global : la bande de la semaine, puis le widget calendrier,
-    /// dont la grille du mois fixe le plancher — six lignes de semaine plus leurs initiales.
+    /// Hauteur du contenu de l'onglet Calendar, dont la grille du mois fixe le plancher — six
+    /// lignes de semaine plus leurs initiales.
     ///
     /// C'est cet onglet qui est désormais le plus haut, et donc lui qui dimensionne le panneau
     /// (voir `tabContentHeight`).
-    static let globalTabHeight: CGFloat = 210
+    static let calendarTabHeight: CGFloat = 210
 
     /// Colonne de gauche de l'onglet AI : les bagues d'utilisation posées **en ligne** et non
     /// empilées, c'est tout ce qui distingue cette mise en page de celle de la bande du bord
@@ -126,11 +123,10 @@ enum NotchPanelGeometry {
         return count * ringTileSize + max(0, count - 1) * ringSpacing
     }
 
-    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut — Global,
-    /// depuis qu'il porte le widget calendrier —, pour que la silhouette dépliée ne change pas de
-    /// taille d'un onglet à l'autre.
+    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut, pour que la
+    /// silhouette dépliée ne change pas de taille d'un onglet à l'autre.
     static var tabContentHeight: CGFloat {
-        max(globalTabHeight, cardSize.height)
+        max(calendarTabHeight, cardSize.height)
     }
 
     /// Largeur du contenu de l'onglet le plus large — AI, avec ses deux colonnes.

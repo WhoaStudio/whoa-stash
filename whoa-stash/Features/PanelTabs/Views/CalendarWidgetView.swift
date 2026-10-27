@@ -1,7 +1,7 @@
 import AppKit
 
-/// Le widget calendrier de l'onglet Global : l'en-tête de date et l'agenda à gauche, la grille du
-/// mois à droite, séparés par le même filet que les deux colonnes de l'onglet AI.
+/// Le widget calendrier de l'onglet Calendar : l'en-tête de date et l'agenda à gauche, la grille
+/// du mois à droite, séparés par un filet.
 ///
 /// N'importe pas EventKit et ne connaît pas sa source : il reçoit un `CalendarAgendaState` et
 /// l'affiche. C'est tout l'objet de `CalendarAgendaProviding`.
@@ -10,10 +10,10 @@ import AppKit
 /// l'accès aux calendriers est refusé, et seul l'agenda porte alors un écriteau.
 final class CalendarWidgetView: NSView {
 
-    /// Le jour et sa date — « Mon 27 ». La ligne d'accroche du widget, donc la seule en gros.
+    /// Le jour, sa date et son numéro de semaine — « TUE 13 W42 ».
     private let dayLabel = NSTextField(labelWithString: "")
 
-    /// Le numéro de semaine et le mois — « W44 · October ». En retrait sous le jour.
+    /// Le mois affiché au-dessus de la grille — « OCT ».
     private let contextLabel = NSTextField(labelWithString: "")
 
     private let agendaList = AgendaListView()
@@ -31,17 +31,17 @@ final class CalendarWidgetView: NSView {
 
     private let calendar = Calendar.current
 
-    private let dayFormatter: DateFormatter = {
+    private let weekdayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("EEE d")
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
         return formatter
     }()
 
     private let monthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("MMMM")
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
         return formatter
     }()
 
@@ -62,13 +62,13 @@ final class CalendarWidgetView: NSView {
             field.drawsBackground = false
             field.isEditable = false
             field.isSelectable = false
-            field.alignment = .left
+            field.alignment = field === contextLabel ? .right : .left
             field.lineBreakMode = .byTruncatingTail
             addSubview(field)
         }
 
-        dayLabel.font = .systemFont(ofSize: 20, weight: .semibold)
-        contextLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        dayLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        contextLabel.font = .systemFont(ofSize: 16, weight: .semibold)
 
         layer?.addSublayer(dividerLayer)
         addSubview(agendaList)
@@ -89,12 +89,9 @@ final class CalendarWidgetView: NSView {
     /// construit.
     func refresh(now date: Date = Date()) {
         referenceDate = date
-        dayText = dayFormatter.string(from: date)
-
-        // « W44 » : l'interface de l'app est en anglais, seules les dates suivent la langue du
-        // système — comme les initiales de `WeekStripView`.
         let week = calendar.component(.weekOfYear, from: date)
-        contextLabel.stringValue = "W\(week) · \(monthFormatter.string(from: date))"
+        dayText = "\(weekdayFormatter.string(from: date).uppercased()) \(calendar.component(.day, from: date)) W\(week)"
+        contextLabel.stringValue = monthFormatter.string(from: date).uppercased()
 
         applyPalette()
         monthGrid.refresh(now: date)
@@ -145,8 +142,7 @@ final class CalendarWidgetView: NSView {
         super.layout()
 
         // La grille est calée à droite, à sa largeur propre ; l'agenda prend tout ce qui reste à
-        // gauche. Le filet se pose entre les deux, à égale distance — le même écart que celui des
-        // colonnes de l'onglet AI.
+        // gauche. Le filet se pose entre les deux, à égale distance.
         let gridWidth = min(NotchPanelGeometry.monthGridWidth, bounds.width / 2)
         let gap = NotchPanelGeometry.columnGap
         let dividerX = (bounds.maxX - gridWidth - gap - NotchPanelGeometry.dividerWidth).rounded()
@@ -162,7 +158,7 @@ final class CalendarWidgetView: NSView {
             x: (bounds.maxX - gridWidth).rounded(),
             y: bounds.minY,
             width: gridWidth,
-            height: bounds.height
+            height: max(0, bounds.height - dayLabel.intrinsicContentSize.height - NotchPanelGeometry.calendarHeaderGap)
         )
 
         let leftWidth = max(0, dividerX - gap - bounds.minX)
@@ -177,15 +173,15 @@ final class CalendarWidgetView: NSView {
 
         let contextHeight = contextLabel.intrinsicContentSize.height
         contextLabel.frame = NSRect(
-            x: bounds.minX,
-            y: dayLabel.frame.minY - contextHeight,
-            width: leftWidth,
+            x: monthGrid.frame.minX,
+            y: bounds.maxY - contextHeight,
+            width: gridWidth,
             height: contextHeight
         )
 
         // L'agenda prend tout ce qui reste sous l'en-tête et décide lui-même combien de lignes y
         // tiennent.
-        let agendaTop = contextLabel.frame.minY - NotchPanelGeometry.calendarHeaderGap
+        let agendaTop = dayLabel.frame.minY - NotchPanelGeometry.calendarHeaderGap
         agendaList.frame = NSRect(
             x: bounds.minX,
             y: bounds.minY,

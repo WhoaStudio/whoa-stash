@@ -17,7 +17,11 @@ final class MonthGridView: NSView {
     /// rester en mémoire plusieurs jours sans que l'app redémarre.
     private var referenceDate = Date()
 
-    private let calendar = Calendar.current
+    private let calendar: Calendar = {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        return calendar
+    }()
 
     /// Le découpage du mois, calculé une fois par jour plutôt qu'à chaque tracé.
     private var layout: MonthGridLayout
