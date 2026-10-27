@@ -107,7 +107,7 @@ final class ClaudeUsagePanelView: NSView {
         titleLabel.frame = NSRect(
             x: leadingInset + markSize + 8,
             y: headerTop + (headerHeight - titleSize.height) / 2,
-            width: titleSize.width,
+            width: titleLabel.layoutWidth,
             height: titleSize.height
         )
 
@@ -226,12 +226,12 @@ private final class ClaudeUsageRowView: NSView {
 
         let titleTop = bounds.maxY - Self.titleHeight
         let titleSize = titleLabel.intrinsicContentSize
-        titleLabel.frame = NSRect(x: 0, y: titleTop, width: titleSize.width, height: Self.titleHeight)
+        let titleWidth = titleLabel.layoutWidth
+        titleLabel.frame = NSRect(x: 0, y: titleTop, width: titleWidth, height: Self.titleHeight)
 
-        let resetSize = resetLabel.intrinsicContentSize
         // Le libellé de droite ne mord jamais sur celui de gauche : il est tronqué par la
         // largeur disponible plutôt que de se superposer quand la locale est verbeuse.
-        let resetX = max(titleSize.width + 8, bounds.width - resetSize.width)
+        let resetX = max(titleWidth + 8, bounds.width - resetLabel.layoutWidth)
         resetLabel.frame = NSRect(x: resetX, y: titleTop, width: bounds.width - resetX, height: Self.titleHeight)
 
         let barY = titleTop - Self.innerSpacing - Self.barHeight
@@ -243,7 +243,6 @@ private final class ClaudeUsageRowView: NSView {
         fillLayer.cornerRadius = Self.barHeight / 2
         updateFill(animated: false)
 
-        let usedSize = usedLabel.intrinsicContentSize
-        usedLabel.frame = NSRect(x: 0, y: bounds.minY, width: usedSize.width, height: Self.usedHeight)
+        usedLabel.frame = NSRect(x: 0, y: bounds.minY, width: usedLabel.layoutWidth, height: Self.usedHeight)
     }
 }

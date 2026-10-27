@@ -25,6 +25,19 @@ final class NotchTabBarView: NSView {
 
     private var selectedTab: NotchTab
 
+    /// Largeur en deçà de laquelle la rangée déborderait : les onglets à leurs marges minimales,
+    /// leurs écarts, et la place de l'engrenage. Le panneau qui porte la barre s'en sert pour ne
+    /// jamais la poser dans moins que ça — un intitulé long élargit le panneau au lieu de sortir
+    /// de sa silhouette.
+    static var minimumRowWidth: CGFloat {
+        let count = CGFloat(NotchTab.allCases.count)
+        let tabs = NotchTab.allCases.reduce(0) { $0 + NotchTabItemView.minimumWidth(of: $1) }
+        return tabs
+            + max(0, count - 1) * TabBarMetrics.tabSpacing
+            + TabBarMetrics.gearGap
+            + TabBarMetrics.gearButtonSize
+    }
+
     init(selectedTab: NotchTab) {
         self.selectedTab = selectedTab
         items = NotchTab.allCases.map(NotchTabItemView.init(tab:))
@@ -260,21 +273,40 @@ private final class NotchTabItemView: NSView {
     }
 
     /// Largeur en deçà de laquelle l'intitulé serait rogné : la même, aux marges minimales.
-    var minimumWidth: CGFloat {
+    var minimumWidth: CGFloat { Self.minimumWidth(of: tab) }
+
+    /// La même, sans onglet sous la main : le panneau en a besoin pour se dimensionner avant que
+    /// la barre n'existe.
+    static func minimumWidth(of tab: NotchTab) -> CGFloat {
         2 * TabBarMetrics.pillMinimumHorizontalPadding
             + TabBarMetrics.iconSize
             + TabBarMetrics.iconLabelGap
-            + labelWidth
+            + labelWidth(of: tab)
     }
 
     /// Largeur de l'intitulé, toujours mesurée en gras quel que soit l'état de l'onglet : c'est
     /// la graisse la plus large, donc celle qui fixe la place à réserver. Sans quoi la largeur de
     /// l'onglet — et la place de ses voisins — bougerait quand il devient actif, et son intitulé
     /// serait rogné au passage en gras.
-    private var labelWidth: CGFloat {
+    private var labelWidth: CGFloat { Self.labelWidth(of: tab) }
+
+    /// Mesurée par `layoutWidth`, donc par la cellule du champ : lui donner la largeur brute du
+    /// texte lui faisait rogner la dernière lettre — « Global » s'affichait « Globa ».
+    ///
+    /// Les intitulés ne changent pas d'une barre à l'autre et la mesure coûte un champ : elle est
+    /// donc faite une fois pour toutes plutôt qu'à chaque mise en page.
+    private static let labelWidths: [NotchTab: CGFloat] = {
         let bold = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .bold)
-        return ceil((tab.title as NSString).size(withAttributes: [.font: bold]).width)
-    }
+        return NotchTab.allCases.reduce(into: [:]) { widths, tab in
+            let field = NSTextField(labelWithString: tab.title)
+            field.font = bold
+            field.usesSingleLineMode = true
+            field.lineBreakMode = .byClipping
+            widths[tab] = field.layoutWidth
+        }
+    }()
+
+    static func labelWidth(of tab: NotchTab) -> CGFloat { labelWidths[tab] ?? 0 }
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: preferredWidth, height: TabBarMetrics.barHeight)

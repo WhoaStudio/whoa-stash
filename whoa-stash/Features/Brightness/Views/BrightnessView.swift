@@ -93,8 +93,8 @@ final class BrightnessView: NSView {
         // Boîte de contenu : tout ce qui est peint reste à l'intérieur de la ligne où le bord
         // se relève vers le bord de l'écran pour former l'évasement.
         let box = bounds.insetBy(
-            dx: PanelGeometry.contentHorizontalInset,
-            dy: PanelGeometry.contentVerticalInset
+            dx: PanelGeometry.contentInsetAcrossAnchor,
+            dy: PanelGeometry.contentInsetAlongAnchor
         )
 
         // La barre et le soleil restent groupés et centrés dans la boîte : la bande est bien plus

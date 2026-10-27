@@ -257,7 +257,7 @@ final class NotchPanelContentView: NSView {
         let barHeight = TabBarMetrics.barHeight
         tabBar.frame = NSRect(
             x: inset,
-            y: bounds.maxY - NotchPanelGeometry.contentInsetTop - barHeight,
+            y: bounds.maxY - NotchPanelGeometry.contentInsetTop(forCollapsedHeight: collapsedSize.height) - barHeight,
             width: max(0, bounds.width - 2 * inset),
             height: barHeight
         )

@@ -38,12 +38,39 @@ enum NotchPanelGeometry {
 
     // MARK: - État déplié
 
-    /// Marges intérieures du contenu, celles du panneau du bord droit : la marge verticale vaut
-    /// au moins le rayon de la silhouette, puisque les raccords rognent la zone peinte près du
-    /// bord auquel le panneau est suspendu.
-    static let contentInsetX = PanelGeometry.contentHorizontalInset
-    static let contentInsetTop = PanelGeometry.contentVerticalInset
-    static let contentInsetBottom = PanelGeometry.contentVerticalInset
+    /// Marges intérieures du contenu. Celles de la bande du bord droit, mais prises dans le bon
+    /// repère : ce panneau est suspendu au bord du **haut**, donc ce sont ses flancs gauche et
+    /// droit qui courent le long du bord d'accroche — l'inverse d'une bande de flanc.
+    ///
+    /// La marge horizontale vaut donc au moins le rayon de la silhouette : les deux raccords
+    /// concaves rentrent les flancs peints de `expandedShoulderRadius` de chaque côté, et tout
+    /// contenu posé en deçà sort du chemin.
+    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor
+
+    /// Ce que les coins convexes du bas rognent à l'aplomb du bord du contenu : la marge basse
+    /// s'en augmente, sans quoi ce qui descend jusqu'en bas — le liseré du bac à fichiers —
+    /// mordrait l'arrondi.
+    static var bottomCornerBite: CGFloat {
+        let offset = expandedShoulderRadius + expandedBottomRadius - contentInsetX
+        guard abs(offset) < expandedBottomRadius else { return 0 }
+        return expandedBottomRadius - (expandedBottomRadius * expandedBottomRadius - offset * offset).squareRoot()
+    }
+
+    static var contentInsetBottom: CGFloat {
+        PanelGeometry.contentInsetAcrossAnchor + bottomCornerBite
+    }
+
+    /// Air entre le bas de la bande à laquelle le panneau est suspendu et le début du contenu.
+    static let topClearance: CGFloat = 8
+
+    /// Marge haute. En profondeur la silhouette est pleine, mais le cadre de la fenêtre part du
+    /// bord haut de la dalle : le contenu doit donc passer sous la barre de menus et, sur un Mac
+    /// à encoche, sous l'encoche elle-même, qui couvre le haut du panneau. La silhouette repliée
+    /// mesure exactement cette bande — c'est elle qui fixe la marge, et non une constante qui ne
+    /// vaudrait que pour une taille d'encoche.
+    static func contentInsetTop(forCollapsedHeight collapsedHeight: CGFloat) -> CGFloat {
+        max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + topClearance)
+    }
 
     /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
     static let tabBarGap = PanelGeometry.contentSpacing
@@ -78,15 +105,27 @@ enum NotchPanelGeometry {
         max(weekStripHeight, cardSize.height)
     }
 
-    static var expandedSize: NSSize {
+    /// Largeur du contenu de l'onglet le plus large — AI, avec ses deux colonnes.
+    static var tabContentWidth: CGFloat {
+        ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width
+    }
+
+    /// Taille dépliée. La largeur est celle du plus large de ce que le panneau porte : les deux
+    /// colonnes de l'onglet AI, ou la rangée d'onglets elle-même quand des intitulés longs la
+    /// réclament — c'est le panneau qui s'élargit, jamais la barre qui déborde de la silhouette.
+    static func expandedSize(collapsedHeight: CGFloat) -> NSSize {
         NSSize(
-            width: 2 * contentInsetX + ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width,
-            height: contentInsetTop
+            width: 2 * contentInsetX + max(tabContentWidth, NotchTabBarView.minimumRowWidth),
+            height: contentInsetTop(forCollapsedHeight: collapsedHeight)
                 + TabBarMetrics.barHeight
                 + tabBarGap
                 + tabContentHeight
                 + contentInsetBottom
         )
+    }
+
+    static func expandedSize(on screen: NSScreen) -> NSSize {
+        expandedSize(collapsedHeight: collapsedSize(on: screen).height)
     }
 
     // MARK: - Encoche
@@ -134,7 +173,7 @@ enum NotchPanelGeometry {
     /// Cadre de la fenêtre, identique replié comme déplié : c'est la silhouette qui s'anime à
     /// l'intérieur, jamais la fenêtre, qui redimensionnée à chaque image hacherait le dépliage.
     static func windowFrame(on screen: NSScreen) -> NSRect {
-        let size = expandedSize
+        let size = expandedSize(on: screen)
         return NSRect(
             x: screen.frame.midX - size.width / 2,
             y: topAnchor(on: screen) - size.height,
