@@ -45,7 +45,9 @@ enum NotchPanelGeometry {
     /// La marge horizontale vaut donc au moins le rayon de la silhouette : les deux raccords
     /// concaves rentrent les flancs peints de `expandedShoulderRadius` de chaque côté, et tout
     /// contenu posé en deçà sort du chemin.
-    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor
+    /// Extra breathing room keeps the tab content from feeling pressed against the rounded
+    /// shoulders of the notch panel.
+    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor + 8
 
     /// Ce que les coins convexes du bas rognent à l'aplomb du bord du contenu : la marge basse
     /// s'en augmente, sans quoi ce qui descend jusqu'en bas — le liseré du bac à fichiers —
