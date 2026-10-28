@@ -35,6 +35,12 @@ final class NotchPanelContentView: NSView {
     /// de `contentContainer`, que la silhouette découpe.
     private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
+    /// État d'un appareil Bluetooth qui vient de se connecter : l'encoche s'élargit de part et
+    /// d'autre, sans changer de hauteur, et cette vue porte le glyphe à gauche et la batterie à
+    /// droite, dans les deux ailes ainsi ouvertes.
+    private let deviceStatusPill = DeviceStatusPillView()
+    private var isShowingDeviceStatus = false
+
     /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
@@ -143,6 +149,8 @@ final class NotchPanelContentView: NSView {
         capsule.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
         capsule.layer?.opacity = 0
         addSubview(capsule)
+        deviceStatusPill.layer?.opacity = 0
+        addSubview(deviceStatusPill)
         applySelection(animated: false)
 
         // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -348,6 +356,13 @@ final class NotchPanelContentView: NSView {
         capsuleRestingPosition = capsule.layer?.position ?? .zero
         applyCapsuleReveal(animated: false)
 
+        let wingedWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
+        deviceStatusPill.frame = NSRect(
+            x: bounds.midX - wingedWidth / 2,
+            y: panel.maxY - collapsedSize.height,
+            width: wingedWidth,
+            height: collapsedSize.height)
+
         // Corps de l'onglet : tout l'intérieur du panneau. Les trois onglets l'occupent en entier
         // et se relaient dedans.
         let bodyTop = panel.maxY - NotchPanelGeometry.contentInsetTop(forCollapsedHeight: collapsedSize.height)
@@ -452,6 +467,27 @@ final class NotchPanelContentView: NSView {
         PanelFold.fade(layer, to: opacity)
     }
 
+    // MARK: - Pastille d'appareil
+
+    func showDeviceStatus(_ status: DeviceStatus) {
+        // Dépliée, la silhouette occupe déjà toute la place.
+        guard !isExpanded else { return }
+        deviceStatusPill.apply(status)
+        deviceStatusPill.layoutSubtreeIfNeeded()
+        isShowingDeviceStatus = true
+        applyShape(expanded: false, animated: true)
+        PanelFold.fade(deviceStatusPill.layer!, to: 1)
+    }
+
+    func hideDeviceStatus(animated: Bool = true) {
+        guard isShowingDeviceStatus else { return }
+        isShowingDeviceStatus = false
+        applyShape(expanded: isExpanded, animated: animated)
+        if let layer = deviceStatusPill.layer {
+            if animated { PanelFold.fade(layer, to: 0) } else { layer.opacity = 0 }
+        }
+    }
+
     // MARK: - Silhouette
 
     /// Les deux états, tirés de la même recette que les bandes de flanc
@@ -466,6 +502,19 @@ final class NotchPanelContentView: NSView {
             in: NotchPanelGeometry.panelRect(in: bounds),
             anchoredTo: .top,
             size: collapsedSize,
+            shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
+            farRadius: NotchPanelGeometry.collapsedBottomRadius
+        )
+    }
+
+    /// L'encoche élargie par ses deux ailes — même hauteur, mêmes rayons.
+    private func wingedPath() -> CGPath {
+        PanelGeometry.silhouette(
+            in: NotchPanelGeometry.panelRect(in: bounds),
+            anchoredTo: .top,
+            size: NSSize(
+                width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
+                height: collapsedSize.height),
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
             farRadius: NotchPanelGeometry.collapsedBottomRadius
         )
@@ -487,13 +536,14 @@ final class NotchPanelContentView: NSView {
     func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
+        if expanded { hideDeviceStatus(animated: animated) }
         applyShape(expanded: expanded, animated: animated)
     }
 
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let path = expanded ? expandedPath() : collapsedPath()
+        let path = expanded ? expandedPath() : (isShowingDeviceStatus ? wingedPath() : collapsedPath())
         // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
         // le panneau déplié qu'on vient cliquer ou déposer.
         silhouette = path

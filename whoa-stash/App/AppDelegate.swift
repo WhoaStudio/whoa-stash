@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
+    private var deviceStatusCoordinator: DeviceStatusCoordinator?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
     private var copilotUsageViewModel: CopilotUsageViewModel?
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
@@ -78,6 +79,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // indépendant de la bande du bord droit, que le réglage Général permet de couper.
         notchPanelController = NotchPanelController(storage: settings)
         notchPanelController?.activate()
+
+        // Pastille d'état d'un appareil audio Bluetooth qui se connecte, affichée sous l'encoche.
+        // `--simulate-bluetooth-device=airpodsmax,82` en simule un (voir `DeviceStatus`).
+        let deviceCoordinator = DeviceStatusCoordinator()
+        deviceCoordinator.onStatus = { [weak self] status in
+            self?.notchPanelController?.showDeviceStatus(status)
+        }
+        deviceCoordinator.activate()
+        deviceStatusCoordinator = deviceCoordinator
 
         // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
         // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.

@@ -23,6 +23,9 @@ final class NotchPanelController {
     private var windows: [CGDirectDisplayID: NotchPanelWindow] = [:]
     private var expandedDisplay: CGDirectDisplayID?
 
+    /// Dit si un glisser de fichiers est en cours — voir `isDraggingFiles()`.
+    private var dragDetector = FileDragDetector()
+
     private var screenObserver: NSObjectProtocol?
     private var enabledCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
@@ -42,6 +45,11 @@ final class NotchPanelController {
     private var hasVisitedPinnedPanel = false
 
     private var hoveredRingIndex: Int?
+
+    /// Pastille d'appareil Bluetooth : visible `deviceStatusDuration`, puis elle se retire.
+    private let deviceStatusDuration: Duration = .seconds(3)
+    private var deviceStatusTask: Task<Void, Never>?
+    private var deviceStatusDisplay: CGDirectDisplayID?
 
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est
     /// téléporté, ou qu'il quitte la zone pendant un changement de Space, plus aucun événement
@@ -106,6 +114,9 @@ final class NotchPanelController {
             self.screenObserver = nil
         }
         stopPolling()
+        deviceStatusTask?.cancel()
+        deviceStatusTask = nil
+        deviceStatusDisplay = nil
 
         windows.values.forEach { $0.close() }
         windows.removeAll()
@@ -124,6 +135,30 @@ final class NotchPanelController {
     func apply(usageState newState: ClaudeUsageState) {
         usageState = newState
         windows.values.forEach { $0.apply(usageState: newState, animated: true) }
+    }
+
+    /// Montre la pastille d'un appareil qui vient de se connecter, sur l'écran principal. Une
+    /// nouvelle connexion remplace la précédente et relance le délai.
+    func showDeviceStatus(_ status: DeviceStatus) {
+        guard
+            isActive,
+            let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
+            let window = windows[displayID]
+        else { return }
+
+        deviceStatusTask?.cancel()
+        if let previous = deviceStatusDisplay, previous != displayID {
+            windows[previous]?.hideDeviceStatus()
+        }
+        deviceStatusDisplay = displayID
+        window.showDeviceStatus(status)
+
+        deviceStatusTask = Task { [weak self, duration = deviceStatusDuration] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            window.hideDeviceStatus()
+            self?.deviceStatusDisplay = nil
+        }
     }
 
     /// Déplie (ou replie) le panneau de l'écran qui contient le curseur — appelé par
@@ -158,6 +193,10 @@ final class NotchPanelController {
     // MARK: - Suivi du curseur
 
     private func handleCursor(at location: NSPoint) {
+        // Calculé avant les gardes : le détecteur doit voir chaque relâchement, même quand le
+        // suivi est gelé plus bas, sans quoi il garderait un compteur périmé.
+        let draggingFiles = isDraggingFiles()
+
         // Menu contextuel ouvert : le suivi est gelé. Le pointeur descend dans le menu, hors du
         // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
         guard !OverlayContextMenu.shared.isPresenting else { return }
@@ -168,7 +207,6 @@ final class NotchPanelController {
 
         // Tous les écrans, et pas seulement celui du curseur : un glisser traverse les écrans, et
         // le panneau qu'il survolera ensuite doit déjà être prêt à le recevoir.
-        let draggingFiles = isDraggingFiles
         windows.values.forEach { $0.setFileDragActive(draggingFiles) }
 
         // Un seul écran est testé, celui qui contient le curseur : avec plusieurs écrans
@@ -193,7 +231,7 @@ final class NotchPanelController {
             // sinon il disparaîtrait avant même que le pointeur l'ait atteint.
             if overPanel {
                 hasVisitedPinnedPanel = true
-                if isDraggingFiles { window.revealFileShelf() }
+                if draggingFiles { window.revealFileShelf() }
                 updateRingHover(at: location, displayID: displayID)
             } else if hasVisitedPinnedPanel {
                 isPinned = false
@@ -219,19 +257,24 @@ final class NotchPanelController {
         // Le panneau vient de s'ouvrir sous un glisser de fichiers : c'est le bac qu'on veut
         // voir, et c'est lui qui doit être là pour recevoir le dépôt. Le reste du dépôt est au
         // `FileTrayView` de l'onglet Tray — il n'y a pas d'autre cible de dépôt.
-        if isDraggingFiles { window.revealFileShelf() }
+        if draggingFiles { window.revealFileShelf() }
 
         updateRingHover(at: location, displayID: displayID)
     }
 
     /// Un glisser de fichiers est-il en cours sous le curseur ? Le bouton gauche enfoncé ne
-    /// suffit pas — déplacer une fenêtre lèverait le même drapeau —, donc on regarde aussi ce
-    /// que porte le presse-papiers de glisser, que le système remplit pour tout le monde.
-    private var isDraggingFiles: Bool {
-        guard NSEvent.pressedMouseButtons & 1 != 0 else { return false }
-        return NSPasteboard(name: .drag).canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
+    /// suffit pas — déplacer une fenêtre lèverait le même drapeau —, et le contenu du
+    /// presse-papiers de glisser ne suffit pas non plus : il survit au glisser précédent. Voir
+    /// `FileDragDetector`, qui exige un changement du presse-papiers pendant le bouton enfoncé.
+    private func isDraggingFiles() -> Bool {
+        let pasteboard = NSPasteboard(name: .drag)
+        return dragDetector.isDragging(
+            buttonDown: NSEvent.pressedMouseButtons & 1 != 0,
+            changeCount: pasteboard.changeCount,
+            carriesFiles: pasteboard.canReadObject(
+                forClasses: [NSURL.self],
+                options: [.urlReadingFileURLsOnly: true]
+            )
         )
     }
 

@@ -1,7 +1,9 @@
 import AppKit
+import OSLog
+import QuickLookThumbnailing
 
-/// Onglet Tray : une zone de dépôt qui retient les fichiers qu'on y lâche, avec leur icône et
-/// leur nom.
+/// Onglet Tray : une zone de dépôt qui retient les fichiers qu'on y lâche, rangés en grille de
+/// vignettes — l'aperçu du fichier, son nom dessous — comme dans la vue en icônes du Finder.
 ///
 /// La vue n'est qu'une lecture de `FileShelfStore` — c'est lui qui retient les fichiers, et donc
 /// le bac survit au repli du panneau, au changement d'onglet et au relancement de l'app. Les
@@ -14,12 +16,12 @@ import AppKit
 /// panneau lui confie ce qu'il reçoit (`canAccept(_:)` / `accept(_:)`).
 ///
 /// Un fichier en ressort comme de n'importe quel bac du système : on le glisse vers le Finder ou
-/// une autre app, et il ne quitte le bac qu'une fois le dépôt abouti (voir `FileTrayRowView`).
+/// une autre app, et il ne quitte le bac qu'une fois le dépôt abouti (voir `FileTrayItemView`).
 final class FileTrayView: NSView {
 
     private let emptyLabel = NSTextField(labelWithString: "Drop files here")
     private let dropHighlightLayer = CAShapeLayer()
-    private var rows: [FileTrayRowView] = []
+    private var items: [FileTrayItemView] = []
 
     private let store: FileShelfStore
     /// `nonisolated(unsafe)` pour pouvoir être retiré depuis `deinit`, qui n'est pas isolé sur
@@ -27,8 +29,7 @@ final class FileTrayView: NSView {
     /// toutes deux sur le main actor de fait.
     nonisolated(unsafe) private var storeObserver: NSObjectProtocol?
 
-    private let rowHeight: CGFloat = 26
-    private let rowSpacing: CGFloat = 4
+    private let tileSpacing: CGFloat = 8
 
     private var isDropTarget = false
 
@@ -92,7 +93,7 @@ final class FileTrayView: NSView {
         dropHighlightLayer.strokeColor = dropColor
             .withAlphaComponent(isDropTarget ? 1 : 0.72)
             .cgColor
-        rows.forEach { $0.applyPalette(palette) }
+        items.forEach { $0.applyPalette(palette) }
     }
 
     // MARK: - Dépôt
@@ -101,7 +102,7 @@ final class FileTrayView: NSView {
     /// lui-même ne l'est pas : relâcher là d'où l'on vient doit se lire comme un glisser annulé,
     /// qui laisse le fichier en place, et non comme un dépôt abouti qui l'en retirerait.
     func canAccept(_ sender: any NSDraggingInfo) -> Bool {
-        guard !(sender.draggingSource is FileTrayRowView) else { return false }
+        guard !(sender.draggingSource is FileTrayItemView) else { return false }
         return sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions)
     }
 
@@ -132,9 +133,9 @@ final class FileTrayView: NSView {
     }
 
     private func rebuildRows() {
-        rows.forEach { $0.removeFromSuperview() }
-        rows = store.urls.map { FileTrayRowView(url: $0, store: store) }
-        rows.forEach(addSubview)
+        items.forEach { $0.removeFromSuperview() }
+        items = store.urls.map { FileTrayItemView(url: $0, store: store) }
+        items.forEach(addSubview)
         emptyLabel.isHidden = !store.isEmpty
         applyPalette()
         needsLayout = true
@@ -159,36 +160,56 @@ final class FileTrayView: NSView {
             height: labelHeight
         )
 
-        // Empilées depuis le haut, le dernier déposé en bas de la pile visible.
+        // Grille centrée, rangée par rangée : le nombre de colonnes suit la largeur, et une
+        // rangée incomplète se centre d'elle-même plutôt que de coller à gauche.
+        let tile = FileTrayItemView.tileSize
         let inset: CGFloat = 8
-        for (position, row) in rows.enumerated() {
-            let top = bounds.maxY - inset - CGFloat(position) * (rowHeight + rowSpacing)
-            row.frame = NSRect(
-                x: bounds.minX + inset,
-                y: top - rowHeight,
-                width: bounds.width - 2 * inset,
-                height: rowHeight
+        let columns = max(1, Int((bounds.width - 2 * inset + tileSpacing) / (tile.width + tileSpacing)))
+        let rowCount = (items.count + columns - 1) / columns
+        let gridHeight = CGFloat(rowCount) * tile.height + CGFloat(max(0, rowCount - 1)) * tileSpacing
+        let gridTop = bounds.midY + gridHeight / 2
+
+        for (position, item) in items.enumerated() {
+            let row = position / columns
+            let column = position % columns
+            let inRow = min(columns, items.count - row * columns)
+            let rowWidth = CGFloat(inRow) * tile.width + CGFloat(inRow - 1) * tileSpacing
+            item.frame = NSRect(
+                x: bounds.midX - rowWidth / 2 + CGFloat(column) * (tile.width + tileSpacing),
+                y: gridTop - CGFloat(row + 1) * tile.height - CGFloat(row) * tileSpacing,
+                width: tile.width,
+                height: tile.height
             )
         }
     }
 }
 
-// MARK: - Une ligne
+// MARK: - Une vignette
 
-/// Une ligne du bac : l'icône que le Finder donne au fichier, et son nom.
+/// Une vignette du bac : l'aperçu du fichier, et son nom dessous.
+///
+/// L'aperçu part de l'icône que le Finder donne au fichier — l'icône de dossier, ou celle du
+/// type avec le badge de l'app par défaut —, puis passe à la vignette de contenu de QuickLook
+/// (texte, JSON, image…) dès qu'elle est prête. Un fichier sans vignette garde son icône.
 ///
 /// C'est aussi la source du glisser vers l'extérieur. Le fichier ne quitte le bac que si le
 /// dépôt a abouti — `draggingSession(_:endedAt:operation:)` reçoit alors une opération non
-/// vide ; un glisser annulé, ou relâché dans le vide, en reçoit une vide et laisse la ligne en
+/// vide ; un glisser annulé, ou relâché dans le vide, en reçoit une vide et laisse la vignette en
 /// place.
-private final class FileTrayRowView: NSView, NSDraggingSource {
+private final class FileTrayItemView: NSView, NSDraggingSource {
+
+    static let tileSize = NSSize(width: 104, height: 110)
 
     private let url: URL
     private let store: FileShelfStore
     private let iconView = NSImageView()
     private let label = NSTextField(labelWithString: "")
+    private var thumbnailTask: Task<Void, Never>?
 
-    private let iconSize: CGFloat = 16
+    private let previewSize: CGFloat = 64
+    private let labelGap: CGFloat = 6
+    private let maxLabelLines = 2
+    private let labelFont = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
 
     /// Distance à parcourir avant qu'un `mouseDragged` devienne un glisser : sans ce seuil, le
     /// moindre tremblement au clic en lancerait un.
@@ -201,20 +222,22 @@ private final class FileTrayRowView: NSView, NSDraggingSource {
         super.init(frame: .zero)
         wantsLayer = true
 
-        // L'icône vient du Finder : un fichier déposé garde donc l'apparence qu'il a sur le
-        // bureau, type et vignette compris.
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
 
-        label.stringValue = url.lastPathComponent
         label.isBezeled = false
         label.drawsBackground = false
         label.isEditable = false
         label.isSelectable = false
-        label.lineBreakMode = .byTruncatingMiddle
-        label.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
+        label.alignment = .center
+        label.font = labelFont
+        label.lineBreakMode = .byCharWrapping
+        label.maximumNumberOfLines = maxLabelLines
+        label.stringValue = truncatedName(url.lastPathComponent)
         addSubview(label)
+
+        loadThumbnail()
     }
 
     @available(*, unavailable)
@@ -224,6 +247,75 @@ private final class FileTrayRowView: NSView, NSDraggingSource {
 
     func applyPalette(_ palette: OverlayPalette) {
         label.textColor = palette.tabActiveContent
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        // La vignette retirée du bac n'a plus besoin de son aperçu.
+        if superview == nil { thumbnailTask?.cancel() }
+    }
+
+    // MARK: - Aperçu
+
+    private func loadThumbnail() {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: CGSize(width: previewSize, height: previewSize),
+            scale: scale,
+            representationTypes: .thumbnail
+        )
+        thumbnailTask = Task { [weak self] in
+            do {
+                let representation = try await QLThumbnailGenerator.shared
+                    .generateBestRepresentation(for: request)
+                guard !Task.isCancelled else { return }
+                self?.iconView.image = representation.nsImage
+            } catch {
+                // Pas de vignette de contenu pour ce type : l'icône du Finder reste.
+                Log.sidePanel.debug("Pas de vignette QuickLook : \(error.localizedDescription, privacy: .private)")
+            }
+        }
+    }
+
+    // MARK: - Nom
+
+    /// Coupe le nom **au milieu** quand il ne tient pas sur `maxLabelLines` lignes, comme le
+    /// Finder : on garde le début et la fin, donc l'extension. `NSTextField` ne sait couper qu'en
+    /// fin de dernière ligne sur plusieurs lignes, d'où la mesure à la main.
+    private func truncatedName(_ name: String) -> String {
+        let width = Self.tileSize.width
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byCharWrapping
+        style.alignment = .center
+        let attributes: [NSAttributedString.Key: Any] = [.font: labelFont, .paragraphStyle: style]
+        let lineHeight = ceil(labelFont.ascender - labelFont.descender + labelFont.leading)
+
+        func fits(_ text: String) -> Bool {
+            let rect = (text as NSString).boundingRect(
+                with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                options: .usesLineFragmentOrigin,
+                attributes: attributes
+            )
+            return ceil(rect.height) <= lineHeight * CGFloat(maxLabelLines)
+        }
+
+        guard !fits(name) else { return name }
+
+        let characters = Array(name)
+        let tailLength = min(characters.count / 2, (url.pathExtension.count + 1) + 3)
+        let tail = String(characters.suffix(tailLength))
+        var low = 0
+        var high = characters.count - tailLength
+        while low < high {
+            let middle = (low + high + 1) / 2
+            if fits(String(characters.prefix(middle)) + "…" + tail) {
+                low = middle
+            } else {
+                high = middle - 1
+            }
+        }
+        return String(characters.prefix(low)) + "…" + tail
     }
 
     // MARK: - Glisser vers l'extérieur
@@ -246,10 +338,9 @@ private final class FileTrayRowView: NSView, NSDraggingSource {
 
     private func beginDrag(with event: NSEvent) {
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)
-        // La vignette sous le curseur est celle de la ligne — l'icône du Finder à sa taille
-        // d'affichage —, pas la ligne entière : c'est le fichier qu'on déplace.
-        let image = iconView.image
-        item.setDraggingFrame(iconView.frame, contents: image)
+        // L'image sous le curseur est l'aperçu de la vignette, pas la vignette entière : c'est
+        // le fichier qu'on déplace.
+        item.setDraggingFrame(iconView.frame, contents: iconView.image)
 
         // Le panneau se replie dès que le curseur le quitte : il faut geler ce suivi le temps du
         // glisser, sans quoi le bac se refermerait sous la main qui en sort un fichier.
@@ -286,19 +377,16 @@ private final class FileTrayRowView: NSView, NSDraggingSource {
         super.layout()
 
         iconView.frame = NSRect(
-            x: bounds.minX,
-            y: bounds.midY - iconSize / 2,
-            width: iconSize,
-            height: iconSize
+            x: bounds.midX - previewSize / 2,
+            y: bounds.maxY - previewSize,
+            width: previewSize,
+            height: previewSize
         )
 
-        let labelHeight = label.intrinsicContentSize.height
-        let x = iconView.frame.maxX + 8
-        label.frame = NSRect(
-            x: x,
-            y: bounds.midY - labelHeight / 2,
-            width: max(0, bounds.maxX - x),
-            height: labelHeight
-        )
+        let labelTop = iconView.frame.minY - labelGap
+        label.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, labelTop))
+        // Le texte se cale en haut de la zone, juste sous l'aperçu, quelle que soit sa hauteur.
+        let textHeight = min(label.sizeThatFits(NSSize(width: bounds.width, height: .greatestFiniteMagnitude)).height, labelTop)
+        label.frame = NSRect(x: 0, y: labelTop - textHeight, width: bounds.width, height: textHeight)
     }
 }
