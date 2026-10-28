@@ -10,4 +10,6 @@ struct ClipboardSnapshot: Equatable {
     /// Vrai pour un contenu que l'app source demande de ne pas conserver (gestionnaire de mots
     /// de passe, mot de passe à usage unique…).
     var isConcealed = false
+    /// Application au premier plan au moment de la copie : c'est elle qui a écrit dans le presse-papiers.
+    var sourceBundleID: String?
 }

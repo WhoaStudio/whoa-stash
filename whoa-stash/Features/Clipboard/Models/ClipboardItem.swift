@@ -15,8 +15,21 @@ struct ClipboardItem: Codable, Equatable, Identifiable {
     /// une.
     let fingerprint: String
     var date: Date
+    /// Absent des historiques écrits avant l'ajout de la source : le décodage le tolère.
+    var sourceBundleID: String?
 
     var fileURL: URL? { filePath.map { URL(fileURLWithPath: $0) } }
+
+    /// « now », « 23 min ago », « 3 h ago », « 2 d ago ».
+    static func ageText(since date: Date, now: Date = .now) -> String {
+        let seconds = max(0, now.timeIntervalSince(date))
+        switch seconds {
+        case ..<60: return "now"
+        case ..<3600: return "\(Int(seconds / 60)) min ago"
+        case ..<86_400: return "\(Int(seconds / 3600)) h ago"
+        default: return "\(Int(seconds / 86_400)) d ago"
+        }
+    }
 
     static func fingerprint(of classification: ClipboardClassification) -> String {
         if let text = classification.text { return "t:" + text }

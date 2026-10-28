@@ -31,11 +31,12 @@ final class ClipboardHistoryStore {
     }
 
     /// Ajoute un élément en tête, ou remonte celui qui a le même contenu.
-    func add(_ classification: ClipboardClassification, date: Date = .now) {
+    func add(_ classification: ClipboardClassification, sourceBundleID: String? = nil, date: Date = .now) {
         let fingerprint = ClipboardItem.fingerprint(of: classification)
         if let index = items.firstIndex(where: { $0.fingerprint == fingerprint }) {
             var item = items.remove(at: index)
             item.date = date
+            item.sourceBundleID = sourceBundleID ?? item.sourceBundleID
             items.insert(item, at: 0)
             persist()
             return
@@ -59,7 +60,7 @@ final class ClipboardHistoryStore {
             ClipboardItem(
                 id: id, kind: classification.kind, tag: classification.tag, text: classification.text,
                 filePath: classification.fileURL?.path, imageName: imageName,
-                fingerprint: fingerprint, date: date),
+                fingerprint: fingerprint, date: date, sourceBundleID: sourceBundleID),
             at: 0)
         if items.count > limit {
             items.suffix(from: limit).forEach(deleteImage)

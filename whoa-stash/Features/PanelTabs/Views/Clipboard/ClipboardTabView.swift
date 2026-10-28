@@ -114,6 +114,11 @@ final class ClipboardTabView: NSView {
         needsLayout = true
     }
 
+    /// Remet « il y a N min » à jour sur chaque carte.
+    func refreshAges() {
+        documentView.subviews.compactMap { $0 as? ClipboardCardView }.forEach { $0.refreshAge() }
+    }
+
     // MARK: - Mise en page
 
     override func layout() {

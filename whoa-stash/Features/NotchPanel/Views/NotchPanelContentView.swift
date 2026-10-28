@@ -258,6 +258,7 @@ final class NotchPanelContentView: NSView {
     /// le panneau restant en mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
     func refreshWeek() {
         weekStrip.refresh()
+        clipboardTab.refreshAges()
         calendarWidget.refresh()
     }
 

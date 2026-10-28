@@ -20,7 +20,7 @@ final class ClipboardHistoryViewModel {
     func activate() {
         provider.onSnapshot = { [weak self] snapshot in
             guard let self, let classification = ClipboardClassifier.classify(snapshot) else { return }
-            store.add(classification)
+            store.add(classification, sourceBundleID: snapshot.sourceBundleID)
             onStateChanged?(store.items)
         }
         provider.start()
@@ -38,7 +38,7 @@ final class ClipboardHistoryViewModel {
         let classification = ClipboardClassification(
             kind: item.kind, tag: item.tag, text: item.text, fileURL: item.fileURL, imageData: imageData)
         provider.copy(classification)
-        store.add(classification)
+        store.add(classification, sourceBundleID: item.sourceBundleID)
         onStateChanged?(store.items)
     }
 }

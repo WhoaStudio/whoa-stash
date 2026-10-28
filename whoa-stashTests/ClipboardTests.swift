@@ -142,3 +142,20 @@ struct ClipboardHistoryStoreTests {
         #expect(ClipboardHistoryStore(directory: directory).items.map(\.text) == ["un"])
     }
 }
+
+@MainActor
+@Suite("Presse-papiers : âge")
+struct ClipboardAgeTests {
+
+    @Test("l'âge s'écrit en minutes, heures puis jours")
+    func ageText() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        func age(_ seconds: TimeInterval) -> String {
+            ClipboardItem.ageText(since: now.addingTimeInterval(-seconds), now: now)
+        }
+        #expect(age(5) == "now")
+        #expect(age(23 * 60) == "23 min ago")
+        #expect(age(3 * 3600) == "3 h ago")
+        #expect(age(2 * 86_400) == "2 d ago")
+    }
+}

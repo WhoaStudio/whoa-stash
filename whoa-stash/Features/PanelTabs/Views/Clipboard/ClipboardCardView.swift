@@ -28,8 +28,9 @@ final class ClipboardCardView: NSView {
     private let previewView = NSImageView()
     private let coverView = NSView()
     private let textLabel = NSTextField(labelWithString: "")
-    private let tagLabel = NSTextField(labelWithString: "")
-    private let tagBackground = CALayer()
+    private let sourceIconView = NSImageView()
+    private let ageLabel = NSTextField(labelWithString: "")
+    private let shade = CAGradientLayer()
     private let accentBar = CALayer()
     private var thumbnailTask: Task<Void, Never>?
 
@@ -76,14 +77,34 @@ final class ClipboardCardView: NSView {
             loadPreview(imageURL: imageURL)
         }
 
-        tagBackground.backgroundColor = NSColor(white: 0.0, alpha: 0.45).cgColor
-        tagBackground.cornerRadius = 6
-        tagBackground.cornerCurve = .continuous
-        layer?.addSublayer(tagBackground)
-        tagLabel.stringValue = item.tag
-        tagLabel.font = .systemFont(ofSize: 10, weight: .semibold)
-        tagLabel.textColor = NSColor(white: 0.85, alpha: 1)
-        addSubview(tagLabel)
+        if item.kind == .image || item.kind == .video {
+            // Voile bas : l'icône et l'âge restent lisibles sur n'importe quelle image.
+            shade.colors = [NSColor.clear.cgColor, NSColor.black.withAlphaComponent(0.6).cgColor]
+            layer?.insertSublayer(shade, above: coverView.layer)
+        }
+
+        sourceIconView.imageScaling = .scaleProportionallyUpOrDown
+        sourceIconView.image = Self.sourceIcon(bundleID: item.sourceBundleID)
+        addSubview(sourceIconView)
+
+        ageLabel.font = .systemFont(ofSize: 11, weight: .regular)
+        ageLabel.textColor = NSColor(white: 0.85, alpha: 1)
+        addSubview(ageLabel)
+        refreshAge()
+    }
+
+    /// Recalcule « il y a N min » — appelé à chaque dépliage du panneau.
+    func refreshAge() {
+        ageLabel.stringValue = ClipboardItem.ageText(since: item.date)
+        needsLayout = true
+    }
+
+    private static func sourceIcon(bundleID: String?) -> NSImage? {
+        guard
+            let bundleID,
+            let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else { return nil }
+        return NSWorkspace.shared.icon(forFile: url.path)
     }
 
     // MARK: - Aperçu
@@ -132,12 +153,18 @@ final class ClipboardCardView: NSView {
         super.layout()
         accentBar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
 
-        let tagSize = tagLabel.sizeThatFits(NSSize(width: 200, height: 20))
-        let chip = CGRect(
-            x: 8, y: barHeight + 8, width: ceil(tagSize.width) + 12, height: ceil(tagSize.height) + 6)
-        tagBackground.frame = chip
-        tagLabel.frame = CGRect(
-            x: chip.minX + 6, y: chip.minY + 3, width: ceil(tagSize.width), height: ceil(tagSize.height))
+        let iconSide: CGFloat = 22
+        let footerY = barHeight + 8
+        let hasIcon = sourceIconView.image != nil
+        sourceIconView.isHidden = !hasIcon
+        sourceIconView.frame = CGRect(x: 10, y: footerY, width: iconSide, height: iconSide)
+        let ageSize = ageLabel.sizeThatFits(NSSize(width: 200, height: 20))
+        let ageX = hasIcon ? sourceIconView.frame.maxX + 6 : 10
+        ageLabel.frame = CGRect(
+            x: ageX, y: footerY + (iconSide - ceil(ageSize.height)) / 2,
+            width: min(ceil(ageSize.width), bounds.width - ageX - 6), height: ceil(ageSize.height))
+        let chip = CGRect(x: 0, y: footerY, width: 0, height: iconSide)
+        shade.frame = CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height / 2)
 
         switch item.kind {
         case .text, .link:

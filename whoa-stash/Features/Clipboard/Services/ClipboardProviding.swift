@@ -56,6 +56,8 @@ final class PasteboardClipboardProvider: ClipboardProviding {
         let types = Set((pasteboard.types ?? []).map(\.rawValue))
         var snapshot = ClipboardSnapshot()
         snapshot.isConcealed = !types.isDisjoint(with: Self.concealedTypes)
+        let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        snapshot.sourceBundleID = source == Bundle.main.bundleIdentifier ? nil : source
 
         let urls = pasteboard.readObjects(
             forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
@@ -102,10 +104,11 @@ final class MockClipboardProvider: ClipboardProviding {
             try? await Task.sleep(for: .milliseconds(300))
             guard let self else { return }
             // Du plus ancien au plus récent : la dernière copie arrive en tête.
-            onSnapshot?(ClipboardSnapshot(fileURLs: [URL(fileURLWithPath: "/tmp/Archive.zip")]))
-            onSnapshot?(ClipboardSnapshot(string: "www.mynotchbar.com"))
-            onSnapshot?(ClipboardSnapshot(string: "Drag In. Drag Out. Done. That's it."))
-            onSnapshot?(ClipboardSnapshot(imageData: Self.sampleImage()))
+            onSnapshot?(ClipboardSnapshot(
+                fileURLs: [URL(fileURLWithPath: "/tmp/Archive.zip")], sourceBundleID: "com.apple.finder"))
+            onSnapshot?(ClipboardSnapshot(string: "www.mynotchbar.com", sourceBundleID: "com.apple.Safari"))
+            onSnapshot?(ClipboardSnapshot(string: "Drag In. Drag Out. Done. That's it.", sourceBundleID: "com.apple.mail"))
+            onSnapshot?(ClipboardSnapshot(imageData: Self.sampleImage(), sourceBundleID: "com.apple.Photos"))
         }
     }
 
