@@ -33,7 +33,7 @@ enum KnockAction: String, Codable, CaseIterable, Identifiable, Sendable {
 struct KnockSettings: Codable, Equatable, Sendable {
     var enabled: Bool = true
     var single: KnockAction = .displayOff
-    var double: KnockAction = .none
+    var double: KnockAction = .lockScreen
     /// 0...1 ; plus haut = coups plus légers détectés (voir `KnockClassifier.threshold`).
     var sensitivity: Double = 0.7
 

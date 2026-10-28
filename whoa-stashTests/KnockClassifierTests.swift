@@ -126,13 +126,13 @@ struct KnockSettingsStorageTests {
         return defaults
     }
 
-    @Test("par défaut, un coup simple éteint l'écran et le double ne fait rien")
+    @Test("par défaut, un coup simple éteint l'écran et le double verrouille")
     func defaultMapping() {
         let settings = KnockSettings()
         #expect(settings.enabled)
         #expect(settings.action(taps: 1) == .displayOff)
-        #expect(settings.action(taps: 2) == .none)
-        #expect(!settings.hasDoubleAction)
+        #expect(settings.action(taps: 2) == .lockScreen)
+        #expect(settings.hasDoubleAction)
     }
 
     @Test("les choix de coups survivent à un relancement")
@@ -155,7 +155,7 @@ struct KnockSettingsStorageTests {
     func toleratesUnknownAction() throws {
         let json = #"{"double":"teleport"}"#.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(KnockSettings.self, from: json)
-        #expect(decoded.double == .none)
+        #expect(decoded.double == .lockScreen)
         #expect(decoded.single == .displayOff)
     }
 }
