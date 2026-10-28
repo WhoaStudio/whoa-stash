@@ -26,17 +26,11 @@ enum ClaudeUsagePalette {
     }
 
     /// Piste (partie non remplie) d'une bague ou d'une barre.
-    static func track(for appearance: NSAppearance) -> CGColor {
-        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        return CGColor(gray: isDark ? 1 : 0, alpha: isDark ? 0.14 : 0.10)
-    }
+    static let track = CGColor(gray: 1, alpha: 0.14)
 
     /// Teinte neutre quand aucune donnée n'est disponible : la jauge reste lisible comme un
     /// contenant vide, sans suggérer « 0 % consommé ».
-    static func unavailable(for appearance: NSAppearance) -> CGColor {
-        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        return CGColor(gray: isDark ? 1 : 0, alpha: 0.28)
-    }
+    static let unavailable = CGColor(gray: 1, alpha: 0.62)
 }
 
 /// Mise en forme des instants de réinitialisation, partagée par la bague (info-bulle) et le

@@ -1,82 +1,43 @@
 # whoa-stash
 
-<!-- One or two sentences: what this project is, who uses it, what matters most. -->
+macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overlay panels at the screen edges. See @README.md for the features and launch flags.
 
-<!-- claude-kit:begin stack -->
-## Stack
-
-- <!-- Language, framework, runtime. -->
-<!-- claude-kit:end stack -->
-
-<!-- claude-kit:begin commands -->
 ## Commands
 
-<!-- How to install, run, test, lint. -->
-<!-- claude-kit:end commands -->
+- Build: `xcodebuild -scheme whoa-stash -destination 'platform=macOS' build`
+- Test: `xcodebuild -scheme whoa-stash -destination 'platform=macOS' test`
+- One suite: append `-only-testing:whoa-stashTests/<SuiteName>` before `test`
+- Logs: `log stream --predicate 'subsystem == "ugolin-olle.whoa-stash"'`
+- TODO: no lint or format tooling is configured.
+
+## Architecture
+
+- `App/AppDelegate.swift` is the only composition root: it builds every controller and view model and wires their state callbacks together. Add new surfaces there.
+- Each `Features/<X>/` has a `…Controller` that owns its `NSPanel`s and exposes `activate()`, plus `togglePinnedReveal()` and `apply(…State:)` where relevant. View models push state through `onStateChanged`; they don't hold controllers.
+- Side panel and notch panel keep one window per connected screen and rebuild them when the screen configuration changes.
+- Details: [docs/architecture.md](docs/architecture.md). Network, Keychain and permissions: [docs/external-interfaces.md](docs/external-interfaces.md).
 
 ## Conventions
 
-<!-- Project rules Claude can't infer from the code, one line each. E.g. "Use the Result type for errors, never throw in services." -->
-
-<!-- claude-kit:begin workflow -->
-## Workflow
-
-- **Plan first.** For changes touching more than ~3 files, start in Plan Mode (Shift+Tab), agree on the plan, then edit.
-- **Decompose.** Split big tasks into steps that each end green (tests/typecheck pass) before starting the next.
-- **Search, then read.** Grep/glob for the symbol you need instead of opening whole directories or large files.
-- **Verify.** Run the relevant test/lint command before calling a task done.
-<!-- claude-kit:end workflow -->
-
-<!-- claude-kit:begin guardrails -->
-## Guardrails
-
-- Paths in `.claudeignore` are blocked from reading via `permissions.deny` in `.claude/settings.json`. Don't work around it with shell commands; ask if you need one of them.
-- Lockfiles, build output and `.env*` files are edit-protected by `.claude/hooks/pre-edit.cjs`. Change the source of truth instead (manifest, sources).
-<!-- claude-kit:end guardrails -->
-
-<!-- claude-kit:begin task-context -->
-## Task context
-
-- For multi-step work, keep `.claude/context/task_context.md` current (goal, status, next steps). Update it before a session ends or when context runs long; it's re-loaded after compaction.
-- When resuming a task, read it first.
-<!-- claude-kit:end task-context -->
-
-<!-- claude-kit:begin memory -->
-## Team memory
-
-- Past decisions, rejected approaches and lessons are in `.claude/context/conversation_memory.md`. Check it before revisiting a decision; append one line when a new one is made.
-<!-- claude-kit:end memory -->
-
-<!-- claude-kit:begin docs -->
-## Docs
-
-- Before changing an area, read the matching file in `docs/` (architecture, api-contracts, data-models, debugging) and update it in the same change.
-<!-- claude-kit:end docs -->
-
-<!-- claude-kit:begin agents -->
-## Subagents
-
-- Delegate broad searches to `explorer` (Haiku, read-only) so only its findings enter this context.
-- For bugs and failing tests, run `/fix <symptom>`: it finds, diagnoses (via `debugger`), fixes, tests and retries.
-- Ask `reviewer` to check the diff before calling a non-trivial change done.
-- Use `test-writer` to add coverage for new behavior.
-<!-- claude-kit:end agents -->
-
-<!-- claude-kit:begin compress -->
-## Large files
-
-- To skim a big file, run `npx @whoa-studio/claude-kit compress --outline <path>` (declarations with line numbers), then read only the ranges you need.
-<!-- claude-kit:end compress -->
-
-<!-- claude-kit:begin models -->
-<!--
-Models (for humans; not loaded into Claude's context):
-- This project defaults to `opusplan` (.claude/settings.json): Opus in Plan Mode, Sonnet while executing.
-- /model sonnet: everyday coding · /model opus: hard debugging and design · /model haiku: quick mechanical edits
-- Personal override: /model <alias>, or set "model" in .claude/settings.local.json (not committed).
--->
-<!-- claude-kit:end models -->
+- Doc comments, log messages and test names are in French. Write new ones in French too.
+- The module defaults to `@MainActor` (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`). Mark anything called from C callbacks or background queues `nonisolated`, as `Log` and `DDCTransport` do.
+- Log through `Log.<category>` (OSLog), never `print`. Leave user-derived strings private and mark only technical values `.public`.
+- Only `SettingsStorage` and `FileShelfStore` touch `UserDefaults`. Use `SettingsStorage.shared`, never a second instance.
+- External sources go behind a protocol with a `Mock…Provider.fromLaunchArguments()` sibling, so the UI can be checked without network, Keychain or calendar access.
+- Tests use Swift Testing (`@Suite` / `@Test`). `CopilotUsageTests` is the only XCTest file.
 
 ## Gotchas
 
-<!-- Things that have bitten people before: flaky tests, env quirks, ordering constraints. -->
+- Tests are hosted in the app (`TEST_HOST`). `AppDelegate` returns early when `XCTestConfigurationFilePath` is set. Without that guard, a test run would drive real display brightness over DDC and read the Keychain.
+- `AppSettings` is stored as one JSON blob. Only add fields with defaults. Decoding must keep tolerating missing keys, removed keys and unknown enum values (`SettingsStorageTests` covers this).
+- The app forces `.darkAqua` appearance in `AppDelegate`. Don't add light-mode variants.
+- DDC goes through private `IOAVService` symbols loaded with `dlopen`, so they are missing on Intel. Code must degrade, never crash.
+- There is no `.gitignore`, and `xcuserdata/` is tracked. Don't commit local Xcode state by accident.
+
+## Workflow
+
+- Keep `.claude/context/task_context.md` current during multi-step work, and read it when resuming.
+- Past decisions live in `.claude/context/conversation_memory.md`. Check it before revisiting one, and append a line when you make one.
+- Paths in `.claudeignore` are read-denied through `.claude/settings.json`. Don't work around that with shell commands.
+- To skim a large file: `npx @whoa-studio/claude-kit compress --outline <path>`.
+- Subagents: `explorer` for broad searches, `/fix <symptom>` for bugs, `reviewer` before calling a change done, `test-writer` for coverage.

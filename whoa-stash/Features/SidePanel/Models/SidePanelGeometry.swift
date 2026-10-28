@@ -1,17 +1,18 @@
 import AppKit
 
-/// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// de son bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
+/// Géométrie du panneau latéral pour un écran donné : la zone sensible posée au milieu de son
+/// bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
 /// bagues. Tout est exprimé en coordonnées globales AppKit (origine en bas à gauche de l'écran
 /// principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
-    /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord d'accroche.
+    /// Zone sensible : 100 pt de haut sur 20 pt de large, centrée sur le bord d'accroche.
     static let hotZoneWidth = PanelGeometry.hotZoneWidth
     static let hotZoneHeight = PanelGeometry.hotZoneHeight
 
-    /// Marge sous le bas de la barre de menus, pour que le panneau ne soit pas soudé à elle.
-    static let topInset = PanelGeometry.topInset
+    /// Marge gardée avec le haut et le bas de la zone visible, pour que le panneau n'y soit pas
+    /// soudé quand sa pile de bagues réclame plus de hauteur que l'écran n'en offre.
+    static let screenInset = PanelGeometry.screenInset
 
     // MARK: - Bande de bagues
 
@@ -47,19 +48,21 @@ enum SidePanelGeometry {
     // MARK: - Bande de bagues
 
     /// Une case de la bande : la marque qu'elle porte, et si une source de données l'alimente.
-    /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
-    /// neutre — en attendant que leur fournisseur soit raccordé.
+    /// Les bagues sans fournisseur sont là pour la silhouette — anneau vide, marque en teinte
+    /// neutre — en attendant leur raccordement.
     struct RingSlot: Equatable {
+        let serviceName: String
         let mark: UsageMarkPath
         let isConnected: Bool
     }
 
-    /// Les bagues alignées, de gauche à droite. Seule celle de Claude a une source aujourd'hui ;
-    /// c'est aussi la seule à ouvrir la bulle de détail.
+    /// Les bagues alignées verticalement. Claude et Copilot sont alimentés par leurs fournisseurs
+    /// respectifs ; les autres restent visibles comme emplacements futurs.
     static let ringSlots: [RingSlot] = [
-        RingSlot(mark: .claude, isConnected: true),
-        RingSlot(mark: .codex, isConnected: false),
-        RingSlot(mark: .gemini, isConnected: false),
+        RingSlot(serviceName: "Claude Code", mark: .claude, isConnected: true),
+        RingSlot(serviceName: "GitHub Copilot", mark: .copilot, isConnected: true),
+        RingSlot(serviceName: "Codex", mark: .codex, isConnected: false),
+        RingSlot(serviceName: "Gemini", mark: .gemini, isConnected: false),
     ]
 
     static var ringCount: Int { ringSlots.count }
@@ -83,10 +86,10 @@ enum SidePanelGeometry {
     /// survols.
     static let collapsedSize = PanelGeometry.collapsedHandleSize
 
-    static var panelHeight: CGFloat {
-        let content = 2 * contentVerticalInset + ringStripHeight
-        return max(content, minimumPanelHeight)
-    }
+    /// Hauteur fixe de la bande : au-delà de la hauteur visible, la liste défile au lieu
+    /// d'agrandir la silhouette. Cela garde le panneau compact et rend les fournisseurs
+    /// supplémentaires atteignables avec le geste de défilement, même sur les grands écrans.
+    static var panelHeight: CGFloat { minimumPanelHeight }
 
     /// Bord auquel la bande est accrochée. Une valeur et non un réglage : le flanc opposé est
     /// celui du widget de luminosité, qui lui répond. Tout ce qui dépend du bord — la zone
@@ -103,7 +106,7 @@ enum SidePanelGeometry {
     static func panelFrame(on screen: NSScreen) -> NSRect {
         // La pile de bagues peut réclamer plus de hauteur que l'écran n'en offre : le cadre
         // s'arrête alors à la zone visible, et c'est la liste qui défile à l'intérieur.
-        let available = screen.visibleFrame.height - topInset
+        let available = screen.visibleFrame.height - 2 * screenInset
         let height = min(panelHeight, max(minimumPanelHeight, available))
         return PanelGeometry.panelFrame(on: screen, anchoredTo: anchorEdge, height: height)
     }

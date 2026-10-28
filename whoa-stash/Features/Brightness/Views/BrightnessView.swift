@@ -106,9 +106,6 @@ final class BrightnessView: NSView {
 
         applyPalette(palette)
 
-        // État de départ pour l'entrée : repliée et effacée. La silhouette, elle, est posée par
-        // `layout()`, qui est le premier à connaître le cadre.
-        layer?.opacity = 0
     }
 
     override func layout() {
@@ -119,7 +116,7 @@ final class BrightnessView: NSView {
         // cadre précédent. Le fond et le filet reçoivent exactement le même chemin, tracé centré
         // sur la frontière — voir `SidePanelContentView` pour pourquoi aucun `insetBy` n'est
         // appliqué ici.
-        applyShape(expanded: isExpanded, animated: false)
+        applyExpandedShape()
 
         contentContainer.frame = bounds
 
@@ -156,6 +153,22 @@ final class BrightnessView: NSView {
 
     // MARK: - Dépliage
 
+    private var revealOffset: CGFloat {
+        edge == .right ? bounds.width : -bounds.width
+    }
+
+    private func applyExpandedShape() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for shape in [backgroundLayer, strokeLayer, contentMask] {
+            shape.frame = bounds
+            shape.path = expandedPath()
+        }
+        CATransaction.commit()
+    }
+
     /// Les deux états, tirés de la même recette que les autres panneaux de l'overlay
     /// (`PanelGeometry.silhouette`), ici suspendue au bord configuré. Seuls la taille et les
     /// rayons les distinguent, donc les deux chemins ont le même nombre de segments dans le même
@@ -183,7 +196,8 @@ final class BrightnessView: NSView {
         // La mise en page est vidée tout de suite : sans cela la silhouette repliée serait posée
         // dans la même transaction que le dépliage, qui partirait alors du chemin précédent.
         layoutSubtreeIfNeeded()
-        applyShape(expanded: false, animated: false)
+        applyExpandedShape()
+        layer?.setValue(revealOffset, forKeyPath: "transform.translation.x")
     }
 
     /// Déplie ou replie la bande. `completion` est appelée une fois le ressort stabilisé, pour
@@ -194,7 +208,17 @@ final class BrightnessView: NSView {
             return
         }
         isExpanded = visible
-        applyShape(expanded: visible, animated: true, completion: completion)
+        guard let layer else {
+            completion?()
+            return
+        }
+
+        layer.springAnimate(
+            keyPath: "transform.translation.x",
+            to: visible ? CGFloat(0) : revealOffset,
+            preset: .gentle,
+            completion: completion
+        )
     }
 
     private func applyShape(expanded: Bool, animated: Bool, completion: (() -> Void)? = nil) {

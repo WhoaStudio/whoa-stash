@@ -341,6 +341,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -376,6 +377,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

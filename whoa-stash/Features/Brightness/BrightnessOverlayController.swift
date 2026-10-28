@@ -59,7 +59,7 @@ final class BrightnessOverlayController {
         // lit donc une seule et même source de préférences.
         viewModel = BrightnessViewModel(
             controller: controller,
-            feedback: SystemBrightnessFeedback(storage: storage),
+            feedback: SystemOverlayFeedback(storage: storage),
             storage: storage
         )
 
@@ -79,7 +79,6 @@ final class BrightnessOverlayController {
         // Sans ça, le panel se cache dès que whoa-stash (app sans fenêtre, menu bar only)
         // n'est plus "active", ce qui arrive en permanence puisqu'elle ne prend jamais le focus.
         panel.hidesOnDeactivate = false
-        panel.appearance = storage.settings.general.appearanceMode.nsAppearance
 
         let initialPalette = OverlayPalette.resolved(for: panel.effectiveAppearance).scalingGlow(by: glowIntensity)
         containerView = BrightnessView(tickCount: BrightnessViewModel.tickCount, initialPalette: initialPalette)
@@ -98,7 +97,7 @@ final class BrightnessOverlayController {
 
         settingsCancellable = storage.$settings
             .sink { [weak self] settings in
-                self?.apply(general: settings.general, brightness: settings.brightness)
+                self?.apply(brightness: settings.brightness)
             }
 
         paletteObserver = NotificationCenter.default.addObserver(
@@ -114,9 +113,7 @@ final class BrightnessOverlayController {
         containerView.updateBrightness(activeTickCount: viewModel.activeTickCount, animated: false)
     }
 
-    private func apply(general: GeneralSettings, brightness: BrightnessSettings) {
-        panel.appearance = general.appearanceMode.nsAppearance
-
+    private func apply(brightness: BrightnessSettings) {
         closeDelay = brightness.autoHideDelay
         showPercentage = brightness.showPercentage
 
@@ -179,9 +176,9 @@ final class BrightnessOverlayController {
         }
     }
 
-    /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : un coin,
-    /// pas tout le bord. La bande est accrochée en haut — appelée depuis le bas de l'écran, elle
-    /// s'ouvrirait à l'autre bout, loin du curseur.
+    /// La zone sensible est celle du panneau latéral, prise sur le bord configuré : son milieu,
+    /// pas tout le bord. La bande est centrée sur ce bord — appelée depuis un coin de l'écran,
+    /// elle s'ouvrirait loin du curseur.
     private func isInHotZone(_ location: NSPoint) -> Bool {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }) else { return false }
         return PanelGeometry.hotZone(on: screen, anchoredTo: widgetPosition).contains(location)
@@ -214,8 +211,8 @@ final class BrightnessOverlayController {
     private func position(on screen: NSScreen) {
         // Le panel démarre pile au bord de l'écran : le curseur qui déclenche l'apparition
         // se trouve donc déjà "au-dessus" du widget, pas d'à-coup au premier survol. Le cadre
-        // vient de la géométrie commune — accroché en haut, sous la barre de menus, comme le
-        // panneau latéral, pour que les deux bandes soient à la même place sur leur bord.
+        // vient de la géométrie commune — centré sur le milieu du bord, comme le panneau
+        // latéral, pour que les deux bandes soient à la même place sur leur bord.
         let frame = PanelGeometry.panelFrame(
             on: screen,
             anchoredTo: widgetPosition,

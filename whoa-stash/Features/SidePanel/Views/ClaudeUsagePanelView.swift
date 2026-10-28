@@ -71,6 +71,25 @@ final class ClaudeUsagePanelView: NSView {
     // MARK: - État
 
     func apply(_ state: ClaudeUsageState, animated: Bool) {
+        apply(
+            state,
+            title: "Claude Usage",
+            primaryLabel: "Current session",
+            secondaryLabel: "All models",
+            animated: animated
+        )
+    }
+
+    func apply(
+        _ state: ClaudeUsageState,
+        title: String,
+        primaryLabel: String,
+        secondaryLabel: String,
+        animated: Bool
+    ) {
+        titleLabel.stringValue = title
+        sessionRow.title = primaryLabel
+        allModelsRow.title = secondaryLabel
         switch state {
         case .loaded(let snapshot):
             sessionRow.apply(window: snapshot.session, animated: animated)
@@ -147,6 +166,11 @@ private final class ClaudeUsageRowView: NSView {
         setUp()
     }
 
+    var title: String {
+        get { titleLabel.stringValue }
+        set { titleLabel.stringValue = newValue }
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -182,7 +206,7 @@ private final class ClaudeUsageRowView: NSView {
         titleLabel.textColor = palette.buttonSymbolColor
         usedLabel.textColor = palette.buttonSymbolColor
         resetLabel.textColor = .secondaryLabelColor
-        trackLayer.backgroundColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        trackLayer.backgroundColor = ClaudeUsagePalette.track
     }
 
     func apply(window: ClaudeUsageWindow, animated: Bool) {

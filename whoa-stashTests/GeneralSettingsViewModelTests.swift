@@ -21,7 +21,6 @@ struct GeneralSettingsViewModelTests {
         let (storage, defaults) = Self.makeStorage()
         let viewModel = GeneralSettingsViewModel(storage: storage)
 
-        viewModel.setAppearanceMode(.dark)
         viewModel.setAccentColor(.orange)
         viewModel.setPanelOpacity(0.6)
         viewModel.setTogglePanelShortcut(.controlCommandN)
@@ -33,7 +32,6 @@ struct GeneralSettingsViewModelTests {
 
         // Le relancement : une instance neuve sur la même suite.
         let reloaded = SettingsStorage(defaults: defaults)
-        #expect(reloaded.settings.general.appearanceMode == .dark)
         #expect(reloaded.settings.general.accentColor == .orange)
         #expect(reloaded.settings.general.panelOpacity == 0.6)
         #expect(reloaded.settings.general.togglePanelShortcut == .controlCommandN)

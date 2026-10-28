@@ -11,7 +11,7 @@ import AppKit
 ///
 /// La vue ne gère pas le survol elle-même : c'est `SidePanelController` qui décide, depuis la
 /// position globale du curseur, quelle bague est survolée et le lui dit par
-/// `setHighlightedRing(_:)`. La fenêtre reçoit désormais les clics (la barre d'onglets en a
+/// `setHighlightedRing(_:)`. La fenêtre reçoit désormais les clics (la capsule de navigation en a
 /// besoin), mais le suivi des bagues reste global — il doit aussi fonctionner pendant que le
 /// curseur traverse la bulle, qui est une autre fenêtre.
 final class ClaudeUsageRingStripView: NSView {
@@ -20,7 +20,11 @@ final class ClaudeUsageRingStripView: NSView {
 
     override init(frame frameRect: NSRect) {
         rings = SidePanelGeometry.ringSlots.map { slot in
-            ClaudeUsageRingView(tileSize: SidePanelGeometry.ringTileSize, mark: slot.mark)
+            ClaudeUsageRingView(
+                tileSize: SidePanelGeometry.ringTileSize,
+                mark: slot.mark,
+                serviceName: slot.serviceName
+            )
         }
         super.init(frame: frameRect)
         wantsLayer = true
@@ -28,7 +32,10 @@ final class ClaudeUsageRingStripView: NSView {
 
         // Les cases sans source partent — et restent — sur un anneau vide.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(.unavailable(reason: "Not connected"), animated: false)
+            let reason = SidePanelGeometry.ringSlots[position].mark == .copilot
+                ? "Individual quota unavailable from GitHub"
+                : "Usage unavailable"
+            ring.apply(.unavailable(reason: reason), animated: false)
         }
     }
 
@@ -37,9 +44,16 @@ final class ClaudeUsageRingStripView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(_ state: ClaudeUsageState, animated: Bool) {
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
         for (position, ring) in rings.enumerated() where SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(state, animated: animated)
+            switch SidePanelGeometry.ringSlots[position].mark {
+            case .claude:
+                ring.apply(claudeState, animated: animated)
+            case .copilot:
+                ring.applyCopilot(copilotState, animated: animated)
+            default:
+                break
+            }
         }
     }
 

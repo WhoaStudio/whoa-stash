@@ -45,7 +45,9 @@ enum NotchPanelGeometry {
     /// La marge horizontale vaut donc au moins le rayon de la silhouette : les deux raccords
     /// concaves rentrent les flancs peints de `expandedShoulderRadius` de chaque côté, et tout
     /// contenu posé en deçà sort du chemin.
-    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor
+    /// Extra breathing room keeps the tab content from feeling pressed against the rounded
+    /// shoulders of the notch panel.
+    static let contentInsetX = PanelGeometry.contentInsetAlongAnchor + 8
 
     /// Ce que les coins convexes du bas rognent à l'aplomb du bord du contenu : la marge basse
     /// s'en augmente, sans quoi ce qui descend jusqu'en bas — le liseré du bac à fichiers —
@@ -72,37 +74,61 @@ enum NotchPanelGeometry {
         max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + topClearance)
     }
 
-    /// Écart entre la barre d'onglets et le contenu de l'onglet, sous elle.
-    static let tabBarGap = PanelGeometry.contentSpacing
+    // MARK: - Capsule de navigation
 
-    /// Bande de la semaine, tout le contenu de l'onglet Global. Même vue que dans la bande du
-    /// bord droit, donc même hauteur.
-    static let weekStripHeight: CGFloat = 54
+    /// Écart entre le bas du panneau et la capsule de navigation, qui flotte sous lui. Il est
+    /// bien visible : la capsule n'est pas un morceau de la silhouette, et c'est ce vide qui le
+    /// dit.
+    static let capsuleGap: CGFloat = 10
+
+    /// Bande basse du cadre de la fenêtre, sous la silhouette du panneau : l'écart, puis la
+    /// capsule. Le panneau ne peint rien là — seule la capsule s'y pose.
+    static var capsuleBandHeight: CGFloat {
+        capsuleGap + TabBarMetrics.capsuleHeight
+    }
+
+    /// Bande de la semaine, en tête de l'onglet Global. Même vue que dans la bande du bord
+    /// droit, donc même hauteur.
+    static let weekStripHeight: CGFloat = 46
+
+    /// Air entre l'en-tête de date et la liste des événements, dans le widget.
+    static let calendarHeaderGap: CGFloat = 10
+
+    /// Largeur de la grille du mois, colonne de droite du widget : sept colonnes de 28 pt, la
+    /// plus petite largeur où deux chiffres tiennent sans se toucher.
+    static let monthGridWidth: CGFloat = 196
+
+    /// Hauteur du contenu de l'onglet Calendar, dont la grille du mois fixe le plancher — six
+    /// lignes de semaine plus leurs initiales.
+    ///
+    /// C'est cet onglet qui est désormais le plus haut, et donc lui qui dimensionne le panneau
+    /// (voir `tabContentHeight`).
+    static let calendarTabHeight: CGFloat = 210
 
     /// Colonne de gauche de l'onglet AI : les bagues d'utilisation posées **en ligne** et non
     /// empilées, c'est tout ce qui distingue cette mise en page de celle de la bande du bord
-    /// droit.
-    static let ringTileSize: CGFloat = 60
-    static let ringSpacing: CGFloat = 20
+    /// droit. Elles sont plus petites que celles de la bande : le panneau est resserré, et
+    /// c'est la rangée entière qui doit tenir à côté de la carte.
+    static let ringTileSize: CGFloat = 50
+    static let ringSpacing: CGFloat = 16
 
     /// Écart de chaque côté du filet qui sépare les deux colonnes.
-    static let columnGap: CGFloat = 24
+    static let columnGap: CGFloat = 18
     static let dividerWidth: CGFloat = 1
 
     /// Colonne de droite de l'onglet AI : la carte d'utilisation détaillée, aux dimensions que
     /// `ClaudeUsagePanelView` demande pour tenir son en-tête et ses deux lignes.
-    static let cardSize = NSSize(width: 320, height: 190)
+    static let cardSize = NSSize(width: 270, height: 190)
 
     static var ringRowWidth: CGFloat {
         let count = CGFloat(SidePanelGeometry.ringCount)
         return count * ringTileSize + max(0, count - 1) * ringSpacing
     }
 
-    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut — AI, qui
-    /// porte la carte —, pour que la silhouette dépliée ne change pas de taille d'un onglet à
-    /// l'autre.
+    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut, pour que la
+    /// silhouette dépliée ne change pas de taille d'un onglet à l'autre.
     static var tabContentHeight: CGFloat {
-        max(weekStripHeight, cardSize.height)
+        max(calendarTabHeight, cardSize.height)
     }
 
     /// Largeur du contenu de l'onglet le plus large — AI, avec ses deux colonnes.
@@ -110,17 +136,19 @@ enum NotchPanelGeometry {
         ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width
     }
 
-    /// Taille dépliée. La largeur est celle du plus large de ce que le panneau porte : les deux
-    /// colonnes de l'onglet AI, ou la rangée d'onglets elle-même quand des intitulés longs la
-    /// réclament — c'est le panneau qui s'élargit, jamais la barre qui déborde de la silhouette.
+    /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
+    /// est donc celle du panneau **plus** la bande basse où flotte la capsule.
+    ///
+    /// La largeur est celle du plus large de ce que la fenêtre porte : les deux colonnes de
+    /// l'onglet AI, ou la capsule — c'est le panneau qui s'élargit, jamais la capsule qui
+    /// déborde de lui.
     static func expandedSize(collapsedHeight: CGFloat) -> NSSize {
         NSSize(
-            width: 2 * contentInsetX + max(tabContentWidth, NotchTabBarView.minimumRowWidth),
+            width: 2 * contentInsetX + max(tabContentWidth, NotchTabCapsuleView.width),
             height: contentInsetTop(forCollapsedHeight: collapsedHeight)
-                + TabBarMetrics.barHeight
-                + tabBarGap
                 + tabContentHeight
                 + contentInsetBottom
+                + capsuleBandHeight
         )
     }
 
@@ -169,6 +197,29 @@ enum NotchPanelGeometry {
     }
 
     // MARK: - Cadres
+
+    /// Le panneau proprement dit dans le cadre de la fenêtre : tout sauf la bande basse, qui
+    /// revient à la capsule. C'est ce rectangle, et non le cadre entier, que la silhouette
+    /// occupe et dans lequel le contenu se pose.
+    static func panelRect(in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.minX,
+            y: bounds.minY + capsuleBandHeight,
+            width: bounds.width,
+            height: max(0, bounds.height - capsuleBandHeight)
+        )
+    }
+
+    /// Cadre de la capsule : tout en bas, centrée sous le panneau.
+    static func capsuleRect(in bounds: CGRect) -> CGRect {
+        let width = min(NotchTabCapsuleView.width, bounds.width)
+        return CGRect(
+            x: bounds.midX - width / 2,
+            y: bounds.minY,
+            width: width,
+            height: TabBarMetrics.capsuleHeight
+        )
+    }
 
     /// Cadre de la fenêtre, identique replié comme déplié : c'est la silhouette qui s'anime à
     /// l'intérieur, jamais la fenêtre, qui redimensionnée à chaque image hacherait le dépliage.
