@@ -35,4 +35,7 @@ enum Log {
 
     /// Widget calendrier : droit d'accès et lecture des événements.
     nonisolated static let calendar = Logger(subsystem: subsystem, category: "calendar")
+
+    /// Onglet Mirror : démarrage et arrêt de la caméra.
+    nonisolated static let camera = Logger(subsystem: subsystem, category: "camera")
 }
