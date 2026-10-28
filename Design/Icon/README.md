@@ -24,8 +24,8 @@ of the screen. One object, three shapes, no fine detail — it survives down to 
 | Drawer | `#FFFFFF` |
 | Handle | `#0A0C0E` |
 
-`#39FF88` is the same green as `OverlayPalette.activeGreen`, the active tick colour in the
-brightness and volume overlays — the icon and the overlays are deliberately the same green.
+`#39FF88` is a brighter, softer green than `OverlayPalette.activeGreen` (`#00FF00`), the active
+tick colour in the brightness and volume overlays. TODO: the icon and the overlays were meant to share one green; they no longer do.
 
 ## Construction
 

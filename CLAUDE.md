@@ -13,7 +13,8 @@ macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overl
 ## Architecture
 
 - `App/AppDelegate.swift` is the only composition root: it builds every controller and view model and wires their state callbacks together. Add new surfaces there.
-- Each `Features/<X>/` has a `…Controller` that owns its `NSPanel`s and exposes `activate()`, plus `togglePinnedReveal()` and `apply(…State:)` where relevant. View models push state through `onStateChanged`; they don't hold controllers.
+- Features: Brightness, EdgeSlider, Volume, SidePanel, NotchPanel, PanelTabs (notch tab contents), Clipboard, NowPlaying, DeviceStatus, Knock, Settings.
+- Features that own windows have a `…Controller` that owns its `NSPanel`s and exposes `activate()`, plus `togglePinnedReveal()` and `apply(…State:)` where relevant. View models push state through `onStateChanged`; they don't hold controllers.
 - Side panel and notch panel keep one window per connected screen and rebuild them when the screen configuration changes.
 - Details: [docs/architecture.md](docs/architecture.md). Network, Keychain and permissions: [docs/external-interfaces.md](docs/external-interfaces.md).
 
@@ -32,7 +33,7 @@ macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overl
 - `AppSettings` is stored as one JSON blob. Only add fields with defaults. Decoding must keep tolerating missing keys, removed keys and unknown enum values (`SettingsStorageTests` covers this).
 - The app forces `.darkAqua` appearance in `AppDelegate`. Don't add light-mode variants.
 - DDC goes through private `IOAVService` symbols loaded with `dlopen`, so they are missing on Intel. Code must degrade, never crash.
-- There is no `.gitignore`, and `xcuserdata/` is tracked. Don't commit local Xcode state by accident.
+- `.gitignore` covers `xcuserdata/`, but 2 `xcuserdata` files are still tracked from before. Don't commit local Xcode state by accident.
 
 ## Workflow
 
