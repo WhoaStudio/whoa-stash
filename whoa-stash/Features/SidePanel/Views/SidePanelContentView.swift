@@ -22,7 +22,8 @@ import AppKit
 /// pas de contraintes Auto Layout.
 final class SidePanelContentView: NSView {
 
-    private let backgroundLayer = CAShapeLayer()
+    /// Fond en verre, découpé par la silhouette (`glass.shapeMask`) au lieu d'être peint.
+    private let glass = GlassBackdrop()
     private let strokeLayer = CAShapeLayer()
     private let contentMask = CAShapeLayer()
 
@@ -37,6 +38,7 @@ final class SidePanelContentView: NSView {
     var anchorEdge: EdgePosition = .right {
         didSet {
             guard anchorEdge != oldValue else { return }
+            applyGlassFade()
             needsLayout = true
         }
     }
@@ -66,9 +68,10 @@ final class SidePanelContentView: NSView {
         // qui porte un menu.
         menu = OverlayContextMenu.shared.menu
 
-        // Fond plein plutôt qu'un `NSVisualEffectView` : le matériau laissait remonter le fond
-        // d'écran et délavait le panneau en gris, alors qu'il doit rester franchement sombre.
-        layer?.addSublayer(backgroundLayer)
+        // Fond en verre : la teinte sombre de la palette (`applyTint`) l'empêche de se délaver
+        // en gris sur le fond d'écran, ce que reprochait le matériau précédent.
+        addSubview(glass)
+        applyGlassFade()
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = PanelGeometry.strokeWidth
@@ -89,6 +92,13 @@ final class SidePanelContentView: NSView {
         applyPalette()
     }
 
+    /// Le noir part du bord d'écran auquel la bande est accrochée et s'efface vers l'intérieur.
+    private func applyGlassFade() {
+        let edge: CGFloat = anchorEdge == .right ? 1 : 0
+        glass.fadeToGlass(from: CGPoint(x: edge, y: 0.5), to: CGPoint(x: 1 - edge, y: 0.5))
+        applyPalette()
+    }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         applyPalette()
@@ -96,7 +106,7 @@ final class SidePanelContentView: NSView {
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        backgroundLayer.fillColor = palette.panelBackground
+        glass.applyTint(from: palette)
         strokeLayer.strokeColor = palette.strokeColor
     }
 
@@ -126,6 +136,7 @@ final class SidePanelContentView: NSView {
         // La silhouette est reposée dans l'état courant : la mise en page suit un changement de
         // cadre d'écran, qui ne doit ni rejouer le dépliage ni laisser le chemin au cadre
         // précédent.
+        glass.frame = bounds
         applyExpandedShape()
 
         contentContainer.frame = bounds
@@ -176,7 +187,7 @@ final class SidePanelContentView: NSView {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for shape in [backgroundLayer, strokeLayer, contentMask] {
+        for shape in [glass.shapeMask, strokeLayer, contentMask] {
             shape.frame = bounds
             shape.path = expandedPath()
         }
@@ -239,7 +250,7 @@ final class SidePanelContentView: NSView {
         // replier et le geste passerait inaperçu.
         PanelFold.apply(
             path: expanded ? expandedPath() : collapsedPath(),
-            to: [backgroundLayer, strokeLayer, contentMask],
+            to: [glass.shapeMask, strokeLayer, contentMask],
             in: bounds,
             dissolving: layer.map { [$0] } ?? [],
             to: expanded ? 1 : 0,

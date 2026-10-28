@@ -67,18 +67,23 @@ final class NotchPanelWindow {
         contentView.refreshOverlayPalette()
     }
 
-    var ringCount: Int { contentView.ringCount }
-
-    /// Cadre d'une bague en coordonnées globales AppKit, le repère dans lequel raisonnent
-    /// `NotchPanelGeometry` et `NotchPanelController`. La vue de contenu remplit la fenêtre, donc
-    /// un simple décalage suffit.
-    func ringScreenRect(at index: Int) -> NSRect? {
-        guard let frame = contentView.ringFrame(at: index) else { return nil }
-        return frame.offsetBy(dx: panel.frame.minX, dy: panel.frame.minY)
+    /// Relayé jusqu'au contrôleur, qui relance les deux sources d'utilisation.
+    var onRefreshUsage: (() -> Void)? {
+        get { contentView.onRefreshUsage }
+        set { contentView.onRefreshUsage = newValue }
     }
 
-    func setHighlightedRing(_ index: Int?) {
-        contentView.setHighlightedRing(index)
+    func apply(copilotUsageState: CopilotUsageState) {
+        contentView.apply(copilotUsageState: copilotUsageState)
+    }
+
+    /// Le curseur est-il sur ce que le panneau déplié peint — panneau de l'onglet affiché et
+    /// capsule ? Le cadre de la fenêtre est plus haut que les onglets courts : s'y fier laisserait
+    /// le panneau déplié sous un curseur qui ne touche plus rien.
+    func interactiveFrameContains(_ location: NSPoint) -> Bool {
+        contentView.interactiveFrame
+            .offsetBy(dx: panel.frame.minX, dy: panel.frame.minY)
+            .contains(location)
     }
 
     func showDeviceStatus(_ status: DeviceStatus) {
@@ -129,11 +134,15 @@ final class NotchPanelWindow {
         panel.orderFrontRegardless()
     }
 
+    /// Choisit l'onglet affiché, hors clic — `--notch-tab=`.
+    func select(_ tab: NotchTab) {
+        contentView.select(tab, animated: false)
+    }
+
     func setExpanded(_ expanded: Bool, animated: Bool = true) {
         if expanded {
             contentView.refreshWeek()
         } else {
-            contentView.setHighlightedRing(nil)
             // Le panneau rouvre sur Global — sauf si le bac retient des fichiers : ils doivent
             // être là à la réouverture, pas derrière un clic sur l'onglet. Sans animation, le
             // repli étant déjà en cours.
@@ -148,6 +157,7 @@ final class NotchPanelWindow {
 
     /// Retrait immédiat : l'écran correspondant vient de disparaître.
     func close() {
+        contentView.stopCamera()
         panel.orderOut(nil)
     }
 }

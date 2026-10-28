@@ -9,7 +9,7 @@ final class SidebarView: NSView {
     private let viewModel: SettingsViewModel
     private let animationsEnabled: () -> Bool
 
-    private let background = NSVisualEffectView()
+    private let background = NSGlassEffectView()
     private let selectionView = SidebarSelectionView()
     private var itemViews: [SidebarItemView] = []
     private var cancellable: AnyCancellable?
@@ -34,9 +34,7 @@ final class SidebarView: NSView {
         // sélectionné derrière un pavé opaque.
         wantsLayer = true
 
-        background.material = .sidebar
-        background.blendingMode = .behindWindow
-        background.state = .active
+        background.cornerRadius = 0
         translatesAutoresizingMaskIntoConstraints = false
         background.translatesAutoresizingMaskIntoConstraints = false
         addSubview(background)

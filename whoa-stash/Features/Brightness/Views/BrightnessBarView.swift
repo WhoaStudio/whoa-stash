@@ -8,7 +8,7 @@ final class BrightnessBarView: NSView {
 
     let ticksView: BrightnessTicksView
 
-    private let backgroundLayer = CALayer()
+    private let glass = GlassBackdrop()
     private let strokeLayer = CAShapeLayer()
 
     private let tickInset = NSEdgeInsets(top: 16, left: 7, bottom: 16, right: 7)
@@ -34,8 +34,8 @@ final class BrightnessBarView: NSView {
     }
 
     private func setUp(palette: OverlayPalette) {
-        backgroundLayer.zPosition = Depth.background
-        layer?.addSublayer(backgroundLayer)
+        glass.layer?.zPosition = Depth.background
+        addSubview(glass)
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = 1
@@ -53,8 +53,8 @@ final class BrightnessBarView: NSView {
 
         let radius = bounds.width / 2
 
-        backgroundLayer.frame = bounds
-        backgroundLayer.cornerRadius = radius
+        glass.frame = bounds
+        glass.useRoundedCorners(radius: radius)
 
         strokeLayer.path = CGPath(
             roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
@@ -72,7 +72,7 @@ final class BrightnessBarView: NSView {
     }
 
     func apply(palette: OverlayPalette) {
-        backgroundLayer.backgroundColor = palette.panelBackground
+        glass.applyTint(from: palette)
         strokeLayer.strokeColor = palette.strokeColor
         ticksView.apply(palette: palette)
     }

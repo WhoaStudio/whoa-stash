@@ -35,7 +35,8 @@ final class BrightnessView: NSView {
         }
     }
 
-    private let backgroundLayer = CAShapeLayer()
+    /// Fond en verre, découpé par la silhouette (`glass.shapeMask`) au lieu d'être peint.
+    private let glass = GlassBackdrop()
     private let strokeLayer = CAShapeLayer()
     private let contentMask = CAShapeLayer()
 
@@ -84,10 +85,10 @@ final class BrightnessView: NSView {
         // qui porte un menu.
         menu = OverlayContextMenu.shared.menu
 
-        // Fond plein plutôt qu'un `NSVisualEffectView`, comme le panneau latéral : le matériau
-        // laissait remonter le fond d'écran et délavait la surface en gris.
-        backgroundLayer.zPosition = Depth.background
-        layer?.addSublayer(backgroundLayer)
+        // Fond en verre, comme le panneau latéral ; son `zPosition` fige l'ordre avec les calques
+        // frères, que le mélange vue/calque ne garantit pas.
+        glass.layer?.zPosition = Depth.background
+        addSubview(glass)
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = PanelGeometry.strokeWidth
@@ -116,6 +117,7 @@ final class BrightnessView: NSView {
         // cadre précédent. Le fond et le filet reçoivent exactement le même chemin, tracé centré
         // sur la frontière — voir `SidePanelContentView` pour pourquoi aucun `insetBy` n'est
         // appliqué ici.
+        glass.frame = bounds
         applyExpandedShape()
 
         contentContainer.frame = bounds
@@ -162,7 +164,7 @@ final class BrightnessView: NSView {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for shape in [backgroundLayer, strokeLayer, contentMask] {
+        for shape in [glass.shapeMask, strokeLayer, contentMask] {
             shape.frame = bounds
             shape.path = expandedPath()
         }
@@ -232,7 +234,7 @@ final class BrightnessView: NSView {
         // avant d'avoir fini de se replier et le geste passerait inaperçu.
         PanelFold.apply(
             path: expanded ? expandedPath() : collapsedPath(),
-            to: [backgroundLayer, strokeLayer, contentMask],
+            to: [glass.shapeMask, strokeLayer, contentMask],
             in: bounds,
             dissolving: layer.map { [$0] } ?? [],
             to: expanded ? 1 : 0,
@@ -250,7 +252,7 @@ final class BrightnessView: NSView {
     }
 
     func applyPalette(_ palette: OverlayPalette) {
-        backgroundLayer.fillColor = palette.panelBackground
+        glass.applyTint(from: palette)
         strokeLayer.strokeColor = palette.strokeColor
         barView.apply(palette: palette)
         sunButton.apply(palette: palette)

@@ -6,13 +6,13 @@ protocol SettingsCardRow: NSView {
     var showsSeparator: Bool { get set }
 }
 
-/// Un groupe de réglages : titre discret au-dessus, carte translucide aux coins très
+/// Un groupe de réglages : titre discret au-dessus, carte en verre (Liquid Glass) aux coins très
 /// arrondis en dessous, une ligne par réglage. L'unité de mise en page principale de
 /// chaque écran de Préférences.
 final class SettingsCardView: NSView {
 
     private let headerLabel = NSTextField(labelWithString: "")
-    private let background = NSVisualEffectView()
+    private let background = NSGlassEffectView()
     private let stackView = NSStackView()
 
     init(title: String? = nil, rows: [SettingsCardRow]) {
@@ -24,13 +24,7 @@ final class SettingsCardView: NSView {
         headerLabel.textColor = .secondaryLabelColor
         headerLabel.isHidden = title == nil
 
-        background.material = SettingsPalette.cardMaterial
-        background.blendingMode = .withinWindow
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = SettingsMetrics.cardCornerRadius
-        background.layer?.cornerCurve = .continuous
-        background.layer?.masksToBounds = true
+        background.cornerRadius = SettingsMetrics.cardCornerRadius
 
         stackView.orientation = .vertical
         stackView.alignment = .leading
@@ -41,7 +35,7 @@ final class SettingsCardView: NSView {
         rows.last?.showsSeparator = false
         rows.forEach { stackView.addArrangedSubview($0) }
 
-        background.addSubview(stackView)
+        background.contentView = stackView
         addSubview(headerLabel)
         addSubview(background)
 
@@ -57,11 +51,6 @@ final class SettingsCardView: NSView {
             background.leadingAnchor.constraint(equalTo: leadingAnchor),
             background.trailingAnchor.constraint(equalTo: trailingAnchor),
             background.bottomAnchor.constraint(equalTo: bottomAnchor),
-
-            stackView.topAnchor.constraint(equalTo: background.topAnchor),
-            stackView.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            stackView.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
 
         for row in rows {
