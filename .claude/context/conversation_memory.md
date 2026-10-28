@@ -19,6 +19,8 @@
 - 2026-10-28: onglet Global = semaine en haut + lecteur dessous (172 pt suffisent : 46 + 8 + 112) ; le lecteur reste au repos (« Nothing playing », dernier morceau en pause) ; seules les ailes de l'encoche se masquent 5 s après l'arrêt. Ailes de lecture 60 pt, +2 pt de hauteur repliée, pastille Bluetooth inchangée.
 - 2026-10-28: détection de coups via l'accéléromètre SPU (`AppleSPUHIDDevice`, page 0xFF00 usage 3) à la place des taps de bord du trackpad — lecture sans root à condition de réveiller le *pilote* `AppleSPUHIDDriver` (pas le device) ; `KnockClassifier` pur à horloge injectée ; seuil par défaut ≈ 0,08 g (sensibilité 0,7) d'après un enregistrement réel (coups fermes 0,09–0,19 g, légers 0,035–0,065 g, clavier/clics < 0,03 g) ; défaut = coup simple éteint l'écran.
 - 2026-10-28: pas d'option gauche/droite pour les coups — sur l'enregistrement, tous les pics sont dominés par z (vertical) avec le même signe des deux côtés, le rapport x/z se recoupe et l'amplitude varie avec la force du coup ; le gyroscope n'a pas été enregistré.
+- 2026-10-28: « Playing Next » à droite du lecteur, seulement pour Apple Musique (AppleScript via `osascript`, vide en lecture aléatoire) et Spotify (API web `me/player/queue`, PKCE + redirection loopback 127.0.0.1:48731, identifiant client collé dans Préférences, jetons au trousseau) — MediaRemote ne donne pas la file ; navigateurs sans file.
+- 2026-10-28: engrenage des Préférences aligné par son glyphe sur le bord droit du contenu de tous les onglets (au lieu d'être centré sur la dernière colonne de la semaine, qui défile).
 
 ## Tried and rejected
 
