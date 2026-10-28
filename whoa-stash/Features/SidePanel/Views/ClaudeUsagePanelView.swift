@@ -15,7 +15,13 @@ final class ClaudeUsagePanelView: NSView {
     private let sessionRow = ClaudeUsageRowView(title: "Current session")
     private let allModelsRow = ClaudeUsageRowView(title: "All models")
 
-    let leadingInset: CGFloat = 22
+    /// Réglée par la vue hôte selon sa silhouette, comme `trailingInset`.
+    var leadingInset: CGFloat = 22 {
+        didSet {
+            guard leadingInset != oldValue else { return }
+            needsLayout = true
+        }
+    }
     /// Réglée par la vue hôte selon sa silhouette : sur la carte accrochée au bord de l'écran, ce
     /// bord touche l'écran et les coins concaves y rognent la zone réellement peinte, donc la
     /// marge y est plus large que la gauche ; dans la bulle, les deux bords sont symétriques.
@@ -25,7 +31,13 @@ final class ClaudeUsagePanelView: NSView {
             needsLayout = true
         }
     }
-    private var verticalInset: CGFloat = 18
+    /// Marge haute et basse, réglable par la vue hôte.
+    var verticalInset: CGFloat = 18 {
+        didSet {
+            guard verticalInset != oldValue else { return }
+            needsLayout = true
+        }
+    }
     /// Hauteur de l'en-tête, et donc diamètre de la bague.
     private let headerHeight: CGFloat = 30
     /// Entre la bague et le titre.

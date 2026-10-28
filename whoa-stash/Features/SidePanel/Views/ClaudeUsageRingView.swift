@@ -203,7 +203,6 @@ final class ClaudeUsageRingView: NSView {
     func setHighlighted(_ highlighted: Bool) {
         guard highlighted != isHighlighted else { return }
         isHighlighted = highlighted
-        contentLayer.springAnimate(keyPath: "transform.scale", to: highlighted ? 1.15 : 1.0, preset: .snappy)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -213,9 +212,8 @@ final class ClaudeUsageRingView: NSView {
     /// Pas de callback au clic : la bulle d'utilisation est déjà ouverte, puisqu'il faut survoler
     /// la bague pour la cliquer. Seul le ressort d'enfoncement subsiste.
     override func mouseUp(with event: NSEvent) {
-        let insideAfterRelease = bounds.contains(convert(event.locationInWindow, from: nil))
-        isHighlighted = insideAfterRelease
-        contentLayer.springAnimate(keyPath: "transform.scale", to: insideAfterRelease ? 1.15 : 1.0, preset: .snappy)
+        isHighlighted = bounds.contains(convert(event.locationInWindow, from: nil))
+        contentLayer.springAnimate(keyPath: "transform.scale", to: 1.0, preset: .snappy)
     }
 
 }
