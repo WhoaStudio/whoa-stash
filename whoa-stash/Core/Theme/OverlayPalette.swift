@@ -79,7 +79,7 @@ struct OverlayPalette {
 
     /// Vert d'accent de l'overlay. Partagé hors de la palette — le panneau de l'encoche
     /// s'en sert pour marquer la bague survolée — d'où sa visibilité interne.
-    static let activeGreen = CGColor(red: 0x39 / 255, green: 0xFF / 255, blue: 0x88 / 255, alpha: 1)
+    static let activeGreen = CGColor(red: 0x00 / 255, green: 0xFF / 255, blue: 0x00 / 255, alpha: 1)
 
     /// La palette brute, sans les réglages. Les tests s'en servent pour vérifier les
     /// transformations une par une.
