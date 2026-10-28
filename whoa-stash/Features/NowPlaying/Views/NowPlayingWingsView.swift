@@ -62,10 +62,14 @@ final class ArtworkView: NSView {
     private var currentData: Data?
     private var currentSource: String?
 
-    /// Faux pour la grande pochette de la ligne Global, où le nom de l'application est écrit.
     var showsSourceBadge = true {
         didSet { badgeView.isHidden = !showsSourceBadge || badgeView.image == nil }
     }
+
+    /// Taille de l'icône (part du côté de la pochette) et retrait depuis le coin bas droit :
+    /// négatif, elle déborde de la pochette ; positif, elle se pose dedans.
+    var badgeScale: CGFloat = 0.5 { didSet { needsLayout = true } }
+    var badgeInset: CGFloat = -3 { didSet { needsLayout = true } }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -94,8 +98,9 @@ final class ArtworkView: NSView {
     override func layout() {
         super.layout()
         imageView.frame = bounds
-        let badge = (bounds.width * 0.5).rounded()
-        badgeView.frame = NSRect(x: bounds.maxX - badge + 3, y: bounds.minY - 3, width: badge, height: badge)
+        let badge = (bounds.width * badgeScale).rounded()
+        badgeView.frame = NSRect(
+            x: bounds.maxX - badge - badgeInset, y: bounds.minY + badgeInset, width: badge, height: badge)
     }
 
     func setArtwork(_ data: Data?) {
@@ -120,6 +125,13 @@ final class ArtworkView: NSView {
             badgeView.image = nil
             badgeView.isHidden = true
         }
+    }
+
+    /// Retire l'icône : plus rien ne joue.
+    func clearSource() {
+        currentSource = nil
+        badgeView.image = nil
+        badgeView.isHidden = true
     }
 
     private func showPlaceholder() {

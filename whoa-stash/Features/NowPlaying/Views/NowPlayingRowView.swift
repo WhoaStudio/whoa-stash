@@ -1,19 +1,20 @@
 import AppKit
 
-/// Lecteur de l'onglet Global, déplié : grande pochette, titre, « artiste - album » et nom de
-/// l'application, barre de progression avec temps écoulé et restant, précédent / lecture-pause /
-/// suivant, et le volume du système. Les ailes de l'encoche sont trop étroites pour porter tout
-/// cela — c'est ici qu'on pilote.
+/// Lecteur de l'onglet Global, déplié : pochette portant l'icône de l'application qui joue, titre
+/// et artiste avec le visualiseur à leur droite, puis la progression encadrée du temps écoulé et
+/// du temps restant, et enfin précédent / lecture-pause / suivant avec le volume du système.
+///
+/// Pas de file « Playing Next » : la source système ne la donne pas (voir `NowPlayingState`).
 final class NowPlayingRowView: NSView {
 
     var onCommand: ((NowPlayingCommand) -> Void)?
 
     private let artworkView = ArtworkView()
-    private let titleLabel = NowPlayingRowView.label(size: 20, weight: .semibold, color: .white)
-    private let subtitleLabel = NowPlayingRowView.label(size: 14, weight: .regular, color: .white.withAlphaComponent(0.45))
-    private let sourceLabel = NowPlayingRowView.label(size: 14, weight: .regular, color: .white.withAlphaComponent(0.45))
-    private let elapsedLabel = NowPlayingRowView.label(size: 11, weight: .regular, color: .white.withAlphaComponent(0.45))
-    private let remainingLabel = NowPlayingRowView.label(size: 11, weight: .regular, color: .white.withAlphaComponent(0.45))
+    private let titleLabel = NowPlayingRowView.label(size: 17, weight: .semibold, color: .white)
+    private let artistLabel = NowPlayingRowView.label(size: 14, weight: .regular, color: .white.withAlphaComponent(0.5))
+    private let visualizer = AudioVisualizerView()
+    private let elapsedLabel = NowPlayingRowView.label(size: 12, weight: .regular, color: .white.withAlphaComponent(0.5))
+    private let remainingLabel = NowPlayingRowView.label(size: 12, weight: .regular, color: .white.withAlphaComponent(0.5))
     private let progress = NowPlayingSliderView(isInteractive: false)
     private let volumeSlider = NowPlayingSliderView(isInteractive: true)
     private let volumeIcon = NSImageView()
@@ -24,29 +25,33 @@ final class NowPlayingRowView: NSView {
     private var state: NowPlayingState?
     private var tickTimer: Timer?
 
-    private let gap: CGFloat = 16
-    private let buttonSize: CGFloat = 36
+    private let controlsHeight: CGFloat = 32
+    private let progressHeight: CGFloat = 14
+    private let rowGap: CGFloat = 4
+    private let buttonPitch: CGFloat = 52
     private let volumeWidth: CGFloat = 150
+    private let timeWidth: CGFloat = 40
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        artworkView.showsSourceBadge = false
+        artworkView.badgeScale = 0.36
+        artworkView.badgeInset = 4
         addSubview(artworkView)
 
         titleLabel.lineBreakMode = .byTruncatingTail
-        subtitleLabel.lineBreakMode = .byTruncatingTail
-        sourceLabel.alignment = .right
-        elapsedLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        remainingLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        artistLabel.lineBreakMode = .byTruncatingTail
+        for label in [elapsedLabel, remainingLabel] {
+            label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        }
         remainingLabel.alignment = .right
-        for view in [titleLabel, subtitleLabel, sourceLabel, elapsedLabel, remainingLabel, progress] as [NSView] {
+        for view in [titleLabel, artistLabel, visualizer, elapsedLabel, remainingLabel, progress] as [NSView] {
             addSubview(view)
         }
 
         let configuration = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
         volumeIcon.image = NSImage(systemSymbolName: "speaker.fill", accessibilityDescription: "Volume")?
             .withSymbolConfiguration(configuration)
-        volumeIcon.contentTintColor = .white.withAlphaComponent(0.45)
+        volumeIcon.contentTintColor = .white.withAlphaComponent(0.5)
         addSubview(volumeIcon)
         volumeSlider.setAccessibilityLabel("Volume")
         volumeSlider.onChange = { value in SystemVolumeService.shared.setVolume(Float(value)) }
@@ -76,17 +81,19 @@ final class NowPlayingRowView: NSView {
             tickTimer?.invalidate()
             tickTimer = nil
             titleLabel.stringValue = "Nothing playing"
-            subtitleLabel.stringValue = ""
-            sourceLabel.stringValue = ""
+            artistLabel.stringValue = ""
             artworkView.setArtwork(nil)
+            artworkView.clearSource()
+            visualizer.setAnimating(false)
             playPauseButton.setSymbol("play.fill")
             updateProgress()
             return
         }
         titleLabel.stringValue = state.title
-        subtitleLabel.stringValue = [state.artist, state.album].filter { !$0.isEmpty }.joined(separator: " - ")
-        sourceLabel.stringValue = Self.sourceName(for: state.bundleIdentifier)
+        artistLabel.stringValue = [state.artist, state.album].filter { !$0.isEmpty }.joined(separator: " - ")
         artworkView.setArtwork(state.artwork)
+        artworkView.setSource(bundleIdentifier: state.bundleIdentifier)
+        visualizer.setAnimating(state.isPlaying)
         playPauseButton.setSymbol(state.isPlaying ? "pause.fill" : "play.fill")
         updateProgress()
 
@@ -124,48 +131,45 @@ final class NowPlayingRowView: NSView {
 
     private static func clock(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded()))
-        return String(format: "%02d:%02d", total / 60, total % 60)
-    }
-
-    /// Nom affiché pour l'application qui joue ; l'identifiant brut si le système ne la connaît pas.
-    private static func sourceName(for bundleIdentifier: String) -> String {
-        // Musique s'appelle « Music » sur le disque ; son nom commercial est celui qu'on attend ici.
-        if bundleIdentifier == "com.apple.Music" { return "Apple Music" }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
-            return bundleIdentifier
-        }
-        return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     override func layout() {
         super.layout()
-        let artSize = min(bounds.height, 112)
-        artworkView.frame = NSRect(x: 0, y: (bounds.height - artSize) / 2, width: artSize, height: artSize)
+        // De bas en haut : commandes, progression, puis la pochette avec titre et artiste.
+        let controlsY: CGFloat = 0
+        let progressY = controlsHeight + rowGap
+        let headerY = progressY + progressHeight + rowGap
+        let artSize = max(0, bounds.height - headerY)
+        artworkView.frame = NSRect(x: 0, y: headerY, width: artSize, height: artSize)
 
-        let left = artworkView.frame.maxX + gap
-        let width = max(0, bounds.width - left)
-        let top = artworkView.frame.maxY
+        let textX = artSize + 14
+        let vizSize = visualizer.intrinsicContentSize
+        visualizer.frame = NSRect(
+            x: bounds.maxX - vizSize.width, y: headerY + artSize / 2 + 8 + (20 - vizSize.height) / 2,
+            width: vizSize.width, height: vizSize.height)
+        let textWidth = max(0, visualizer.frame.minX - 10 - textX)
+        titleLabel.frame = NSRect(x: textX, y: headerY + artSize / 2 + 2, width: textWidth, height: 22)
+        artistLabel.frame = NSRect(x: textX, y: headerY + artSize / 2 - 22, width: bounds.maxX - textX, height: 20)
 
-        titleLabel.frame = NSRect(x: left, y: top - 28, width: width, height: 26)
-        let sourceWidth = min(sourceLabel.intrinsicContentSize.width, width / 3)
-        sourceLabel.frame = NSRect(x: left + width - sourceWidth, y: top - 52, width: sourceWidth, height: 20)
-        subtitleLabel.frame = NSRect(x: left, y: top - 52, width: max(0, width - sourceWidth - 8), height: 20)
+        elapsedLabel.frame = NSRect(x: 0, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
+        remainingLabel.frame = NSRect(
+            x: bounds.maxX - timeWidth, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
+        progress.frame = NSRect(
+            x: timeWidth + 6, y: progressY, width: max(0, bounds.width - 2 * (timeWidth + 6)), height: progressHeight)
 
-        progress.frame = NSRect(x: left, y: top - 66, width: width, height: 8)
-        elapsedLabel.frame = NSRect(x: left, y: top - 84, width: width / 2, height: 15)
-        remainingLabel.frame = NSRect(x: left + width / 2, y: top - 84, width: width / 2, height: 15)
-
-        let controlsY = artworkView.frame.minY
-        for (index, button) in [previousButton, playPauseButton, nextButton].enumerated() {
+        let buttons = [previousButton, playPauseButton, nextButton]
+        let groupWidth = buttonPitch * CGFloat(buttons.count)
+        let groupX = (bounds.width - groupWidth) / 2 - 40
+        for (index, button) in buttons.enumerated() {
             button.frame = NSRect(
-                x: left + CGFloat(index) * (buttonSize + 4), y: controlsY,
-                width: buttonSize, height: buttonSize)
+                x: groupX + CGFloat(index) * buttonPitch, y: controlsY, width: buttonPitch, height: controlsHeight)
         }
 
         volumeSlider.frame = NSRect(
-            x: bounds.maxX - volumeWidth, y: controlsY + (buttonSize - 16) / 2, width: volumeWidth, height: 16)
+            x: bounds.maxX - volumeWidth, y: controlsY + (controlsHeight - 16) / 2, width: volumeWidth, height: 16)
         volumeIcon.frame = NSRect(
-            x: volumeSlider.frame.minX - 26, y: controlsY + (buttonSize - 16) / 2, width: 18, height: 16)
+            x: volumeSlider.frame.minX - 26, y: controlsY + (controlsHeight - 16) / 2, width: 18, height: 16)
     }
 }
 
