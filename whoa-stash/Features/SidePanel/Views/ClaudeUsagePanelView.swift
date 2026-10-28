@@ -7,7 +7,10 @@ import AppKit
 /// des positions, et les hauteurs sont des constantes nommées plutôt que des nombres répétés.
 final class ClaudeUsagePanelView: NSView {
 
-    private let markLayer = CAShapeLayer()
+    /// `tintsMark: false` : l'étoile reste blanche au centre, seule la bague autour d'elle porte
+    /// la couleur du taux — l'en-tête doit rester lisible comme un titre.
+    private let ring = ClaudeUsageRing(tintsMark: false)
+    private var state: ClaudeUsageState = .loading
     private let titleLabel = NSTextField(labelWithString: "Claude Usage")
     private let sessionRow = ClaudeUsageRowView(title: "Current session")
     private let allModelsRow = ClaudeUsageRowView(title: "All models")
@@ -23,7 +26,10 @@ final class ClaudeUsagePanelView: NSView {
         }
     }
     private let verticalInset: CGFloat = 18
-    private let headerHeight: CGFloat = 20
+    /// Hauteur de l'en-tête, et donc diamètre de la bague.
+    private let headerHeight: CGFloat = 30
+    /// Entre la bague et le titre.
+    private let headerGap: CGFloat = 10
     private let headerSpacing: CGFloat = 16
     private let rowSpacing: CGFloat = 16
 
@@ -39,7 +45,7 @@ final class ClaudeUsagePanelView: NSView {
     }
 
     private func setUp() {
-        layer?.addSublayer(markLayer)
+        if let layer { ring.install(in: layer) }
 
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         addSubview(titleLabel)
@@ -57,18 +63,23 @@ final class ClaudeUsagePanelView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        markLayer.contentsScale = window?.backingScaleFactor ?? 2
+        ring.setContentsScale(window?.backingScaleFactor ?? 2)
     }
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         titleLabel.textColor = palette.buttonSymbolColor
-        markLayer.fillColor = palette.buttonSymbolColor.cgColor
+        ring.markColor = palette.buttonSymbolColor.cgColor
+        applyRing(animated: false)
         sessionRow.applyPalette()
         allModelsRow.applyPalette()
     }
 
     // MARK: - État
+
+    private func applyRing(animated: Bool) {
+        ring.apply(utilization: state.snapshot?.session.utilization, animated: animated)
+    }
 
     func apply(_ state: ClaudeUsageState, animated: Bool) {
         apply(
@@ -87,6 +98,8 @@ final class ClaudeUsagePanelView: NSView {
         secondaryLabel: String,
         animated: Bool
     ) {
+        self.state = state
+        applyRing(animated: animated)
         titleLabel.stringValue = title
         sessionRow.title = primaryLabel
         allModelsRow.title = secondaryLabel
@@ -111,20 +124,15 @@ final class ClaudeUsagePanelView: NSView {
         let contentWidth = bounds.width - leadingInset - trailingInset
         let headerTop = bounds.maxY - verticalInset - headerHeight
 
-        let markSize = headerHeight * 0.82
-        markLayer.frame = bounds
-        markLayer.path = UsageMarkPath.claude.path(
-            in: CGRect(
-                x: leadingInset,
-                y: headerTop + (headerHeight - markSize) / 2,
-                width: markSize,
-                height: markSize
-            )
+        ring.layout(
+            in: bounds,
+            center: CGPoint(x: leadingInset + headerHeight / 2, y: headerTop + headerHeight / 2),
+            diameter: headerHeight
         )
 
         let titleSize = titleLabel.intrinsicContentSize
         titleLabel.frame = NSRect(
-            x: leadingInset + markSize + 8,
+            x: leadingInset + headerHeight + headerGap,
             y: headerTop + (headerHeight - titleSize.height) / 2,
             width: titleLabel.layoutWidth,
             height: titleSize.height
