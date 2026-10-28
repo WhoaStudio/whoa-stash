@@ -48,7 +48,7 @@ final class UsageCalloutContentView: NSView {
         layer?.addSublayer(strokeLayer)
 
         // Marges propres à la bulle : carte un peu plus haute et décalée vers la gauche.
-        usageView.verticalInset = 26
+        usageView.verticalInset = 14
         usageView.leadingInset = 16
         // Les deux bords de la bulle sont symétriques, contrairement à ceux de la bande accrochée
         // à l'écran : la carte peut garder la même marge de chaque côté.

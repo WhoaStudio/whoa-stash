@@ -231,8 +231,11 @@ final class NotchUsageHeaderView: NSView {
         titleLabel.frame = NSRect(
             x: 0, y: (bounds.height - title.height) / 2, width: ceil(title.width), height: title.height)
 
+        // Le glyphe, et non sa zone cliquable, tombe sur le bord droit du contenu : il s'aligne ainsi
+        // sur l'engrenage du panneau (voir `NotchPanelGeometry.gearInsetX`).
+        let overhang = (buttonSize - TabBarMetrics.iconSize) / 2
         settingsButton.frame = NSRect(
-            x: bounds.maxX - buttonSize, y: (bounds.height - buttonSize) / 2,
+            x: bounds.maxX - buttonSize + overhang, y: (bounds.height - buttonSize) / 2,
             width: buttonSize, height: buttonSize)
 
         // Actualiser + onglets forment un groupe centré dans l'espace laissé entre le titre et les

@@ -69,9 +69,10 @@ enum NotchPanelGeometry {
     /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
     static let gearDrop: CGFloat = 8
 
-    /// Dont l'engrenage est rentré depuis le bord droit du contenu : il se centre ainsi sur la
-    /// dernière colonne de la semaine (onglet Global) au lieu de déborder à sa droite.
-    static let gearInsetX: CGFloat = 16
+    /// Dont l'engrenage est rentré depuis le bord droit du contenu. Négatif : c'est le **glyphe**,
+    /// et non sa bulle, qui tombe sur ce bord — le même que celui de tout ce que portent les onglets
+    /// (volume du lecteur, grille, cartes), de sorte que tout s'aligne à droite sur l'engrenage.
+    static var gearInsetX: CGFloat { -(TabBarMetrics.bubbleSize - TabBarMetrics.iconSize) / 2 }
 
     /// Marge haute. En profondeur la silhouette est pleine, mais le cadre de la fenêtre part du
     /// bord haut de la dalle : le contenu doit donc passer sous la barre de menus et, sur un Mac
