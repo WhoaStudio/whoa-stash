@@ -43,6 +43,6 @@ enum Log {
     nonisolated static let nowPlaying = Logger(subsystem: subsystem, category: "now-playing")
 
     /// Historique du presse-papiers : surveillance, stockage et copie en retour.
-    nonisolated static let trackpad = Logger(subsystem: subsystem, category: "trackpad")
+    nonisolated static let knock = Logger(subsystem: subsystem, category: "knock")
     nonisolated static let clipboard = Logger(subsystem: subsystem, category: "clipboard")
 }

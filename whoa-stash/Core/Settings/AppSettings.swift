@@ -149,7 +149,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var brightness = BrightnessSettings()
     var edgeSlider = EdgeSliderSettings()
     var notchPanel = NotchPanelSettings()
-    var trackpad = TrackpadGestureSettings()
+    var knock = KnockSettings()
 
     static let `default` = AppSettings()
 }

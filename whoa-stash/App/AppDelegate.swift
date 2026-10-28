@@ -24,8 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
-    private var trackpadGestureController: TrackpadGestureController?
-    private var trackpadCancellable: AnyCancellable?
+    private var knockController: KnockController?
+    private var knockCancellable: AnyCancellable?
 
     /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
     /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
@@ -126,16 +126,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clipboard.activate()
         clipboardHistoryViewModel = clipboard
 
-        // Taps de bord du trackpad : une action par côté et nombre de taps, réglée dans les
-        // Préférences. `--edge-tap=right-single` en simule un (voir `MockTrackpadTouchProvider`).
-        let trackpad = TrackpadGestureController(
-            provider: MockTrackpadTouchProvider.fromLaunchArguments() ?? MultitouchTrackpadProvider())
-        trackpad.onNowPlayingCommand = { [weak nowPlaying] command in nowPlaying?.send(command) }
-        trackpadGestureController = trackpad
-        trackpadCancellable = settings.$settings
-            .map(\.trackpad)
+        // Détection de coups sur le châssis par l'accéléromètre : une action par motif (simple,
+        // double), réglée dans les Préférences. `--knock=single|double` en simule un (voir
+        // `MockKnockSensor`).
+        let knock = KnockController(sensor: MockKnockSensor.fromLaunchArguments() ?? SPUAccelerometerSensor())
+        knock.onNowPlayingCommand = { [weak nowPlaying] command in nowPlaying?.send(command) }
+        knockController = knock
+        knockCancellable = settings.$settings
+            .map(\.knock)
             .removeDuplicates()
-            .sink { [weak trackpad] in trackpad?.apply(settings: $0) }
+            .sink { [weak knock] in knock?.apply(settings: $0) }
 
         // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
         // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.

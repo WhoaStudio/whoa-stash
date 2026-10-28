@@ -1,12 +1,12 @@
 import AppKit
 import OSLog
 
-/// Exécute l'action associée à un tap de bord.
-final class EdgeTapActionPerformer {
+/// Exécute l'action associée à un coup.
+final class KnockActionPerformer {
 
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)?
 
-    func perform(_ action: EdgeTapAction) {
+    func perform(_ action: KnockAction) {
         switch action {
         case .none:
             break
@@ -34,7 +34,7 @@ final class EdgeTapActionPerformer {
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
         do { try process.run() } catch {
-            Log.trackpad.error("Échec de \(path, privacy: .public) : \(error.localizedDescription, privacy: .public)")
+            Log.knock.error("Échec de \(path, privacy: .public) : \(error.localizedDescription, privacy: .public)")
         }
     }
 

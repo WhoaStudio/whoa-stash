@@ -105,24 +105,22 @@ extension NotchPanelSettings {
     }
 }
 
-extension TrackpadGestureSettings {
+extension KnockSettings {
     enum CodingKeys: String, CodingKey {
         case enabled
-        case leftSingle
-        case leftDouble
-        case rightSingle
-        case rightDouble
+        case single
+        case double
+        case sensitivity
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = TrackpadGestureSettings()
+        let defaults = KnockSettings()
         self.init(
             enabled: container.value(.enabled, defaults.enabled),
-            leftSingle: container.value(.leftSingle, defaults.leftSingle),
-            leftDouble: container.value(.leftDouble, defaults.leftDouble),
-            rightSingle: container.value(.rightSingle, defaults.rightSingle),
-            rightDouble: container.value(.rightDouble, defaults.rightDouble)
+            single: container.value(.single, defaults.single),
+            double: container.value(.double, defaults.double),
+            sensitivity: container.value(.sensitivity, defaults.sensitivity)
         )
     }
 }
@@ -133,7 +131,7 @@ extension AppSettings {
         case brightness
         case edgeSlider
         case notchPanel
-        case trackpad
+        case knock
     }
 
     init(from decoder: Decoder) throws {
@@ -144,7 +142,7 @@ extension AppSettings {
             brightness: container.value(.brightness, defaults.brightness),
             edgeSlider: container.value(.edgeSlider, defaults.edgeSlider),
             notchPanel: container.value(.notchPanel, defaults.notchPanel),
-            trackpad: container.value(.trackpad, defaults.trackpad)
+            knock: container.value(.knock, defaults.knock)
         )
     }
 }
