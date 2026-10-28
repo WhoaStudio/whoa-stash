@@ -43,11 +43,14 @@ final class NowPlayingWingsView: NSView {
 
     override func layout() {
         super.layout()
+        // La vue déborde de `extraHeight` sous la bande de l'encoche : le contenu est centré sur la
+        // bande elle-même, pas sur le débord.
+        let lift = Self.extraHeight / 2
         artworkView.frame = NSRect(
-            x: inset, y: (bounds.height - artworkSize) / 2, width: artworkSize, height: artworkSize)
+            x: inset, y: (bounds.height - artworkSize) / 2 + lift, width: artworkSize, height: artworkSize)
         let size = visualizer.intrinsicContentSize
         visualizer.frame = NSRect(
-            x: bounds.width - inset - size.width, y: (bounds.height - size.height) / 2,
+            x: bounds.width - inset - size.width, y: (bounds.height - size.height) / 2 + lift,
             width: size.width, height: size.height)
     }
 }
@@ -61,6 +64,8 @@ final class ArtworkView: NSView {
     private let badgeView = NSImageView()
     private var currentData: Data?
     private var currentSource: String?
+
+    var cornerRadius: CGFloat = 7 { didSet { imageView.layer?.cornerRadius = cornerRadius } }
 
     var showsSourceBadge = true {
         didSet { badgeView.isHidden = !showsSourceBadge || badgeView.image == nil }
@@ -77,7 +82,7 @@ final class ArtworkView: NSView {
 
         // Le coin arrondi est sur l'image seule : l'icône déborde un peu de la pochette.
         imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 7
+        imageView.layer?.cornerRadius = cornerRadius
         imageView.layer?.masksToBounds = true
         imageView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
         imageView.imageScaling = .scaleProportionallyUpOrDown

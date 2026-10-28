@@ -121,6 +121,16 @@ final class NotchPanelWindow {
         contentView.updateNowPlayingPlayer(state)
     }
 
+    func apply(playingNext items: [QueueItem]) {
+        contentView.apply(playingNext: items)
+    }
+
+    /// Relayé jusqu'au contrôleur : le panneau vient de se déplier.
+    var onExpanded: (() -> Void)? {
+        get { contentView.onExpanded }
+        set { contentView.onExpanded = newValue }
+    }
+
     /// Relayé jusqu'au contrôleur : boutons de la ligne « en lecture ».
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
         get { contentView.onNowPlayingCommand }

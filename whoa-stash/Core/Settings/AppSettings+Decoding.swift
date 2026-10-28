@@ -125,6 +125,18 @@ extension KnockSettings {
     }
 }
 
+extension SpotifySettings {
+    enum CodingKeys: String, CodingKey {
+        case clientID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = SpotifySettings()
+        self.init(clientID: container.value(.clientID, defaults.clientID))
+    }
+}
+
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case general
@@ -132,6 +144,7 @@ extension AppSettings {
         case edgeSlider
         case notchPanel
         case knock
+        case spotify
     }
 
     init(from decoder: Decoder) throws {
@@ -142,7 +155,8 @@ extension AppSettings {
             brightness: container.value(.brightness, defaults.brightness),
             edgeSlider: container.value(.edgeSlider, defaults.edgeSlider),
             notchPanel: container.value(.notchPanel, defaults.notchPanel),
-            knock: container.value(.knock, defaults.knock)
+            knock: container.value(.knock, defaults.knock),
+            spotify: container.value(.spotify, defaults.spotify)
         )
     }
 }

@@ -9,6 +9,8 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private let viewModel = GeneralSettingsViewModel()
     private var cancellable: AnyCancellable?
     private var notchPanelCancellable: AnyCancellable?
+    private var spotifyCancellable: AnyCancellable?
+    private var spotifyStatusCancellable: AnyCancellable?
 
     private let launchAtLoginSwitch = NSSwitch()
     private let accentColorPopUp = NSPopUpButton()
@@ -20,6 +22,9 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private let shortcutPopUp = NSPopUpButton()
     private let notchlessStylePopUp = NSPopUpButton()
     private let resetButton = NSButton(title: "Reset…", target: nil, action: nil)
+    private let spotifyClientIDField = NSTextField()
+    private let spotifyStatusLabel = NSTextField(labelWithString: "")
+    private let spotifyButton = NSButton(title: "Connect", target: nil, action: nil)
 
     override func makeCards() -> [SettingsCardView] {
         launchAtLoginSwitch.target = self
@@ -78,19 +83,72 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             SettingsRowView(title: "Toggle shortcut", accessory: shortcutPopUp),
         ])
 
+        spotifyClientIDField.placeholderString = "Client ID"
+        spotifyClientIDField.delegate = self
+        spotifyClientIDField.target = self
+        spotifyClientIDField.action = #selector(spotifyClientIDChanged)
+        spotifyClientIDField.translatesAutoresizingMaskIntoConstraints = false
+        spotifyClientIDField.widthAnchor.constraint(equalToConstant: 250).isActive = true
+
+        spotifyStatusLabel.font = .systemFont(ofSize: 11)
+        spotifyStatusLabel.textColor = .secondaryLabelColor
+        spotifyButton.target = self
+        spotifyButton.action = #selector(spotifyButtonTapped)
+        spotifyButton.bezelStyle = .rounded
+        let spotifyAccessory = NSStackView(views: [spotifyStatusLabel, spotifyButton])
+        spotifyAccessory.orientation = .horizontal
+        spotifyAccessory.spacing = 10
+        spotifyAccessory.translatesAutoresizingMaskIntoConstraints = false
+
+        let spotifyCard = SettingsCardView(title: "Spotify", rows: [
+            SettingsRowView(
+                title: "Client ID",
+                subtitle: "For the Playing Next list. Create an app on developer.spotify.com and add the redirect URI \(SpotifyAuthorizer.redirectURI).",
+                accessory: spotifyClientIDField),
+            SettingsRowView(title: "Account", accessory: spotifyAccessory),
+        ])
+
         let resetCard = SettingsCardView(title: "Reset", rows: [
             SettingsRowView(title: "Restore all settings to their defaults", accessory: resetButton),
         ])
 
-        return [startupCard, appearanceCard, notchPanelCard, feedbackCard, resetCard]
+        return [startupCard, appearanceCard, notchPanelCard, feedbackCard, spotifyCard, resetCard]
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         cancellable = viewModel.$settings.sink { [weak self] in self?.apply($0) }
+        spotifyCancellable = viewModel.$spotify.sink { [weak self] in
+            guard let self, spotifyClientIDField.currentEditor() == nil else { return }
+            spotifyClientIDField.stringValue = $0.clientID
+        }
+        spotifyStatusCancellable = viewModel.$spotifyStatus.sink { [weak self] in
+            self?.apply(spotifyStatus: $0)
+        }
         notchPanelCancellable = viewModel.$notchPanel.sink { [weak self] in
             self?.notchPanelSwitch.state = $0.enabled ? .on : .off
             self?.notchlessStylePopUp.selectItem(at: NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
+        }
+    }
+
+    private func apply(spotifyStatus status: SpotifyAccount.Status) {
+        switch status {
+        case .disconnected:
+            spotifyStatusLabel.stringValue = "Not connected"
+            spotifyButton.title = "Connect"
+            spotifyButton.isEnabled = true
+        case .connecting:
+            spotifyStatusLabel.stringValue = "Waiting for your browser…"
+            spotifyButton.title = "Connecting…"
+            spotifyButton.isEnabled = false
+        case .connected:
+            spotifyStatusLabel.stringValue = "Connected"
+            spotifyButton.title = "Disconnect"
+            spotifyButton.isEnabled = true
+        case .failed(let message):
+            spotifyStatusLabel.stringValue = message
+            spotifyButton.title = "Connect"
+            spotifyButton.isEnabled = true
         }
     }
 
@@ -124,6 +182,20 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         viewModel.setEnableSoundFeedback(soundSwitch.state == .on)
     }
 
+    @objc private func spotifyClientIDChanged() {
+        viewModel.setSpotifyClientID(spotifyClientIDField.stringValue)
+    }
+
+    @objc private func spotifyButtonTapped() {
+        if spotifyButton.title == "Disconnect" {
+            viewModel.disconnectSpotify()
+        } else {
+            // L'identifiant tapé mais pas encore validé compte : on l'enregistre avant de se connecter.
+            viewModel.setSpotifyClientID(spotifyClientIDField.stringValue)
+            viewModel.connectSpotify()
+        }
+    }
+
     @objc private func notchPanelChanged() {
         viewModel.setNotchPanelEnabled(notchPanelSwitch.state == .on)
     }
@@ -148,5 +220,13 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         viewModel.resetToDefaults()
+    }
+}
+
+extension GeneralSettingsViewController: NSTextFieldDelegate {
+    /// Enregistre l'identifiant quand on quitte le champ, sans attendre Entrée.
+    func controlTextDidEndEditing(_ notification: Notification) {
+        guard (notification.object as? NSTextField) === spotifyClientIDField else { return }
+        spotifyClientIDChanged()
     }
 }

@@ -4,7 +4,9 @@ import AppKit
 /// et artiste avec le visualiseur à leur droite, puis la progression encadrée du temps écoulé et
 /// du temps restant, et enfin précédent / lecture-pause / suivant avec le volume du système.
 ///
-/// Pas de file « Playing Next » : la source système ne la donne pas (voir `NowPlayingState`).
+/// Quand une source sait donner la suite (Apple Musique, Spotify), la colonne « Playing Next »
+/// s'ouvre à droite, séparée par un filet, et le lecteur se resserre sur la gauche ; sinon il
+/// occupe toute la largeur.
 final class NowPlayingRowView: NSView {
 
     var onCommand: ((NowPlayingCommand) -> Void)?
@@ -22,8 +24,17 @@ final class NowPlayingRowView: NSView {
     private let playPauseButton = NowPlayingControlButton(symbol: "pause.fill", size: 24)
     private let nextButton = NowPlayingControlButton(symbol: "forward.fill", size: 18)
 
+    private let queueHeader = NowPlayingRowView.label(size: 13, weight: .semibold, color: .white.withAlphaComponent(0.5))
+    private let queueDivider = NSBox()
+    private let queueViews = (0..<3).map { _ in QueueItemView() }
+
     private var state: NowPlayingState?
     private var tickTimer: Timer?
+    private var queue: [QueueItem] = []
+
+    /// Part de la largeur gardée par le lecteur quand la colonne de droite est ouverte.
+    private let playerShare: CGFloat = 0.58
+    private let queueGap: CGFloat = 20
 
     private let controlsHeight: CGFloat = 32
     private let progressHeight: CGFloat = 14
@@ -31,6 +42,9 @@ final class NowPlayingRowView: NSView {
     private let buttonPitch: CGFloat = 52
     private let volumeWidth: CGFloat = 150
     private let timeWidth: CGFloat = 40
+    /// Marge interne d'un `NSTextField` de chaque côté : sans elle compensée, le texte ne tombe
+    /// pas sur les bords de la pochette et du curseur de volume.
+    private let labelPadding: CGFloat = 2
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -61,6 +75,14 @@ final class NowPlayingRowView: NSView {
         playPauseButton.onClick = { [weak self] in self?.onCommand?(.togglePlayPause) }
         nextButton.onClick = { [weak self] in self?.onCommand?(.nextTrack) }
         [previousButton, playPauseButton, nextButton].forEach(addSubview)
+
+        queueHeader.stringValue = "Playing Next"
+        queueDivider.boxType = .custom
+        queueDivider.borderWidth = 0
+        queueDivider.fillColor = .white.withAlphaComponent(0.15)
+        for view in [queueHeader, queueDivider] as [NSView] { addSubview(view) }
+        queueViews.forEach(addSubview)
+        apply(queue: [])
     }
 
     @available(*, unavailable)
@@ -87,6 +109,7 @@ final class NowPlayingRowView: NSView {
             visualizer.setAnimating(false)
             playPauseButton.setSymbol("play.fill")
             updateProgress()
+            needsLayout = true
             return
         }
         titleLabel.stringValue = state.title
@@ -108,6 +131,19 @@ final class NowPlayingRowView: NSView {
         } else if !state.isPlaying {
             tickTimer?.invalidate()
             tickTimer = nil
+        }
+        needsLayout = true
+    }
+
+    /// Les prochains titres ; vide referme la colonne.
+    func apply(queue newQueue: [QueueItem]) {
+        queue = newQueue
+        let visible = !newQueue.isEmpty
+        queueHeader.isHidden = !visible
+        queueDivider.isHidden = !visible
+        for (index, view) in queueViews.enumerated() {
+            view.isHidden = index >= newQueue.count
+            if index < newQueue.count { view.apply(newQueue[index]) }
         }
         needsLayout = true
     }
@@ -143,33 +179,120 @@ final class NowPlayingRowView: NSView {
         let artSize = max(0, bounds.height - headerY)
         artworkView.frame = NSRect(x: 0, y: headerY, width: artSize, height: artSize)
 
+        // Le lecteur tient dans `playerWidth` ; la colonne de droite prend le reste.
+        let hasQueue = !queue.isEmpty
+        let playerWidth = hasQueue ? (bounds.width * playerShare).rounded() : bounds.width
+        layoutQueueColumn(playerWidth: playerWidth, headerY: headerY, artSize: artSize)
+
+        // Titre et artiste forment un bloc centré sur la pochette ; sans artiste, le titre seul
+        // prend le milieu.
         let textX = artSize + 14
+        let titleHeight: CGFloat = 22
+        let artistHeight: CGFloat = 20
+        let hasArtist = !artistLabel.stringValue.isEmpty
+        let blockHeight = hasArtist ? titleHeight + artistHeight : titleHeight
+        let blockBottom = headerY + (artSize - blockHeight) / 2
+        let titleY = hasArtist ? blockBottom + artistHeight : blockBottom
+
         let vizSize = visualizer.intrinsicContentSize
+        // Le visualiseur est centré sur la ligne du titre et colle au bord droit.
         visualizer.frame = NSRect(
-            x: bounds.maxX - vizSize.width, y: headerY + artSize / 2 + 8 + (20 - vizSize.height) / 2,
+            x: playerWidth - vizSize.width, y: titleY + (titleHeight - vizSize.height) / 2,
             width: vizSize.width, height: vizSize.height)
         let textWidth = max(0, visualizer.frame.minX - 10 - textX)
-        titleLabel.frame = NSRect(x: textX, y: headerY + artSize / 2 + 2, width: textWidth, height: 22)
-        artistLabel.frame = NSRect(x: textX, y: headerY + artSize / 2 - 22, width: bounds.maxX - textX, height: 20)
+        titleLabel.frame = NSRect(x: textX - labelPadding, y: titleY, width: textWidth, height: titleHeight)
+        artistLabel.frame = NSRect(
+            x: textX - labelPadding, y: blockBottom, width: playerWidth - textX, height: artistHeight)
 
-        elapsedLabel.frame = NSRect(x: 0, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
+        // Temps écoulé et restant sont calés sur les bords de la pochette et du volume.
+        elapsedLabel.frame = NSRect(
+            x: -labelPadding, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
         remainingLabel.frame = NSRect(
-            x: bounds.maxX - timeWidth, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
+            x: playerWidth - timeWidth + labelPadding, y: progressY - 1, width: timeWidth,
+            height: progressHeight + 2)
         progress.frame = NSRect(
-            x: timeWidth + 6, y: progressY, width: max(0, bounds.width - 2 * (timeWidth + 6)), height: progressHeight)
+            x: timeWidth + 6 - labelPadding, y: progressY,
+            width: max(0, playerWidth - 2 * (timeWidth + 6 - labelPadding)), height: progressHeight)
+
+        // Le volume colle au bord droit ; les trois commandes se centrent dans la place restante.
+        let controlsMidY = controlsY + (controlsHeight - 16) / 2
+        let volume = hasQueue ? volumeWidth * 0.6 : volumeWidth
+        volumeSlider.frame = NSRect(x: playerWidth - volume, y: controlsMidY, width: volume, height: 16)
+        volumeIcon.frame = NSRect(x: volumeSlider.frame.minX - 26, y: controlsMidY, width: 18, height: 16)
 
         let buttons = [previousButton, playPauseButton, nextButton]
         let groupWidth = buttonPitch * CGFloat(buttons.count)
-        let groupX = (bounds.width - groupWidth) / 2 - 40
+        let groupX = max(0, (volumeIcon.frame.minX - 12 - groupWidth) / 2)
         for (index, button) in buttons.enumerated() {
             button.frame = NSRect(
                 x: groupX + CGFloat(index) * buttonPitch, y: controlsY, width: buttonPitch, height: controlsHeight)
         }
+    }
+}
 
-        volumeSlider.frame = NSRect(
-            x: bounds.maxX - volumeWidth, y: controlsY + (controlsHeight - 16) / 2, width: volumeWidth, height: 16)
-        volumeIcon.frame = NSRect(
-            x: volumeSlider.frame.minX - 26, y: controlsY + (controlsHeight - 16) / 2, width: 18, height: 16)
+extension NowPlayingRowView {
+
+    /// Filet, titre de colonne et trois lignes, alignés sur le haut de la pochette.
+    fileprivate func layoutQueueColumn(playerWidth: CGFloat, headerY: CGFloat, artSize: CGFloat) {
+        let columnX = playerWidth + queueGap
+        let columnWidth = max(0, bounds.width - columnX)
+        let top = headerY + artSize
+
+        queueDivider.frame = NSRect(x: playerWidth + queueGap / 2, y: 4, width: 1, height: max(0, bounds.height - 8))
+        queueHeader.frame = NSRect(x: columnX - 2, y: top - 18, width: columnWidth, height: 18)
+
+        let rowHeight: CGFloat = 32
+        let firstRowTop = top - 24
+        for (index, view) in queueViews.enumerated() {
+            view.frame = NSRect(
+                x: columnX, y: firstRowTop - CGFloat(index + 1) * rowHeight - CGFloat(index) * 2,
+                width: columnWidth, height: rowHeight)
+        }
+    }
+}
+
+/// Une ligne de la file : petite pochette, titre, artiste.
+final class QueueItemView: NSView {
+
+    private let artworkView = ArtworkView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let artistLabel = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        artworkView.showsSourceBadge = false
+        artworkView.cornerRadius = 5
+        addSubview(artworkView)
+
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.textColor = .white
+        artistLabel.font = .systemFont(ofSize: 12)
+        artistLabel.textColor = .white.withAlphaComponent(0.5)
+        for label in [titleLabel, artistLabel] {
+            label.lineBreakMode = .byTruncatingTail
+            addSubview(label)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(_ item: QueueItem) {
+        titleLabel.stringValue = item.title
+        artistLabel.stringValue = item.artist
+        artworkView.setArtwork(item.artwork)
+    }
+
+    override func layout() {
+        super.layout()
+        let art = bounds.height - 4
+        artworkView.frame = NSRect(x: 0, y: 2, width: art, height: art)
+        let textX = art + 10
+        let width = max(0, bounds.width - textX)
+        titleLabel.frame = NSRect(x: textX - 2, y: bounds.midY, width: width + 2, height: 16)
+        artistLabel.frame = NSRect(x: textX - 2, y: bounds.midY - 15, width: width + 2, height: 15)
     }
 }
 

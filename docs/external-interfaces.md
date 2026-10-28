@@ -39,7 +39,24 @@ item, macOS prompts again. That is expected behaviour, not a bug.
 | Permission | Requested by | Fallback |
 |---|---|---|
 | Calendars, full access (`NSCalendarsFullAccessUsageDescription`) | `EventKitCalendarService.requestAccess()`, only while the status is `.notDetermined` | Notch panel shows the denied card |
+| Apple Events to Music (`NSAppleEventsUsageDescription`) | `AppleMusicQueueProvider`, through `/usr/bin/osascript`, on the first read of the Apple Music queue | The Playing Next column stays empty |
 | Accessibility (`NSAccessibilityUsageDescription`) | Nobody at present. `AccessibilityPermissionService` exists but has no callers. | — |
 
 Both Info.plist strings are in French and live in the target's build settings
 (`INFOPLIST_KEY_…`, generated Info.plist). There is no Info.plist file.
+
+## Now Playing
+
+- **System now-playing source.** `MediaRemoteNowPlayingProvider` runs `/usr/bin/perl` with the vendored
+  `mediaremote-adapter` (`Vendor/MediaRemoteAdapter`, shipped as `MediaRemoteAdapter.bin` plus the
+  `.pl` script in Resources) and reads its JSON stream. It is the only route to MediaRemote since
+  macOS 15.4, and it relies on a private framework.
+- **Playing Next, Apple Music.** `AppleMusicQueueProvider` asks Music for the next tracks of the
+  current playlist through `osascript`. It returns nothing while shuffle is on.
+- **Playing Next, Spotify.** `SpotifyQueueProvider` calls `GET https://api.spotify.com/v1/me/player/queue`
+  with the user's account. Sign-in is OAuth 2 PKCE (`SpotifyAuthorizer`): the browser opens once, and
+  Spotify redirects to `http://127.0.0.1:48731/callback`, served by a loopback socket that only
+  listens while connecting. The user creates the Spotify app, registers that redirect URI and pastes its
+  Client ID in Preferences, General. Tokens live in the Keychain (service
+  `ugolin-olle.whoa-stash.spotify`), never in `UserDefaults`. Scope: `user-read-playback-state`.
+- Launch flags: `--now-playing=playing|paused`, `--playing-next=mock`.

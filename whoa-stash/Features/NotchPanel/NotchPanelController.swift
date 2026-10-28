@@ -55,6 +55,10 @@ final class NotchPanelController {
     /// Dernière lecture connue, rejouée sur chaque panneau neuf comme l'agenda.
     private var nowPlayingState: NowPlayingState?
     private var nowPlayingPlayer: NowPlayingState?
+    private var playingNext: [QueueItem] = []
+
+    /// Un panneau vient de se déplier — le lecteur en profite pour relire la suite du morceau.
+    var onPanelExpanded: (() -> Void)?
 
     /// Boutons de la ligne « en lecture » ; posé avant ou après la construction des fenêtres.
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
@@ -187,6 +191,12 @@ final class NotchPanelController {
     func apply(nowPlayingPlayer newState: NowPlayingState?) {
         nowPlayingPlayer = newState
         windows.values.forEach { $0.updateNowPlayingPlayer(newState) }
+    }
+
+    /// Les prochains titres du morceau en cours, rejoués sur chaque panneau neuf comme le lecteur.
+    func apply(playingNext items: [QueueItem]) {
+        playingNext = items
+        windows.values.forEach { $0.apply(playingNext: items) }
     }
 
     func apply(copilotUsageState newState: CopilotUsageState) {
@@ -390,6 +400,8 @@ final class NotchPanelController {
                 window.onNowPlayingCommand = onNowPlayingCommand
                 window.showNowPlaying(nowPlayingState)
                 window.updateNowPlayingPlayer(nowPlayingPlayer)
+                window.apply(playingNext: playingNext)
+                window.onExpanded = { [weak self] in self?.onPanelExpanded?() }
                 windows[displayID] = window
             }
 

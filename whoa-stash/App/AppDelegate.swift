@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
     private var deviceStatusCoordinator: DeviceStatusCoordinator?
     private var nowPlayingViewModel: NowPlayingViewModel?
+    private var playingNextViewModel: PlayingNextViewModel?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
     private var copilotUsageViewModel: CopilotUsageViewModel?
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
@@ -100,8 +101,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nowPlaying.onStateChanged = { [weak self] state in
             self?.notchPanelController?.apply(nowPlayingState: state)
         }
+        // Colonne « Playing Next » : Apple Musique (AppleScript) et Spotify (API web) savent donner la
+        // suite, MediaRemote non. `--playing-next=mock` en simule une (voir `MockPlayingNextProvider`).
+        let nextProviders: [any PlayingNextProviding] =
+            MockPlayingNextProvider.fromLaunchArguments().map { [$0] } ?? [
+                AppleMusicQueueProvider(),
+                SpotifyQueueProvider(clientID: { SettingsStorage.shared.settings.spotify.clientID }),
+            ]
+        let playingNext = PlayingNextViewModel(providers: nextProviders)
+        playingNext.onItemsChanged = { [weak self] items in
+            self?.notchPanelController?.apply(playingNext: items)
+        }
+        notchPanelController?.onPanelExpanded = { [weak playingNext] in playingNext?.refresh() }
+        playingNextViewModel = playingNext
+
         nowPlaying.onPlayerChanged = { [weak self] state in
             self?.notchPanelController?.apply(nowPlayingPlayer: state)
+            self?.playingNextViewModel?.update(for: state)
         }
         notchPanelController?.onNowPlayingCommand = { [weak nowPlaying] command in
             nowPlaying?.send(command)

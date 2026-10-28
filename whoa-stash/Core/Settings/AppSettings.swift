@@ -150,6 +150,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var edgeSlider = EdgeSliderSettings()
     var notchPanel = NotchPanelSettings()
     var knock = KnockSettings()
+    var spotify = SpotifySettings()
 
     static let `default` = AppSettings()
 }

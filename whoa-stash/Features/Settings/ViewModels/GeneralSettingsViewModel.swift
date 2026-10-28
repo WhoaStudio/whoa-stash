@@ -11,17 +11,24 @@ final class GeneralSettingsViewModel: ObservableObject {
     private let launchAtLoginService: LaunchAtLoginService
     private var cancellable: AnyCancellable?
     private var notchPanelCancellable: AnyCancellable?
+    private var spotifyCancellable: AnyCancellable?
+    private var spotifyStatusCancellable: AnyCancellable?
 
     @Published private(set) var settings: GeneralSettings
     /// Le panneau de l'encoche n'a pas de section à lui : son unique réglage est présenté
     /// dans « General », d'où ce second flux à côté de `settings`.
     @Published private(set) var notchPanel: NotchPanelSettings
+    /// Compte Spotify de la colonne « Playing Next », présenté lui aussi dans « General ».
+    @Published private(set) var spotify: SpotifySettings
+    @Published private(set) var spotifyStatus: SpotifyAccount.Status
 
     init(storage: SettingsStorage = .shared, launchAtLoginService: LaunchAtLoginService = .shared) {
         self.storage = storage
         self.launchAtLoginService = launchAtLoginService
         self.settings = storage.settings.general
         self.notchPanel = storage.settings.notchPanel
+        self.spotify = storage.settings.spotify
+        self.spotifyStatus = SpotifyAccount.shared.status
 
         cancellable = storage.$settings
             .map(\.general)
@@ -32,6 +39,14 @@ final class GeneralSettingsViewModel: ObservableObject {
             .map(\.notchPanel)
             .removeDuplicates()
             .sink { [weak self] in self?.notchPanel = $0 }
+
+        spotifyCancellable = storage.$settings
+            .map(\.spotify)
+            .removeDuplicates()
+            .sink { [weak self] in self?.spotify = $0 }
+
+        spotifyStatusCancellable = SpotifyAccount.shared.$status
+            .sink { [weak self] in self?.spotifyStatus = $0 }
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -62,6 +77,20 @@ final class GeneralSettingsViewModel: ObservableObject {
 
     func setNotchlessStyle(_ style: NotchPanelStyle) {
         storage.settings.notchPanel.notchlessStyle = style
+    }
+
+    func setSpotifyClientID(_ clientID: String) {
+        let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard storage.settings.spotify.clientID != trimmed else { return }
+        storage.settings.spotify.clientID = trimmed
+    }
+
+    func connectSpotify() {
+        SpotifyAccount.shared.connect(clientID: spotify.clientID)
+    }
+
+    func disconnectSpotify() {
+        SpotifyAccount.shared.disconnect()
     }
 
     func setPanelOpacity(_ opacity: Double) {

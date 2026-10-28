@@ -342,6 +342,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -384,6 +385,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

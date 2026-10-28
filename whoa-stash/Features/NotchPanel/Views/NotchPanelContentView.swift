@@ -543,6 +543,14 @@ final class NotchPanelContentView: NSView {
     /// Appelé par la ligne de pilotage : précédent, lecture/pause, suivant.
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)?
 
+    /// Appelé quand le panneau vient de se déplier : le lecteur relit alors la suite du morceau.
+    var onExpanded: (() -> Void)?
+
+    /// Les prochains titres du morceau en cours ; vide referme la colonne « Playing Next ».
+    func apply(playingNext items: [QueueItem]) {
+        nowPlayingRow.apply(queue: items)
+    }
+
     /// Met à jour le lecteur de l'onglet Global : dernier morceau connu, ou « rien » si aucun.
     func updateNowPlayingPlayer(_ state: NowPlayingState?) {
         nowPlayingRow.apply(state)
@@ -650,6 +658,7 @@ final class NotchPanelContentView: NSView {
         if expanded {
             hideDeviceStatus(animated: animated)
             nowPlayingRow.refreshVolume()
+            onExpanded?()
         }
         applyShape(expanded: expanded, animated: animated)
         updateNowPlayingWingsOpacity(animated: animated)
