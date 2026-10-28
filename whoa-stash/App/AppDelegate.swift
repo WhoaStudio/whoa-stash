@@ -97,6 +97,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nowPlaying.onStateChanged = { [weak self] state in
             self?.notchPanelController?.apply(nowPlayingState: state)
         }
+        nowPlaying.onPlayerChanged = { [weak self] state in
+            self?.notchPanelController?.apply(nowPlayingPlayer: state)
+        }
         notchPanelController?.onNowPlayingCommand = { [weak nowPlaying] command in
             nowPlaying?.send(command)
         }

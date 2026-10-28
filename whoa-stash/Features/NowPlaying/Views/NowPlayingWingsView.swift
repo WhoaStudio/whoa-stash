@@ -15,6 +15,9 @@ final class NowPlayingWingsView: NSView {
     /// pastille Bluetooth, qui n'a pas à porter de pochette plus grande.
     static let wingWidth: CGFloat = 60
 
+    /// Hauteur ajoutée à l'encoche pendant la lecture.
+    static let extraHeight: CGFloat = 2
+
     private let inset: CGFloat = 14
     private let artworkSize: CGFloat = 28
 
@@ -58,6 +61,11 @@ final class ArtworkView: NSView {
     private let badgeView = NSImageView()
     private var currentData: Data?
     private var currentSource: String?
+
+    /// Faux pour la grande pochette de la ligne Global, où le nom de l'application est écrit.
+    var showsSourceBadge = true {
+        didSet { badgeView.isHidden = !showsSourceBadge || badgeView.image == nil }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -107,7 +115,7 @@ final class ArtworkView: NSView {
         currentSource = bundleIdentifier
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
             badgeView.image = NSWorkspace.shared.icon(forFile: url.path)
-            badgeView.isHidden = false
+            badgeView.isHidden = !showsSourceBadge
         } else {
             badgeView.image = nil
             badgeView.isHidden = true

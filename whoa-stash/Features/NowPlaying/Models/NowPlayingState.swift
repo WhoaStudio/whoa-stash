@@ -5,10 +5,29 @@ import Foundation
 nonisolated struct NowPlayingState: Equatable, Sendable {
     var title: String
     var artist: String
+    var album: String = ""
     /// Image brute (JPEG ou PNG), décodée par la vue seulement quand elle change.
     var artwork: Data?
     var isPlaying: Bool
     var bundleIdentifier: String
+    /// Durée du morceau en secondes, absente pour un direct.
+    var duration: TimeInterval?
+    /// Position à l'instant `timestamp` : le lecteur ne la renvoie qu'aux changements, la vue
+    /// l'avance elle-même (voir `position(at:)`).
+    var elapsed: TimeInterval?
+    var timestamp: Date?
+    var playbackRate: Double = 1
+
+    /// Position estimée à `date`, bornée à la durée ; `nil` sans position connue.
+    func position(at date: Date = .now) -> TimeInterval? {
+        guard let elapsed else { return nil }
+        var position = elapsed
+        if isPlaying, let timestamp {
+            position += max(0, date.timeIntervalSince(timestamp)) * playbackRate
+        }
+        if let duration { position = min(position, duration) }
+        return max(0, position)
+    }
 }
 
 /// Commande envoyée au lecteur actif. La valeur brute est l'identifiant `send` de l'adaptateur
@@ -46,6 +65,11 @@ nonisolated struct NowPlayingStreamParser {
         return .some(Self.state(from: payload))
     }
 
+    /// Microsecondes (option `--micros` de l'adaptateur) vers secondes.
+    private static func micros(_ value: Any?) -> TimeInterval? {
+        (value as? NSNumber).map { $0.doubleValue / 1_000_000 }
+    }
+
     private static func state(from payload: [String: Any]) -> NowPlayingState? {
         guard
             let title = payload["title"] as? String, !title.isEmpty,
@@ -56,8 +80,15 @@ nonisolated struct NowPlayingStreamParser {
         return NowPlayingState(
             title: title,
             artist: payload["artist"] as? String ?? "",
+            album: payload["album"] as? String ?? "",
             artwork: (payload["artworkData"] as? String).flatMap { Data(base64Encoded: $0) },
             isPlaying: isPlaying,
-            bundleIdentifier: bundleIdentifier)
+            bundleIdentifier: bundleIdentifier,
+            duration: micros(payload["durationMicros"]),
+            elapsed: micros(payload["elapsedTimeMicros"]),
+            timestamp: (payload["timestampEpochMicros"] as? NSNumber).map {
+                Date(timeIntervalSince1970: $0.doubleValue / 1_000_000)
+            },
+            playbackRate: (payload["playbackRate"] as? NSNumber)?.doubleValue ?? 1)
     }
 }

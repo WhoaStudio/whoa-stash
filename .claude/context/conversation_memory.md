@@ -16,6 +16,7 @@
 - 2026-10-28: engrenage des Préférences sorti de la capsule d'onglets, posé en haut à droite du panneau ; `topClearance` porté de 4 à 14 pour plus d'air sous l'encoche.
 - 2026-10-28: réglage `notchPanel.notchlessStyle` (défaut `island`) — seul l'état replié flotte (6 pt sous le bord) sur un écran sans encoche ; le panneau déplié reste suspendu au bord ; un écran à encoche ignore le réglage.
 - 2026-10-28: « Now Playing » via `mediaremote-adapter` (perl titré, seule voie MediaRemote depuis macOS 15.4), livré comme `MediaRemoteAdapter.bin` + script en ressources, lien `*.framework` recréé dans les caches à l'exécution — le groupe synchronisé d'Xcode ne copie ni un `.framework` ni un `.dylib` en ressource. Visualiseur simulé ; titre/artiste/commandes dans l'onglet Global déplié.
+- 2026-10-28: onglet Global = semaine en haut + lecteur dessous (172 pt suffisent : 46 + 8 + 112) ; le lecteur reste au repos (« Nothing playing », dernier morceau en pause) ; seules les ailes de l'encoche se masquent 5 s après l'arrêt. Ailes de lecture 60 pt, +2 pt de hauteur repliée, pastille Bluetooth inchangée.
 
 ## Tried and rejected
 

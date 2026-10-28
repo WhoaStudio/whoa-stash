@@ -54,7 +54,6 @@ final class NotchPanelContentView: NSView {
     private var isShowingNowPlaying = false
     /// Ligne de pilotage, dans l'onglet Global déplié.
     private let nowPlayingRow = NowPlayingRowView()
-    private var nowPlayingState: NowPlayingState?
 
     /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
@@ -140,7 +139,9 @@ final class NotchPanelContentView: NSView {
         contentContainer.addSubview(mirrorTab)
 
         globalTab.addSubview(weekStrip)
-        nowPlayingRow.isHidden = true
+        // Le lecteur se range sous la semaine dans l'onglet Global, et y reste : au repos il
+        // montre « Nothing playing ».
+        nowPlayingRow.apply(nil)
         nowPlayingRow.onCommand = { [weak self] command in self?.onNowPlayingCommand?(command) }
         globalTab.addSubview(nowPlayingRow)
         contentContainer.addSubview(globalTab)
@@ -379,8 +380,10 @@ final class NotchPanelContentView: NSView {
         deviceStatusPill.frame = NSRect(
             x: bounds.midX - deviceWidth / 2, y: wingsY, width: deviceWidth, height: collapsedSize.height)
         let mediaWidth = collapsedSize.width + 2 * NowPlayingWingsView.wingWidth
+        // Un peu plus haute que l'encoche : c'est ce qui signale la lecture, repliée.
         nowPlayingWings.frame = NSRect(
-            x: bounds.midX - mediaWidth / 2, y: wingsY, width: mediaWidth, height: collapsedSize.height)
+            x: bounds.midX - mediaWidth / 2, y: wingsY - NowPlayingWingsView.extraHeight, width: mediaWidth,
+            height: collapsedSize.height + NowPlayingWingsView.extraHeight)
 
         layoutTabBodies()
     }
@@ -419,9 +422,9 @@ final class NotchPanelContentView: NSView {
 
         nowPlayingRow.frame = NSRect(
             x: globalTab.bounds.minX,
-            y: globalTab.bounds.minY + NotchPanelGeometry.nowPlayingRowBottomInset,
+            y: globalTab.bounds.minY,
             width: globalTab.bounds.width,
-            height: NotchPanelGeometry.nowPlayingRowHeight
+            height: max(0, globalTab.bounds.height - weekHeight - NotchPanelGeometry.weekToPlayerGap)
         )
 
         calendarWidget.frame = calendarTab.bounds
@@ -520,22 +523,22 @@ final class NotchPanelContentView: NSView {
     /// Appelé par la ligne de pilotage : précédent, lecture/pause, suivant.
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)?
 
-    /// Montre (ou met à jour) la lecture en cours ; `nil` la retire.
+    /// Met à jour le lecteur de l'onglet Global : dernier morceau connu, ou « rien » si aucun.
+    func updateNowPlayingPlayer(_ state: NowPlayingState?) {
+        nowPlayingRow.apply(state)
+    }
+
+    /// Montre (ou met à jour) les ailes de la lecture en cours ; `nil` les retire.
     func showNowPlaying(_ state: NowPlayingState?) {
         guard let state else {
             guard isShowingNowPlaying else { return }
             isShowingNowPlaying = false
-            nowPlayingState = nil
-            nowPlayingRow.isHidden = true
             applyShape(expanded: isExpanded, animated: true)
             updateNowPlayingWingsOpacity(animated: true)
             return
         }
 
-        nowPlayingState = state
         nowPlayingWings.apply(state)
-        nowPlayingRow.apply(state)
-        nowPlayingRow.isHidden = false
         guard !isShowingNowPlaying else { return }
         isShowingNowPlaying = true
         applyShape(expanded: isExpanded, animated: true)
@@ -573,6 +576,8 @@ final class NotchPanelContentView: NSView {
 
     /// L'encoche élargie par ses deux ailes — même hauteur, mêmes rayons.
     private func wingedPath() -> CGPath {
+        // La lecture rend l'encoche un peu plus haute ; la pastille Bluetooth, non.
+        let extraHeight = isShowingDeviceStatus ? 0 : NowPlayingWingsView.extraHeight
         // La pastille Bluetooth, quand elle est là, impose sa largeur ; sinon celle de la lecture.
         let wingWidth = isShowingDeviceStatus ? DeviceStatusPillView.wingWidth : NowPlayingWingsView.wingWidth
         if collapsedTopGap > 0 {
@@ -580,7 +585,7 @@ final class NotchPanelContentView: NSView {
                 in: panelRect,
                 size: NSSize(
                     width: collapsedSize.width + 2 * wingWidth,
-                    height: collapsedSize.height),
+                    height: collapsedSize.height + extraHeight),
                 topGap: collapsedTopGap)
         }
         return PanelGeometry.silhouette(
@@ -588,7 +593,7 @@ final class NotchPanelContentView: NSView {
             anchoredTo: .top,
             size: NSSize(
                 width: collapsedSize.width + 2 * wingWidth,
-                height: collapsedSize.height),
+                height: collapsedSize.height + extraHeight),
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
             farRadius: NotchPanelGeometry.collapsedBottomRadius
         )
@@ -622,7 +627,10 @@ final class NotchPanelContentView: NSView {
     func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
-        if expanded { hideDeviceStatus(animated: animated) }
+        if expanded {
+            hideDeviceStatus(animated: animated)
+            nowPlayingRow.refreshVolume()
+        }
         applyShape(expanded: expanded, animated: animated)
         updateNowPlayingWingsOpacity(animated: animated)
         updateCameraActivity()

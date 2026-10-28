@@ -83,7 +83,7 @@ final class MediaRemoteNowPlayingProvider: NowPlayingProviding {
 
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/perl")
-        process.arguments = [paths.script, paths.framework, "stream", "--debounce=150"]
+        process.arguments = [paths.script, paths.framework, "stream", "--debounce=150", "--micros"]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

@@ -98,6 +98,10 @@ final class NotchPanelWindow {
         contentView.showNowPlaying(state)
     }
 
+    func updateNowPlayingPlayer(_ state: NowPlayingState?) {
+        contentView.updateNowPlayingPlayer(state)
+    }
+
     /// Relayé jusqu'au contrôleur : boutons de la ligne « en lecture ».
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
         get { contentView.onNowPlayingCommand }

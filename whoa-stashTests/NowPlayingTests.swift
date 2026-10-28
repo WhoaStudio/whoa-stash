@@ -56,6 +56,46 @@ struct NowPlayingParserTests {
 }
 
 @MainActor
+struct NowPlayingPositionTests {
+
+    private let start = Date(timeIntervalSince1970: 1_000)
+
+    private func state(playing: Bool, elapsed: TimeInterval?, duration: TimeInterval? = 200) -> NowPlayingState {
+        NowPlayingState(
+            title: "T", artist: "A", isPlaying: playing, bundleIdentifier: "b",
+            duration: duration, elapsed: elapsed, timestamp: start)
+    }
+
+    @Test("la position avance depuis l'instant du relevé tant que ça joue")
+    func advancesWhilePlaying() {
+        #expect(state(playing: true, elapsed: 20).position(at: start.addingTimeInterval(10)) == 30)
+    }
+
+    @Test("en pause la position ne bouge pas")
+    func frozenWhenPaused() {
+        #expect(state(playing: false, elapsed: 20).position(at: start.addingTimeInterval(10)) == 20)
+    }
+
+    @Test("la position ne dépasse pas la durée et reste inconnue sans relevé")
+    func clampedAndOptional() {
+        #expect(state(playing: true, elapsed: 195).position(at: start.addingTimeInterval(60)) == 200)
+        #expect(state(playing: true, elapsed: nil).position(at: start) == nil)
+    }
+
+    @Test("les microsecondes de l'adaptateur sont converties en secondes")
+    func parsesMicros() {
+        var parser = NowPlayingStreamParser()
+        let parsed = parser.ingest(line: Data("""
+            {"diff":false,"payload":{"title":"T","playing":true,"bundleIdentifier":"b",\
+            "durationMicros":200000000,"elapsedTimeMicros":20500000,"timestampEpochMicros":1000000000}}
+            """.utf8))
+        #expect(parsed??.duration == 200)
+        #expect(parsed??.elapsed == 20.5)
+        #expect(parsed??.timestamp == Date(timeIntervalSince1970: 1_000))
+    }
+}
+
+@MainActor
 struct NowPlayingViewModelTests {
 
     private func state(playing: Bool, title: String = "T") -> NowPlayingState {
@@ -100,6 +140,22 @@ struct NowPlayingViewModelTests {
         model.receive(state(playing: true))
         try await Task.sleep(for: .milliseconds(200))
         #expect(emitted.last == .some(state(playing: true)))
+    }
+
+    @Test("le lecteur garde le dernier morceau, en pause, quand les ailes se masquent")
+    func playerKeepsLastTrack() async throws {
+        let model = NowPlayingViewModel(provider: RecordingProvider(), hideDelay: .milliseconds(30))
+        var wings: [NowPlayingState?] = []
+        var player: [NowPlayingState?] = []
+        model.onStateChanged = { wings.append($0) }
+        model.onPlayerChanged = { player.append($0) }
+
+        model.receive(state(playing: true))
+        model.receive(nil)
+        try await Task.sleep(for: .milliseconds(120))
+
+        #expect(wings.last == .some(nil))
+        #expect(player.last == .some(state(playing: false)))
     }
 
     @Test("les commandes passent au fournisseur")

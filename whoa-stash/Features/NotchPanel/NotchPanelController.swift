@@ -43,6 +43,7 @@ final class NotchPanelController {
 
     /// Dernière lecture connue, rejouée sur chaque panneau neuf comme l'agenda.
     private var nowPlayingState: NowPlayingState?
+    private var nowPlayingPlayer: NowPlayingState?
 
     /// Boutons de la ligne « en lecture » ; posé avant ou après la construction des fenêtres.
     var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
@@ -164,6 +165,12 @@ final class NotchPanelController {
     func apply(nowPlayingState newState: NowPlayingState?) {
         nowPlayingState = newState
         windows.values.forEach { $0.showNowPlaying(newState) }
+    }
+
+    /// Dernier morceau connu pour le lecteur de l'onglet Global, qui ne disparaît pas à l'arrêt.
+    func apply(nowPlayingPlayer newState: NowPlayingState?) {
+        nowPlayingPlayer = newState
+        windows.values.forEach { $0.updateNowPlayingPlayer(newState) }
     }
 
     func apply(copilotUsageState newState: CopilotUsageState) {
@@ -362,6 +369,7 @@ final class NotchPanelController {
                 window.apply(agendaState: agendaState)
                 window.onNowPlayingCommand = onNowPlayingCommand
                 window.showNowPlaying(nowPlayingState)
+                window.updateNowPlayingPlayer(nowPlayingPlayer)
                 windows[displayID] = window
             }
 

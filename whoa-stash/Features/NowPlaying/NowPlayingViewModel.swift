@@ -1,17 +1,21 @@
 import Foundation
 
-/// Décide quand la vue « Now Playing » est visible : tant que quelque chose joue, puis encore
-/// `hideDelay` après l'arrêt ou la pause, pour qu'une pause depuis l'encoche ne la fasse pas
-/// disparaître sous le doigt. Pousse l'état par `onStateChanged` (`nil` = masquer) ; ne tient
+/// Décide ce que montre la vue « Now Playing ». Les ailes de l'encoche sont visibles tant que
+/// quelque chose joue, puis encore `hideDelay` après l'arrêt ou la pause, pour qu'une pause depuis
+/// l'encoche ne les fasse pas disparaître sous le doigt : c'est `onStateChanged` (`nil` = masquer).
+/// Le lecteur de l'onglet Global, lui, reste : `onPlayerChanged` donne toujours le dernier
+/// morceau connu, en pause une fois la lecture finie, ou `nil` si rien n'a encore joué. Ne tient
 /// aucun contrôleur.
 final class NowPlayingViewModel {
 
     var onStateChanged: ((NowPlayingState?) -> Void)?
+    var onPlayerChanged: ((NowPlayingState?) -> Void)?
 
     private let provider: NowPlayingProviding
     private let hideDelay: Duration
     private var hideTask: Task<Void, Never>?
     private(set) var state: NowPlayingState?
+    private(set) var lastTrack: NowPlayingState?
 
     init(provider: NowPlayingProviding, hideDelay: Duration = .seconds(5)) {
         self.provider = provider
@@ -28,6 +32,16 @@ final class NowPlayingViewModel {
     }
 
     func receive(_ update: NowPlayingState?) {
+        // Plus aucune session : le lecteur garde le dernier morceau, à l'arrêt.
+        if let update {
+            lastTrack = update
+            onPlayerChanged?(update)
+        } else if var last = lastTrack, last.isPlaying {
+            last.isPlaying = false
+            lastTrack = last
+            onPlayerChanged?(last)
+        }
+
         if let update, update.isPlaying {
             hideTask?.cancel()
             hideTask = nil
