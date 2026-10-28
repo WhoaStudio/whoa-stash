@@ -8,6 +8,7 @@
 ## Decisions
 
 - _Decision — why — where it applies._
+- 2026-10-28: Liquid Glass (`NSGlassEffectView`) retiré de toute l'app, travail gardé dans `git stash` (`liquid-glass`) — à reprendre plus tard ; fonds pleins conservés en attendant.
 
 ## Tried and rejected
 
