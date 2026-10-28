@@ -184,8 +184,18 @@ final class NotchPanelContentView: NSView {
     /// l'onglet affiché et la capsule, et non le cadre entier de la fenêtre, qui est plus haut
     /// que les onglets courts.
     var interactiveFrame: NSRect {
+        // Le cadre visé ne suffit pas pendant le glissement d'un onglet à l'autre : la capsule
+        // est encore peinte à son ancienne place, et le curseur posé dessus ne doit pas
+        // refermer le panneau.
         NotchPanelGeometry.panelRect(in: bounds, tab: selectedTab)
             .union(NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab))
+            .union(capsuleOnScreenFrame)
+    }
+
+    /// Cadre où la capsule est réellement peinte, glissement compris — celui du modèle n'est
+    /// atteint qu'à la fin du ressort.
+    private var capsuleOnScreenFrame: CGRect {
+        capsule.layer?.presentation()?.frame ?? capsule.frame
     }
 
     // MARK: - Onglets
@@ -281,7 +291,7 @@ final class NotchPanelContentView: NSView {
     /// Le contour de la capsule, pour le test de contact : son cadre est un rectangle, mais ses
     /// extrémités sont arrondies et ce qui les déborde doit passer dessous.
     private func capsuleShape() -> CGPath {
-        let frame = capsule.frame
+        let frame = capsuleOnScreenFrame
         let radius = frame.height / 2
         return CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }

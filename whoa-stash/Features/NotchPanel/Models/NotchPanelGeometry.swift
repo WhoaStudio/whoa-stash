@@ -76,10 +76,9 @@ enum NotchPanelGeometry {
 
     // MARK: - Capsule de navigation
 
-    /// Écart entre le bas du panneau et la capsule de navigation, qui flotte sous lui. Il est
-    /// bien visible : la capsule n'est pas un morceau de la silhouette, et c'est ce vide qui le
-    /// dit.
-    static let capsuleGap: CGFloat = 10
+    /// Écart entre le bas du panneau et la capsule de navigation, qui flotte sous lui. Serré
+    /// pour que la capsule se lise comme rattachée au panneau, tout en restant détachée de lui.
+    static let capsuleGap: CGFloat = 4
 
     /// Bande basse du cadre de la fenêtre, sous la silhouette du panneau : l'écart, puis la
     /// capsule. Le panneau ne peint rien là — seule la capsule s'y pose.
