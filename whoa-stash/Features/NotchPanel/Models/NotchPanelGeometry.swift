@@ -98,6 +98,10 @@ enum NotchPanelGeometry {
     /// droit, donc même hauteur.
     static let weekStripHeight: CGFloat = 46
 
+    /// Ligne « en lecture » de l'onglet Global : hauteur, et distance au bas de l'onglet.
+    static let nowPlayingRowHeight: CGFloat = 56
+    static let nowPlayingRowBottomInset: CGFloat = 14
+
     /// Air entre l'en-tête de date et la liste des événements, dans le widget.
     static let calendarHeaderGap: CGFloat = 10
 

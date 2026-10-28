@@ -38,4 +38,7 @@ enum Log {
 
     /// Onglet Mirror : démarrage et arrêt de la caméra.
     nonisolated static let camera = Logger(subsystem: subsystem, category: "camera")
+
+    /// Vue « Now Playing » : flux MediaRemote et commandes de lecture.
+    nonisolated static let nowPlaying = Logger(subsystem: subsystem, category: "now-playing")
 }

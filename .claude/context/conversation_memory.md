@@ -15,6 +15,7 @@
 - 2026-10-28: zone AirDrop dans le bac — le panneau reste l'unique cible de dépôt ; moitié gauche = garder, droite = AirDrop, y compris pour un glisser venu d'une vignette (la copie laisse le fichier dans le bac, seul `.move` hors de l'app l'en retire) ; le panneau reste sous l'image glissée pendant un glisser sortant.
 - 2026-10-28: engrenage des Préférences sorti de la capsule d'onglets, posé en haut à droite du panneau ; `topClearance` porté de 4 à 14 pour plus d'air sous l'encoche.
 - 2026-10-28: réglage `notchPanel.notchlessStyle` (défaut `island`) — seul l'état replié flotte (6 pt sous le bord) sur un écran sans encoche ; le panneau déplié reste suspendu au bord ; un écran à encoche ignore le réglage.
+- 2026-10-28: « Now Playing » via `mediaremote-adapter` (perl titré, seule voie MediaRemote depuis macOS 15.4), livré comme `MediaRemoteAdapter.bin` + script en ressources, lien `*.framework` recréé dans les caches à l'exécution — le groupe synchronisé d'Xcode ne copie ni un `.framework` ni un `.dylib` en ressource. Visualiseur simulé ; titre/artiste/commandes dans l'onglet Global déplié.
 
 ## Tried and rejected
 

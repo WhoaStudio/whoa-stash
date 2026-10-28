@@ -94,6 +94,16 @@ final class NotchPanelWindow {
         contentView.hideDeviceStatus()
     }
 
+    func showNowPlaying(_ state: NowPlayingState?) {
+        contentView.showNowPlaying(state)
+    }
+
+    /// Relayé jusqu'au contrôleur : boutons de la ligne « en lecture ».
+    var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
+        get { contentView.onNowPlayingCommand }
+        set { contentView.onNowPlayingCommand = newValue }
+    }
+
     /// Montre l'onglet Tray — appelé quand un glisser de fichiers arrive sur le panneau, quel
     /// que soit l'onglet affiché jusque-là.
     func revealFileShelf() {

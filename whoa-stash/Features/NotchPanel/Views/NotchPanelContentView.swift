@@ -48,6 +48,14 @@ final class NotchPanelContentView: NSView {
     private let deviceStatusPill = DeviceStatusPillView()
     private var isShowingDeviceStatus = false
 
+    /// Lecture en cours : mêmes ailes que la pastille Bluetooth, mais tenues tant que ça joue. La
+    /// pastille Bluetooth passe devant le temps de son affichage.
+    private let nowPlayingWings = NowPlayingWingsView()
+    private var isShowingNowPlaying = false
+    /// Ligne de pilotage, dans l'onglet Global déplié.
+    private let nowPlayingRow = NowPlayingRowView()
+    private var nowPlayingState: NowPlayingState?
+
     /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
@@ -132,6 +140,9 @@ final class NotchPanelContentView: NSView {
         contentContainer.addSubview(mirrorTab)
 
         globalTab.addSubview(weekStrip)
+        nowPlayingRow.isHidden = true
+        nowPlayingRow.onCommand = { [weak self] command in self?.onNowPlayingCommand?(command) }
+        globalTab.addSubview(nowPlayingRow)
         contentContainer.addSubview(globalTab)
 
         calendarTab.addSubview(calendarWidget)
@@ -146,6 +157,8 @@ final class NotchPanelContentView: NSView {
         capsule.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
         capsule.layer?.opacity = 0
         addSubview(capsule)
+        nowPlayingWings.layer?.opacity = 0
+        addSubview(nowPlayingWings)
         deviceStatusPill.layer?.opacity = 0
         addSubview(deviceStatusPill)
         applySelection(animated: false)
@@ -367,6 +380,7 @@ final class NotchPanelContentView: NSView {
             y: panel.maxY - collapsedTopGap - collapsedSize.height,
             width: wingedWidth,
             height: collapsedSize.height)
+        nowPlayingWings.frame = deviceStatusPill.frame
 
         layoutTabBodies()
     }
@@ -401,6 +415,13 @@ final class NotchPanelContentView: NSView {
             y: globalTab.bounds.maxY - weekHeight,
             width: globalTab.bounds.width,
             height: weekHeight
+        )
+
+        nowPlayingRow.frame = NSRect(
+            x: globalTab.bounds.minX,
+            y: globalTab.bounds.minY + NotchPanelGeometry.nowPlayingRowBottomInset,
+            width: globalTab.bounds.width,
+            height: NotchPanelGeometry.nowPlayingRowHeight
         )
 
         calendarWidget.frame = calendarTab.bounds
@@ -481,6 +502,7 @@ final class NotchPanelContentView: NSView {
         isShowingDeviceStatus = true
         applyShape(expanded: false, animated: true)
         PanelFold.fade(deviceStatusPill.layer!, to: 1)
+        updateNowPlayingWingsOpacity(animated: true)
     }
 
     func hideDeviceStatus(animated: Bool = true) {
@@ -490,6 +512,41 @@ final class NotchPanelContentView: NSView {
         if let layer = deviceStatusPill.layer {
             if animated { PanelFold.fade(layer, to: 0) } else { layer.opacity = 0 }
         }
+        updateNowPlayingWingsOpacity(animated: animated)
+    }
+
+    // MARK: - Lecture en cours
+
+    /// Appelé par la ligne de pilotage : précédent, lecture/pause, suivant.
+    var onNowPlayingCommand: ((NowPlayingCommand) -> Void)?
+
+    /// Montre (ou met à jour) la lecture en cours ; `nil` la retire.
+    func showNowPlaying(_ state: NowPlayingState?) {
+        guard let state else {
+            guard isShowingNowPlaying else { return }
+            isShowingNowPlaying = false
+            nowPlayingState = nil
+            nowPlayingRow.isHidden = true
+            applyShape(expanded: isExpanded, animated: true)
+            updateNowPlayingWingsOpacity(animated: true)
+            return
+        }
+
+        nowPlayingState = state
+        nowPlayingWings.apply(state)
+        nowPlayingRow.apply(state)
+        nowPlayingRow.isHidden = false
+        guard !isShowingNowPlaying else { return }
+        isShowingNowPlaying = true
+        applyShape(expanded: isExpanded, animated: true)
+        updateNowPlayingWingsOpacity(animated: true)
+    }
+
+    /// Les ailes de lecture ne se voient que repliées et sans pastille Bluetooth par-dessus.
+    private func updateNowPlayingWingsOpacity(animated: Bool) {
+        guard let layer = nowPlayingWings.layer else { return }
+        let visible = isShowingNowPlaying && !isShowingDeviceStatus && !isExpanded
+        if animated { PanelFold.fade(layer, to: visible ? 1 : 0) } else { layer.opacity = visible ? 1 : 0 }
     }
 
     // MARK: - Silhouette
@@ -565,13 +622,14 @@ final class NotchPanelContentView: NSView {
         isExpanded = expanded
         if expanded { hideDeviceStatus(animated: animated) }
         applyShape(expanded: expanded, animated: animated)
+        updateNowPlayingWingsOpacity(animated: animated)
         updateCameraActivity()
     }
 
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let path = expanded ? expandedPath() : (isShowingDeviceStatus ? wingedPath() : collapsedPath())
+        let path = expanded ? expandedPath() : (isShowingDeviceStatus || isShowingNowPlaying ? wingedPath() : collapsedPath())
         // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
         // le panneau déplié qu'on vient cliquer ou déposer.
         silhouette = path

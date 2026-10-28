@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var deviceStatusCoordinator: DeviceStatusCoordinator?
+    private var nowPlayingViewModel: NowPlayingViewModel?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
     private var copilotUsageViewModel: CopilotUsageViewModel?
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
@@ -88,6 +89,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         deviceCoordinator.activate()
         deviceStatusCoordinator = deviceCoordinator
+
+        // Lecture en cours (navigateur, Spotify, Musique) : mêmes ailes que la pastille Bluetooth,
+        // tenues tant que ça joue. `--now-playing=playing|paused` en simule une.
+        let nowPlaying = NowPlayingViewModel(
+            provider: MockNowPlayingProvider.fromLaunchArguments() ?? MediaRemoteNowPlayingProvider())
+        nowPlaying.onStateChanged = { [weak self] state in
+            self?.notchPanelController?.apply(nowPlayingState: state)
+        }
+        notchPanelController?.onNowPlayingCommand = { [weak nowPlaying] command in
+            nowPlaying?.send(command)
+        }
+        nowPlaying.activate()
+        nowPlayingViewModel = nowPlaying
 
         // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
         // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.

@@ -41,6 +41,14 @@ final class NotchPanelController {
     private var agendaState: CalendarAgendaState = .loading
     private var isActive = false
 
+    /// Dernière lecture connue, rejouée sur chaque panneau neuf comme l'agenda.
+    private var nowPlayingState: NowPlayingState?
+
+    /// Boutons de la ligne « en lecture » ; posé avant ou après la construction des fenêtres.
+    var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
+        didSet { windows.values.forEach { $0.onNowPlayingCommand = onNowPlayingCommand } }
+    }
+
     /// Dépliage forcé, hors survol (`--show-notch-panel`) : le curseur est alors n'importe où,
     /// donc le suivi normal replierait le panneau au premier mouvement. L'épinglage suspend
     /// cette logique jusqu'à ce que l'utilisateur soit venu sur le panneau puis en soit ressorti.
@@ -149,6 +157,13 @@ final class NotchPanelController {
     /// Relance les sources d'utilisation, depuis le bouton « actualiser » de l'onglet AI.
     var onRefreshUsage: (() -> Void)? {
         didSet { windows.values.forEach { $0.onRefreshUsage = onRefreshUsage } }
+    }
+
+    /// Diffuse la lecture en cours (ou `nil`) à toutes les fenêtres : le panneau d'un écran
+    /// branché plus tard doit la montrer aussi.
+    func apply(nowPlayingState newState: NowPlayingState?) {
+        nowPlayingState = newState
+        windows.values.forEach { $0.showNowPlaying(newState) }
     }
 
     func apply(copilotUsageState newState: CopilotUsageState) {
@@ -345,6 +360,8 @@ final class NotchPanelController {
                 window.apply(copilotUsageState: copilotUsageState)
                 window.onRefreshUsage = onRefreshUsage
                 window.apply(agendaState: agendaState)
+                window.onNowPlayingCommand = onNowPlayingCommand
+                window.showNowPlaying(nowPlayingState)
                 windows[displayID] = window
             }
 
