@@ -374,13 +374,13 @@ final class NotchPanelContentView: NSView {
         capsuleRestingPosition = capsule.layer?.position ?? .zero
         applyCapsuleReveal(animated: false)
 
-        let wingedWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
+        let wingsY = panel.maxY - collapsedTopGap - collapsedSize.height
+        let deviceWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
         deviceStatusPill.frame = NSRect(
-            x: bounds.midX - wingedWidth / 2,
-            y: panel.maxY - collapsedTopGap - collapsedSize.height,
-            width: wingedWidth,
-            height: collapsedSize.height)
-        nowPlayingWings.frame = deviceStatusPill.frame
+            x: bounds.midX - deviceWidth / 2, y: wingsY, width: deviceWidth, height: collapsedSize.height)
+        let mediaWidth = collapsedSize.width + 2 * NowPlayingWingsView.wingWidth
+        nowPlayingWings.frame = NSRect(
+            x: bounds.midX - mediaWidth / 2, y: wingsY, width: mediaWidth, height: collapsedSize.height)
 
         layoutTabBodies()
     }
@@ -573,11 +573,13 @@ final class NotchPanelContentView: NSView {
 
     /// L'encoche élargie par ses deux ailes — même hauteur, mêmes rayons.
     private func wingedPath() -> CGPath {
+        // La pastille Bluetooth, quand elle est là, impose sa largeur ; sinon celle de la lecture.
+        let wingWidth = isShowingDeviceStatus ? DeviceStatusPillView.wingWidth : NowPlayingWingsView.wingWidth
         if collapsedTopGap > 0 {
             return PanelGeometry.islandSilhouette(
                 in: panelRect,
                 size: NSSize(
-                    width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
+                    width: collapsedSize.width + 2 * wingWidth,
                     height: collapsedSize.height),
                 topGap: collapsedTopGap)
         }
@@ -585,7 +587,7 @@ final class NotchPanelContentView: NSView {
             in: panelRect,
             anchoredTo: .top,
             size: NSSize(
-                width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
+                width: collapsedSize.width + 2 * wingWidth,
                 height: collapsedSize.height),
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
             farRadius: NotchPanelGeometry.collapsedBottomRadius

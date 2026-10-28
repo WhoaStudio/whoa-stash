@@ -8,8 +8,8 @@ final class AudioVisualizerView: NSView {
     private static let durations: [CFTimeInterval] = [0.52, 0.41, 0.63, 0.47]
     private static let restingScale: CGFloat = 0.18
 
-    private let barWidth: CGFloat = 3
-    private let barGap: CGFloat = 3
+    private let barWidth: CGFloat = 2
+    private let barGap: CGFloat = 2
     private var bars: [CALayer] = []
 
     var tint: NSColor = .white {
@@ -40,7 +40,7 @@ final class AudioVisualizerView: NSView {
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: CGFloat(Self.barCount) * barWidth + CGFloat(Self.barCount - 1) * barGap,
-            height: 20)
+            height: 12)
     }
 
     override func layout() {

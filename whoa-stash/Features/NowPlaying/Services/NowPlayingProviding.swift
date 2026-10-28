@@ -20,7 +20,7 @@ final class MockNowPlayingProvider: NowPlayingProviding {
     init(isPlaying: Bool) {
         state = NowPlayingState(
             title: "Midnight City", artist: "M83", artwork: nil, isPlaying: isPlaying,
-            bundleIdentifier: "com.spotify.client")
+            bundleIdentifier: "com.apple.Music")
     }
 
     static func fromLaunchArguments(_ arguments: [String] = CommandLine.arguments) -> MockNowPlayingProvider? {

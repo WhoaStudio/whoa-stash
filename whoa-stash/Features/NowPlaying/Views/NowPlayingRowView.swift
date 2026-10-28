@@ -47,6 +47,7 @@ final class NowPlayingRowView: NSView {
         titleLabel.stringValue = state.title
         artistLabel.stringValue = state.artist
         artworkView.setArtwork(state.artwork)
+        artworkView.setSource(bundleIdentifier: state.bundleIdentifier)
         visualizer.setAnimating(state.isPlaying)
         playPauseButton.setSymbol(state.isPlaying ? "pause.fill" : "play.fill")
     }

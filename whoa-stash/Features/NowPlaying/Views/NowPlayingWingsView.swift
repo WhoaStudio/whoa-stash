@@ -2,7 +2,7 @@ import AppKit
 
 /// Contenu des deux ailes de l'encoche pendant la lecture : la pochette à gauche, le
 /// visualiseur à droite, le centre restant à l'encoche matérielle. Même gabarit que
-/// `DeviceStatusPillView`, dont il reprend la largeur d'aile et les marges.
+/// `DeviceStatusPillView`, avec des ailes plus étroites.
 ///
 /// Pas de fond : la silhouette élargie par `NotchPanelContentView` en fait office. Mise en page
 /// en frames ; la vue ne reçoit aucun événement.
@@ -11,8 +11,12 @@ final class NowPlayingWingsView: NSView {
     private let artworkView = ArtworkView()
     private let visualizer = AudioVisualizerView()
 
-    private let inset: CGFloat = 18
-    private let artworkSize: CGFloat = 22
+    /// Largeur de chaque aile, de part et d'autre de l'encoche : plus étroite que celle de la
+    /// pastille Bluetooth, qui n'a pas à porter de pochette plus grande.
+    static let wingWidth: CGFloat = 60
+
+    private let inset: CGFloat = 14
+    private let artworkSize: CGFloat = 28
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -30,6 +34,7 @@ final class NowPlayingWingsView: NSView {
 
     func apply(_ state: NowPlayingState) {
         artworkView.setArtwork(state.artwork)
+        artworkView.setSource(bundleIdentifier: state.bundleIdentifier)
         visualizer.setAnimating(state.isPlaying)
     }
 
@@ -44,23 +49,32 @@ final class NowPlayingWingsView: NSView {
     }
 }
 
-/// Pochette arrondie ; un glyphe de note tient lieu d'image tant qu'il n'y en a pas (elle arrive
-/// parfois après le titre).
+/// Pochette arrondie, avec en bas à droite l'icône de l'application qui joue (Spotify, Musique,
+/// le navigateur). Un glyphe de note tient lieu d'image tant qu'il n'y en a pas : elle arrive
+/// parfois après le titre.
 final class ArtworkView: NSView {
 
     private let imageView = NSImageView()
+    private let badgeView = NSImageView()
     private var currentData: Data?
+    private var currentSource: String?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.cornerRadius = 6
-        layer?.masksToBounds = true
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
 
+        // Le coin arrondi est sur l'image seule : l'icône déborde un peu de la pochette.
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 7
+        imageView.layer?.masksToBounds = true
+        imageView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.contentTintColor = .white.withAlphaComponent(0.7)
         addSubview(imageView)
+
+        badgeView.imageScaling = .scaleProportionallyUpOrDown
+        badgeView.isHidden = true
+        addSubview(badgeView)
         showPlaceholder()
     }
 
@@ -72,6 +86,8 @@ final class ArtworkView: NSView {
     override func layout() {
         super.layout()
         imageView.frame = bounds
+        let badge = (bounds.width * 0.5).rounded()
+        badgeView.frame = NSRect(x: bounds.maxX - badge + 3, y: bounds.minY - 3, width: badge, height: badge)
     }
 
     func setArtwork(_ data: Data?) {
@@ -82,6 +98,19 @@ final class ArtworkView: NSView {
             imageView.image = image
         } else {
             showPlaceholder()
+        }
+    }
+
+    /// Icône de l'application dont on donne l'identifiant ; rien si le système ne la connaît pas.
+    func setSource(bundleIdentifier: String) {
+        guard bundleIdentifier != currentSource else { return }
+        currentSource = bundleIdentifier
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            badgeView.image = NSWorkspace.shared.icon(forFile: url.path)
+            badgeView.isHidden = false
+        } else {
+            badgeView.image = nil
+            badgeView.isHidden = true
         }
     }
 
