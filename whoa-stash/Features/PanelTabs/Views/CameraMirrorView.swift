@@ -27,7 +27,7 @@ final class CameraMirrorView: NSView {
     private let settingsButton = NSButton()
 
     /// Écart entre le bord du cercle et la piste du curseur.
-    private static let sliderGap: CGFloat = 16
+    private static let sliderGap: CGFloat = 22
 
     init(viewModel: CameraMirrorViewModel) {
         self.viewModel = viewModel
@@ -97,10 +97,11 @@ final class CameraMirrorView: NSView {
     override func layout() {
         super.layout()
 
-        let diameter = min(bounds.height, bounds.width)
+        // Le cercle est le fond du panneau : centré, posé sur son bord bas à un liseré près.
+        let diameter = NotchPanelGeometry.mirrorDiameter
         circle.frame = NSRect(
             x: bounds.midX - diameter / 2,
-            y: bounds.midY - diameter / 2,
+            y: bounds.minY + NotchPanelGeometry.mirrorRim,
             width: diameter,
             height: diameter
         )
@@ -113,11 +114,14 @@ final class CameraMirrorView: NSView {
         [previewLayer, placeholderLayer, darkenLayer, lightenLayer].forEach { $0.frame = inner }
         CATransaction.commit()
 
-        // La piste longe le cercle : même centre, un peu plus large.
+        // La piste longe le cercle dans le coin haut-gauche, entre le cercle et le flanc : même
+        // centre, un peu plus large.
         slider.frame = bounds
         slider.arc = ArcSliderGeometry(
             center: CGPoint(x: circle.frame.midX - bounds.minX, y: circle.frame.midY - bounds.minY),
-            radius: diameter / 2 + Self.sliderGap
+            radius: diameter / 2 + Self.sliderGap,
+            startAngle: 150 * .pi / 180,
+            endAngle: 122 * .pi / 180
         )
 
         layoutStatus(in: inner)

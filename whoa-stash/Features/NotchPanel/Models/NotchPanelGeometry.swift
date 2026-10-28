@@ -116,15 +116,37 @@ enum NotchPanelGeometry {
     /// Largeur du contenu de l'onglet AI, et donc du panneau : le plus large des onglets.
     static let aiTabWidth: CGFloat = 540
 
+    /// Onglet Mirror : le panneau prend la forme d'un U — en-tête rectangulaire, flancs droits,
+    /// et pour fond le cercle de l'aperçu lui-même. Le cercle est donc aussi large que le corps
+    /// du panneau, à un liseré près.
+    static let mirrorDiameter: CGFloat = 296
+
+    /// Liseré sombre entre l'aperçu et le bord de la silhouette.
+    static let mirrorRim: CGFloat = 4
+
+    /// Largeur du corps du panneau Mirror, entre ses deux raccords concaves.
+    static var mirrorBodyWidth: CGFloat { mirrorDiameter + 2 * mirrorRim }
+
+    /// Largeur de la silhouette Mirror, raccords compris (voir `PanelGeometry.silhouette`).
+    static var mirrorSilhouetteWidth: CGFloat { mirrorBodyWidth + 2 * expandedShoulderRadius }
+
+    /// Hauteur de contenu qui donne au panneau l'en-tête habituel plus le cercle et son liseré :
+    /// la marge basse est reprise, le cercle descendant jusqu'au bas de la silhouette.
+    static var mirrorTabHeight: CGFloat { mirrorDiameter + mirrorRim - contentInsetBottom }
+
     /// Hauteur du contenu d'un onglet, sous la barre.
     static func contentHeight(for tab: NotchTab) -> CGFloat {
-        tab == .ai ? aiTabHeight : calendarTabHeight
+        switch tab {
+        case .ai: aiTabHeight
+        case .mirror: mirrorTabHeight
+        case .global, .calendar, .tray: calendarTabHeight
+        }
     }
 
     /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
     /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, aiTabHeight)
+        max(calendarTabHeight, aiTabHeight, mirrorTabHeight)
     }
 
     /// Largeur du contenu de l'onglet le plus large — AI.

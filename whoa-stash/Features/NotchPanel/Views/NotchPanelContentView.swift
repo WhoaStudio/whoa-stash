@@ -218,7 +218,7 @@ final class NotchPanelContentView: NSView {
         selectedTab = tab
         capsule.select(tab, animated: animated)
         applySelection(animated: animated)
-        // Seul l'onglet AI est plus haut : la silhouette et la capsule suivent sa hauteur.
+        // Seuls les onglets AI et Mirror sont plus hauts : la silhouette et la capsule suivent leur hauteur.
         layoutTabBodies()
         moveCapsuleToSelectedTab(animated: animated)
         if isExpanded { applyShape(expanded: true, animated: animated) }
@@ -374,6 +374,10 @@ final class NotchPanelContentView: NSView {
         )
 
         calendarWidget.frame = calendarTab.bounds
+
+        // Mirror pose son cercle lui-même, contre le bas du panneau : il a donc tout le cadre du
+        // panneau Mirror, quel que soit l'onglet affiché.
+        mirrorTab.frame = NotchPanelGeometry.panelRect(in: bounds, tab: .mirror)
     }
 
     /// Descend ou remonte la capsule sous le panneau de l'onglet affiché. Au ressort du
@@ -481,11 +485,23 @@ final class NotchPanelContentView: NSView {
     }
 
     private func expandedPath() -> CGPath {
-        PanelGeometry.silhouette(
+        // Mirror : un U plus étroit que les autres onglets, dont le fond est le cercle de l'aperçu.
+        // Un rayon de la moitié du corps joint les deux coins du bas en demi-cercle, sans changer
+        // le nombre de segments : le passage d'un onglet à l'autre reste animable.
+        guard selectedTab == .mirror else {
+            return PanelGeometry.silhouette(
+                in: panelRect,
+                anchoredTo: .top,
+                shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
+                farRadius: NotchPanelGeometry.expandedBottomRadius
+            )
+        }
+        return PanelGeometry.silhouette(
             in: panelRect,
             anchoredTo: .top,
+            size: CGSize(width: NotchPanelGeometry.mirrorSilhouetteWidth, height: panelRect.height),
             shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
-            farRadius: NotchPanelGeometry.expandedBottomRadius
+            farRadius: NotchPanelGeometry.mirrorBodyWidth / 2
         )
     }
 
