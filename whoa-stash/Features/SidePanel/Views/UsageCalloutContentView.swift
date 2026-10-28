@@ -9,6 +9,11 @@ import AppKit
 /// au bord de l'écran.
 final class UsageCalloutContentView: NSView {
 
+    enum Provider {
+        case claude
+        case copilot
+    }
+
     /// Bord et hauteur de la pointe, décidés par `SidePanelGeometry` en même temps que le cadre
     /// de la fenêtre.
     var tail: SidePanelGeometry.Tail = .init(edge: .right, centerY: 0) {
@@ -39,7 +44,7 @@ final class UsageCalloutContentView: NSView {
         layer?.addSublayer(backgroundLayer)
 
         strokeLayer.fillColor = nil
-        strokeLayer.lineWidth = 1
+        strokeLayer.lineWidth = PanelGeometry.strokeWidth
         layer?.addSublayer(strokeLayer)
 
         // Les deux bords de la bulle sont symétriques, contrairement à ceux de la bande accrochée
@@ -47,11 +52,9 @@ final class UsageCalloutContentView: NSView {
         usageView.trailingInset = usageView.leadingInset
         addSubview(usageView)
 
+        // Aucune ombre portée : la bulle se détache par sa teinte et son filet, comme le panneau
+        // auquel elle s'accroche.
         layer?.masksToBounds = false
-        layer?.shadowColor = NSColor.black.cgColor
-        layer?.shadowOpacity = 0.3
-        layer?.shadowRadius = 14
-        layer?.shadowOffset = CGSize(width: 0, height: -2)
 
         applyPalette()
     }
@@ -67,8 +70,24 @@ final class UsageCalloutContentView: NSView {
         strokeLayer.strokeColor = palette.strokeColor
     }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        usageView.apply(usageState, animated: animated)
+    func apply(
+        claudeState: ClaudeUsageState,
+        copilotState: CopilotUsageState,
+        provider: Provider,
+        animated: Bool
+    ) {
+        switch provider {
+        case .claude:
+            usageView.apply(claudeState, animated: animated)
+        case .copilot:
+            usageView.apply(
+                copilotState.ringState,
+                title: "GitHub Copilot Usage",
+                primaryLabel: "Premium interactions",
+                secondaryLabel: "Monthly quota",
+                animated: animated
+            )
+        }
     }
 
     override func layout() {
@@ -79,7 +98,6 @@ final class UsageCalloutContentView: NSView {
         backgroundLayer.path = path
         strokeLayer.frame = bounds
         strokeLayer.path = path
-        layer?.shadowPath = path
 
         // Le contenu tient dans le corps : la pointe est une excroissance, rien ne s'y dessine.
         usageView.frame = bodyRect(in: bounds)

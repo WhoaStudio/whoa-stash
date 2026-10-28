@@ -68,23 +68,37 @@ final class DisplayServicesBackend: DisplayBrightnessBackend {
     }
 }
 
-/// Implémentation concrète de `BrightnessControlling` exposée à l'app. Cible aujourd'hui
-/// l'écran principal (`CGMainDisplayID`, généralement l'écran interne sur un MacBook) via
-/// `DisplayServicesBackend`. Le `displayID` est injectable pour permettre, plus tard, de
-/// router vers un autre backend selon le type d'écran (ex. `CGDisplayIsBuiltin` pour choisir
-/// entre DisplayServices et un futur backend DDC).
+/// Implémentation concrète de `BrightnessControlling` exposée à l'app, via
+/// `DisplayServicesBackend`. Cible l'écran désigné par `targetDisplay` — l'overlay y branche
+/// l'écran qui le porte — et retombe sur `fallbackDisplayID` (l'écran principal) quand
+/// personne ne l'a posé ou que l'écran n'a pas pu être identifié.
+///
+/// L'écran est résolu à *chaque* accès et jamais mémorisé : entre deux apparitions du widget
+/// le curseur a pu changer d'écran, et un écran a pu être branché ou débranché.
+///
+/// Le backend par défaut est `RoutingBrightnessBackend`, qui choisit la route selon l'écran :
+/// DisplayServices pour la dalle interne, DDC/CI pour les moniteurs externes.
 final class SystemBrightnessService: BrightnessControlling {
 
     private let backend: DisplayBrightnessBackend
-    private let displayID: () -> CGDirectDisplayID
+    private let fallbackDisplayID: () -> CGDirectDisplayID
 
-    init(backend: DisplayBrightnessBackend = DisplayServicesBackend(), displayID: @escaping () -> CGDirectDisplayID = CGMainDisplayID) {
+    var targetDisplay: (() -> CGDirectDisplayID?)?
+
+    init(
+        backend: DisplayBrightnessBackend = RoutingBrightnessBackend(),
+        fallbackDisplayID: @escaping () -> CGDirectDisplayID = CGMainDisplayID
+    ) {
         self.backend = backend
-        self.displayID = displayID
+        self.fallbackDisplayID = fallbackDisplayID
+    }
+
+    private var resolvedDisplayID: CGDirectDisplayID {
+        targetDisplay?() ?? fallbackDisplayID()
     }
 
     var brightness: Float {
-        get { backend.brightness(for: displayID()) ?? 0.5 }
-        set { backend.setBrightness(newValue, for: displayID()) }
+        get { backend.brightness(for: resolvedDisplayID) ?? 0.5 }
+        set { backend.setBrightness(newValue, for: resolvedDisplayID) }
     }
 }

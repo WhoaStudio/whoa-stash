@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -12,10 +13,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var edgeSliderController: EdgeSliderController?
     private var brightnessOverlayController: BrightnessOverlayController?
+    private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
+    private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
+    private var copilotUsageViewModel: CopilotUsageViewModel?
+    private var calendarAgendaViewModel: CalendarAgendaViewModel?
+    private var overlayPaletteSettings: OverlayPaletteSettings?
+    private var shortcutCancellable: AnyCancellable?
+
+    /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
+    /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
+    /// ce garde-fou, une simple passe de tests brancherait les moniteurs de souris globaux,
+    /// piloterait la luminosité par DDC et lirait le trousseau. On s'arrête donc avant toute
+    /// composition — les tests n'ont besoin que des types, pas de l'app en marche.
+    private var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningUnitTests else { return }
+
+        // L'app est sombre et ne suit pas l'apparence système : replié, le panneau de l'encoche
+        // doit se confondre avec le noir matériel de l'encoche, qu'une palette claire trahirait
+        // immédiatement, et les autres surfaces de l'overlay sont dessinées pour aller avec.
+        // Posée ici, avant la moindre fenêtre, elle est héritée par tous les panneaux comme par
+        // les menus et les alertes : c'est le seul endroit qui décide de l'apparence.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+
+        // Avant toute fenêtre : les vues de l'overlay résolvent la palette dès leur
+        // construction, donc accent, translucidité et interrupteur d'animation doivent déjà
+        // porter les valeurs de l'utilisateur.
+        overlayPaletteSettings = OverlayPaletteSettings(storage: settings)
+
         // Icône dans la menu bar (en haut à droite de l'écran)
         statusBarController = StatusBarController()
 
@@ -31,10 +62,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         brightnessOverlayController?.activate()
 
+        // Cadran de volume : jaillit du curseur quand celui-ci entre dans le coin supérieur
+        // gauche, et règle le volume de sortie à la molette. Il n'a pas de réglage dans les
+        // Préférences — rien à lui passer, donc, que le fait de démarrer.
+        volumeDialController = VolumeDialController()
+        volumeDialController?.activate()
+
         // Panneau latéral : glisse depuis le bord droit quand le curseur entre dans la zone
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
         sidePanelController = SidePanelController(storage: settings)
         sidePanelController?.activate()
+
+        // Panneau de l'encoche : suspendu au haut de l'écran, replié sur l'encoche matérielle
+        // (ou sur une pastille quand il n'y en a pas), il se déplie au survol. Placement
+        // indépendant de la bande du bord droit, que le réglage Général permet de couper.
+        notchPanelController = NotchPanelController(storage: settings)
+        notchPanelController?.activate()
+
+        // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
+        // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.
+        GlobalShortcutService.shared.onTrigger = { [weak self] in
+            self?.notchPanelController?.togglePinnedReveal()
+        }
+        shortcutCancellable = settings.$settings
+            .map(\.general.togglePanelShortcut)
+            .removeDuplicates()
+            .sink { GlobalShortcutService.shared.apply($0) }
 
         // Utilisation Claude : le modèle de vue alimente la bande latérale, et un seul appel
         // réseau la sert.
@@ -47,9 +100,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         usageViewModel.onStateChanged = { [weak self] in
             guard let self, let state = self.claudeUsageViewModel?.state else { return }
             self.sidePanelController?.apply(usageState: state)
+            self.notchPanelController?.apply(usageState: state)
         }
 
         usageViewModel.activate()
+
+        let copilotProvider: CopilotUsageProviding =
+            MockCopilotUsageProvider.fromLaunchArguments() ?? CopilotUsageService()
+        let copilotViewModel = CopilotUsageViewModel(provider: copilotProvider)
+        copilotUsageViewModel = copilotViewModel
+
+        copilotViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.copilotUsageViewModel?.state else { return }
+            self.sidePanelController?.apply(copilotUsageState: state)
+        }
+
+        copilotViewModel.activate()
+
+        // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
+        // a un par écran.
+        // `--calendar-agenda=denied` substitue une journée fixe à la vraie source (voir
+        // `MockCalendarAgendaProvider`), pour atteindre l'écriteau d'accès refusé sans révoquer
+        // l'autorisation de l'app dans les Réglages Système.
+        let calendarProvider: CalendarAgendaProviding =
+            MockCalendarAgendaProvider.fromLaunchArguments() ?? EventKitCalendarService()
+        let calendarViewModel = CalendarAgendaViewModel(provider: calendarProvider)
+        calendarAgendaViewModel = calendarViewModel
+
+        calendarViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.calendarAgendaViewModel?.state else { return }
+            self.notchPanelController?.apply(agendaState: state)
+        }
+
+        calendarViewModel.activate()
 
         // Ouvre la bande sans passer par le survol du coin — c'est ce qui la rend vérifiable
         // sur capture d'écran, au même titre que `--show-settings` pour les Préférences.
@@ -57,8 +140,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sidePanelController?.togglePinnedReveal()
         }
 
-        if CommandLine.arguments.contains("--dark") {
-            settings.settings.general.appearanceMode = .dark
+        // Même usage pour le panneau de l'encoche : le déplier sans passer par le survol est ce
+        // qui le rend vérifiable sur capture d'écran.
+        if CommandLine.arguments.contains("--show-notch-panel") {
+            notchPanelController?.togglePinnedReveal()
+        }
+
+        // Même usage pour le cadran de volume : l'ouvrir sans passer par le coin est ce qui le
+        // rend vérifiable sur capture d'écran.
+        if CommandLine.arguments.contains("--show-volume-dial") {
+            volumeDialController?.togglePinnedReveal()
         }
 
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {

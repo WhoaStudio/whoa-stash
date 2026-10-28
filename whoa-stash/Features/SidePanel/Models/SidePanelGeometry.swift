@@ -1,90 +1,114 @@
 import AppKit
 
-/// Géométrie du panneau latéral pour un écran donné : la zone sensible collée au coin supérieur
-/// droit, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
+/// Géométrie du panneau latéral pour un écran donné : la zone sensible posée au milieu de son
+/// bord d'accroche, le cadre du panneau qui s'y rattache, et le cadre de la bulle ancrée à l'une de ses
 /// bagues. Tout est exprimé en coordonnées globales AppKit (origine en bas à gauche de l'écran
 /// principal, axe Y vers le haut).
 enum SidePanelGeometry {
 
-    /// Zone sensible : 100 pt de haut sur 20 pt de large, mesurée depuis le bord droit.
-    static let hotZoneWidth: CGFloat = 20
-    static let hotZoneHeight: CGFloat = 100
+    /// Zone sensible : 100 pt de haut sur 20 pt de large, centrée sur le bord d'accroche.
+    static let hotZoneWidth = PanelGeometry.hotZoneWidth
+    static let hotZoneHeight = PanelGeometry.hotZoneHeight
+
+    /// Marge gardée avec le haut et le bas de la zone visible, pour que le panneau n'y soit pas
+    /// soudé quand sa pile de bagues réclame plus de hauteur que l'écran n'en offre.
+    static let screenInset = PanelGeometry.screenInset
 
     // MARK: - Bande de bagues
 
     /// Côté d'une case de bague — la bague elle-même plus le pourcentage posé dessous, voir
     /// `ClaudeUsageRingView`.
     static let ringTileSize: CGFloat = 60
-    static let ringSpacing: CGFloat = 16
-    static let ringInset: CGFloat = 14
+
+    /// Écart entre deux bagues, mesuré verticalement : les bagues s'empilent dans le sens du
+    /// bord auquel la bande est suspendue, et non en travers de sa largeur.
+    static let ringSpacing: CGFloat = 24
+
+    /// Hauteur réclamée par la pile de bagues — ce que la liste mesure, défilement mis à part.
+    static var ringStripHeight: CGFloat {
+        let count = CGFloat(ringSlots.count)
+        return count * ringTileSize + max(0, count - 1) * ringSpacing
+    }
 
     /// Rayon de la silhouette du panneau, partagé avec `SidePanelContentView` : c'est lui qui
     /// décide de la marge haute et basse, puisque les raccords concaves rognent la zone peinte
     /// près des deux extrémités.
-    static let panelCornerRadius: CGFloat = 28
+    static let panelCornerRadius = PanelGeometry.cornerRadius
 
-    /// Marge haute et basse de la pile de bagues : le rayon de la silhouette, plus de quoi ne pas
-    /// raser le raccord. Sans elle, la première bague mord sur l'évasement et déborde du panneau.
-    static let ringVerticalInset: CGFloat = panelCornerRadius + 10
+    // MARK: - Boîte de contenu
+
+    /// Marges intérieures du panneau. Les marges haute et basse valent au moins le rayon de la
+    /// silhouette : au-dessus de cette ligne, le bord peint se relève vers le bord de l'écran
+    /// pour former l'évasement, et tout contenu qui y monterait sortirait du chemin.
+    /// La bande est suspendue à un bord **vertical** : c'est donc le haut et le bas qui courent
+    /// le long du bord d'accroche, et la gauche et la droite qui s'en éloignent en profondeur.
+    static let contentVerticalInset = PanelGeometry.contentInsetAlongAnchor
+    static let contentHorizontalInset = PanelGeometry.contentInsetAcrossAnchor
+
+    // MARK: - Bande de bagues
 
     /// Une case de la bande : la marque qu'elle porte, et si une source de données l'alimente.
-    /// Les bagues non branchées sont là pour la silhouette — anneau vide, marque en teinte
-    /// neutre — en attendant que leur fournisseur soit raccordé.
+    /// Les bagues sans fournisseur sont là pour la silhouette — anneau vide, marque en teinte
+    /// neutre — en attendant leur raccordement.
     struct RingSlot: Equatable {
+        let serviceName: String
         let mark: UsageMarkPath
         let isConnected: Bool
     }
 
-    /// Les bagues empilées, de haut en bas. Seule celle de Claude a une source aujourd'hui ;
-    /// c'est aussi la seule à ouvrir la bulle de détail.
+    /// Les bagues alignées verticalement. Claude et Copilot sont alimentés par leurs fournisseurs
+    /// respectifs ; les autres restent visibles comme emplacements futurs.
     static let ringSlots: [RingSlot] = [
-        RingSlot(mark: .claude, isConnected: true),
-        RingSlot(mark: .codex, isConnected: false),
-        RingSlot(mark: .gemini, isConnected: false),
+        RingSlot(serviceName: "Claude Code", mark: .claude, isConnected: true),
+        RingSlot(serviceName: "GitHub Copilot", mark: .copilot, isConnected: true),
+        RingSlot(serviceName: "Codex", mark: .codex, isConnected: false),
+        RingSlot(serviceName: "Gemini", mark: .gemini, isConnected: false),
     ]
 
     static var ringCount: Int { ringSlots.count }
 
-    /// Le panneau est désormais une bande étroite : il ne porte plus la carte d'utilisation mais
-    /// seulement les bagues, la carte étant passée dans la bulle qui s'ouvre au survol.
-    static let panelWidth: CGFloat = ringTileSize + 2 * ringInset
+    // MARK: - Cadre du panneau
 
-    /// Hauteur plancher de la bande : elle garde sa silhouette haute et élancée même avec une
-    /// seule bague, les suivantes venant remplir la place déjà réservée. Au-delà, c'est le
-    /// contenu qui commande.
-    static let minimumPanelHeight: CGFloat = 400
+    /// La bande est étroite : les bagues s'y empilent verticalement, donc sa largeur n'a à
+    /// tenir qu'une case (`ringTileSize`) et ses deux marges. Elle vient du fonds commun, qui
+    /// la serre au plus près.
+    static let panelWidth = PanelGeometry.panelWidth
 
-    static var panelHeight: CGFloat {
-        let content = 2 * ringVerticalInset
-            + CGFloat(ringCount) * ringTileSize
-            + CGFloat(max(0, ringCount - 1)) * ringSpacing
-        return max(content, minimumPanelHeight)
-    }
+    /// Hauteur plancher, pour que la bande garde une silhouette posée même quand son contenu
+    /// tient en moins.
+    static let minimumPanelHeight = PanelGeometry.minimumPanelHeight
+
+    /// Silhouette depuis laquelle la bande se déplie, et sur laquelle elle se replie : la
+    /// poignée du fonds commun, décrite dans le repère du bord d'accroche — `width` le long de
+    /// celui-ci, `height` en profondeur. C'est la pastille du panneau de l'encoche, couchée sur
+    /// le flanc. Contrairement à celle de l'encoche, la bande ne s'y arrête pas : elle s'efface
+    /// en même temps qu'elle se replie, puisque rien ne doit rester sur le bord entre deux
+    /// survols.
+    static let collapsedSize = PanelGeometry.collapsedHandleSize
+
+    /// Hauteur fixe de la bande : au-delà de la hauteur visible, la liste défile au lieu
+    /// d'agrandir la silhouette. Cela garde le panneau compact et rend les fournisseurs
+    /// supplémentaires atteignables avec le geste de défilement, même sur les grands écrans.
+    static var panelHeight: CGFloat { minimumPanelHeight }
+
+    /// Bord auquel la bande est accrochée. Une valeur et non un réglage : le flanc opposé est
+    /// celui du widget de luminosité, qui lui répond. Tout ce qui dépend du bord — la zone
+    /// sensible, le cadre, le sens du dépliage — se rapporte à elle, de sorte que la poser à
+    /// gauche suffit à y déplacer la bande entière.
+    static let anchorEdge: EdgePosition = .right
 
     static func hotZone(on screen: NSScreen) -> NSRect {
-        let frame = screen.frame
-        return NSRect(
-            x: frame.maxX - hotZoneWidth,
-            y: frame.maxY - hotZoneHeight,
-            width: hotZoneWidth,
-            height: hotZoneHeight
-        )
+        PanelGeometry.hotZone(on: screen, anchoredTo: anchorEdge)
     }
 
-    /// Cadre affleurant le bord droit de l'écran : c'est depuis ce bord que le contenu glisse,
-    /// donc le panneau doit y toucher — l'espacement visuel vient des coins arrondis, pas d'une
-    /// marge. Le haut affleure de même le bord supérieur : c'est `frame`, pas `visibleFrame`, qui
-    /// le donne — ce dernier s'arrête sous la barre de menus, plus bas encore sur un écran à
-    /// encoche. La fenêtre est au niveau `.screenSaver` (voir `SidePanelWindow`), donc au-dessus
-    /// de cette barre, et la zone sensible se mesure déjà depuis `frame.maxY`.
+    /// Cadre affleurant le bord d'accroche, posé par la géométrie commune — la bande n'a à dire
+    /// que ce bord et la hauteur que son contenu réclame.
     static func panelFrame(on screen: NSScreen) -> NSRect {
-        let top = screen.frame.maxY
-        return NSRect(
-            x: screen.frame.maxX - panelWidth,
-            y: top - panelHeight,
-            width: panelWidth,
-            height: panelHeight
-        )
+        // La pile de bagues peut réclamer plus de hauteur que l'écran n'en offre : le cadre
+        // s'arrête alors à la zone visible, et c'est la liste qui défile à l'intérieur.
+        let available = screen.visibleFrame.height - 2 * screenInset
+        let height = min(panelHeight, max(minimumPanelHeight, available))
+        return PanelGeometry.panelFrame(on: screen, anchoredTo: anchorEdge, height: height)
     }
 }
 

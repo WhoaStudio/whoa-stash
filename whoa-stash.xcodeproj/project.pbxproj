@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		3CBE5B112FFF95A20027578E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3CBE5A962FFF95A20027578E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3CBE5A9D2FFF95A20027578E;
+			remoteInfo = "whoa-stash";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		3CBE5A9E2FFF95A20027578E /* whoa-stash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "whoa-stash.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3CBE5B012FFF95A20027578E /* whoa-stashTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "whoa-stashTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = "whoa-stash";
 			sourceTree = "<group>";
 		};
+		3CBE5B062FFF95A20027578E /* whoa-stashTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "whoa-stashTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		3CBE5A9B2FFF95A20027578E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3CBE5B042FFF95A20027578E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				3CBE5AA02FFF95A20027578E /* whoa-stash */,
+				3CBE5B062FFF95A20027578E /* whoa-stashTests */,
 				3CBE5A9F2FFF95A20027578E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				3CBE5A9E2FFF95A20027578E /* whoa-stash.app */,
+				3CBE5B012FFF95A20027578E /* whoa-stashTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = 3CBE5A9E2FFF95A20027578E /* whoa-stash.app */;
 			productType = "com.apple.product-type.application";
 		};
+		3CBE5B022FFF95A20027578E /* whoa-stashTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3CBE5B072FFF95A20027578E /* Build configuration list for PBXNativeTarget "whoa-stashTests" */;
+			buildPhases = (
+				3CBE5B032FFF95A20027578E /* Sources */,
+				3CBE5B042FFF95A20027578E /* Frameworks */,
+				3CBE5B052FFF95A20027578E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3CBE5B102FFF95A20027578E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3CBE5B062FFF95A20027578E /* whoa-stashTests */,
+			);
+			name = "whoa-stashTests";
+			packageProductDependencies = (
+			);
+			productName = "whoa-stashTests";
+			productReference = 3CBE5B012FFF95A20027578E /* whoa-stashTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -78,10 +126,14 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					3CBE5A9D2FFF95A20027578E = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					3CBE5B022FFF95A20027578E = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 3CBE5A9D2FFF95A20027578E;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				3CBE5A9D2FFF95A20027578E /* whoa-stash */,
+				3CBE5B022FFF95A20027578E /* whoa-stashTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		3CBE5A9C2FFF95A20027578E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3CBE5B052FFF95A20027578E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		3CBE5B032FFF95A20027578E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3CBE5B102FFF95A20027578E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3CBE5A9D2FFF95A20027578E /* whoa-stash */;
+			targetProxy = 3CBE5B112FFF95A20027578E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		3CBE5AA92FFF95A30027578E /* Debug */ = {
@@ -159,6 +234,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 2MPVX5W6KB;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -184,6 +260,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -223,6 +300,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 2MPVX5W6KB;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -241,6 +319,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -253,6 +332,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 2MPVX5W6KB;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -261,6 +341,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -287,6 +368,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 2MPVX5W6KB;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -295,6 +377,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -310,6 +393,44 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		3CBE5B082FFF95A20027578E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2MPVX5W6KB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ugolin-olle.whoa-stashTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/whoa-stash.app/Contents/MacOS/whoa-stash";
+			};
+			name = Debug;
+		};
+		3CBE5B092FFF95A20027578E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2MPVX5W6KB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ugolin-olle.whoa-stashTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/whoa-stash.app/Contents/MacOS/whoa-stash";
 			};
 			name = Release;
 		};
@@ -330,6 +451,15 @@
 			buildConfigurations = (
 				3CBE5AAC2FFF95A30027578E /* Debug */,
 				3CBE5AAD2FFF95A30027578E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3CBE5B072FFF95A20027578E /* Build configuration list for PBXNativeTarget "whoa-stashTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3CBE5B082FFF95A20027578E /* Debug */,
+				3CBE5B092FFF95A20027578E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

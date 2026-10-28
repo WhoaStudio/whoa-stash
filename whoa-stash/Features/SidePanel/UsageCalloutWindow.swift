@@ -14,7 +14,7 @@ final class UsageCalloutWindow {
     private let contentView = UsageCalloutContentView()
     private var isRevealed = false
 
-    init(appearanceMode: AppearanceMode) {
+    init() {
         panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -30,19 +30,20 @@ final class UsageCalloutWindow {
         panel.hidesOnDeactivate = false
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        panel.appearance = appearanceMode.nsAppearance
         panel.contentView = contentView
     }
 
     var frame: NSRect { panel.frame }
     var isVisible: Bool { isRevealed }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        contentView.apply(usageState: usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, provider: UsageCalloutContentView.Provider, animated: Bool) {
+        contentView.apply(claudeState: claudeState, copilotState: copilotState, provider: provider, animated: animated)
     }
 
-    func apply(appearanceMode: AppearanceMode) {
-        panel.appearance = appearanceMode.nsAppearance
+    /// Repeint depuis la palette courante — appelé quand l'accent ou la translucidité change
+    /// dans les Préférences, et non quand l'apparence système bascule (AppKit s'en charge).
+    func refreshPalette() {
+        contentView.refreshOverlayPalette()
     }
 
     func reveal(_ callout: SidePanelGeometry.Callout) {
