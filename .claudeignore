@@ -1,0 +1,18 @@
+# .claudeignore: paths Claude Code should not read (saves context, keeps secrets out).
+# Claude Code doesn't read this file directly: claude-kit compiles it into
+# permissions.deny Read(...) rules in .claude/settings.json. After editing, run: claude-kit sync
+# Syntax: gitignore. Remove a line to let Claude read that path again.
+
+# secrets & editor noise
+.git/
+.DS_Store
+*.log
+tmp/
+.idea/
+.claude-kit/index/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*

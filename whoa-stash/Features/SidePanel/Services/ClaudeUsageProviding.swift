@@ -9,7 +9,7 @@ protocol ClaudeUsageProviding: Sendable {
 }
 
 /// Valeurs fixes injectées par `--claude-usage=<session>,<allModels>` (en pourcents), dans le
-/// même esprit que `--dark` et `--show-settings` déjà gérés par `AppDelegate`.
+/// même esprit que `--show-settings` déjà géré par `AppDelegate`.
 struct MockClaudeUsageProvider: ClaudeUsageProviding {
 
     let sessionPercent: Double

@@ -13,9 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var edgeSliderController: EdgeSliderController?
     private var brightnessOverlayController: BrightnessOverlayController?
+    private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
+    private var copilotUsageViewModel: CopilotUsageViewModel?
+    private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
 
@@ -31,6 +34,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !isRunningUnitTests else { return }
+
+        // L'app est sombre et ne suit pas l'apparence système : replié, le panneau de l'encoche
+        // doit se confondre avec le noir matériel de l'encoche, qu'une palette claire trahirait
+        // immédiatement, et les autres surfaces de l'overlay sont dessinées pour aller avec.
+        // Posée ici, avant la moindre fenêtre, elle est héritée par tous les panneaux comme par
+        // les menus et les alertes : c'est le seul endroit qui décide de l'apparence.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
 
         // Avant toute fenêtre : les vues de l'overlay résolvent la palette dès leur
         // construction, donc accent, translucidité et interrupteur d'animation doivent déjà
@@ -51,6 +61,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             storage: settings
         )
         brightnessOverlayController?.activate()
+
+        // Cadran de volume : jaillit du curseur quand celui-ci entre dans le coin supérieur
+        // gauche, et règle le volume de sortie à la molette. Il n'a pas de réglage dans les
+        // Préférences — rien à lui passer, donc, que le fait de démarrer.
+        volumeDialController = VolumeDialController()
+        volumeDialController?.activate()
 
         // Panneau latéral : glisse depuis le bord droit quand le curseur entre dans la zone
         // sensible du coin supérieur droit, sur chacun des écrans connectés.
@@ -89,6 +105,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         usageViewModel.activate()
 
+        let copilotProvider: CopilotUsageProviding =
+            MockCopilotUsageProvider.fromLaunchArguments() ?? CopilotUsageService()
+        let copilotViewModel = CopilotUsageViewModel(provider: copilotProvider)
+        copilotUsageViewModel = copilotViewModel
+
+        copilotViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.copilotUsageViewModel?.state else { return }
+            self.sidePanelController?.apply(copilotUsageState: state)
+        }
+
+        copilotViewModel.activate()
+
+        // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
+        // a un par écran.
+        // `--calendar-agenda=denied` substitue une journée fixe à la vraie source (voir
+        // `MockCalendarAgendaProvider`), pour atteindre l'écriteau d'accès refusé sans révoquer
+        // l'autorisation de l'app dans les Réglages Système.
+        let calendarProvider: CalendarAgendaProviding =
+            MockCalendarAgendaProvider.fromLaunchArguments() ?? EventKitCalendarService()
+        let calendarViewModel = CalendarAgendaViewModel(provider: calendarProvider)
+        calendarAgendaViewModel = calendarViewModel
+
+        calendarViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.calendarAgendaViewModel?.state else { return }
+            self.notchPanelController?.apply(agendaState: state)
+        }
+
+        calendarViewModel.activate()
+
         // Ouvre la bande sans passer par le survol du coin — c'est ce qui la rend vérifiable
         // sur capture d'écran, au même titre que `--show-settings` pour les Préférences.
         if CommandLine.arguments.contains("--show-usage-panel") {
@@ -101,8 +146,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             notchPanelController?.togglePinnedReveal()
         }
 
-        if CommandLine.arguments.contains("--dark") {
-            settings.settings.general.appearanceMode = .dark
+        // Même usage pour le cadran de volume : l'ouvrir sans passer par le coin est ce qui le
+        // rend vérifiable sur capture d'écran.
+        if CommandLine.arguments.contains("--show-volume-dial") {
+            volumeDialController?.togglePinnedReveal()
         }
 
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {

@@ -10,14 +10,15 @@ import Testing
 @MainActor
 struct SettingsBehaviorTests {
 
-    private static let light = NSAppearance(named: .aqua)!
+    /// L'app n'a qu'une apparence, mais les couleurs dynamiques (`AccentColor.system`) ne se
+    /// résolvent que dans une apparence de dessin posée explicitement : d'où cette constante.
     private static let dark = NSAppearance(named: .darkAqua)!
 
     // MARK: - Couleur d'accent
 
     @Test("l'accent remplace la teinte des graduations actives")
     func accentReplacesActiveTick() {
-        let base = OverlayPalette.base(for: Self.dark)
+        let base = OverlayPalette.base
         let accented = base.accented(with: .purple, in: Self.dark)
 
         #expect(accented.activeTickColor != base.activeTickColor)
@@ -32,17 +33,15 @@ struct SettingsBehaviorTests {
         #expect(GeneralSettings().accentColor == .green)
         #expect(AccentColor.green.cgColor(for: Self.dark) == OverlayPalette.activeGreen)
         // Donc la palette par défaut rend exactement ce qu'elle rendait avant le réglage.
-        let accented = OverlayPalette.base(for: Self.dark).accented(with: .green, in: Self.dark)
+        let accented = OverlayPalette.base.accented(with: .green, in: Self.dark)
         #expect(accented.activeTickColor == OverlayPalette.activeGreen)
     }
 
-    @Test("chaque accent donne une couleur, dans les deux apparences")
+    @Test("chaque accent donne une couleur")
     func everyAccentResolves() {
         for accent in AccentColor.allCases {
-            for appearance in [Self.light, Self.dark] {
-                let resolved = accent.cgColor(for: appearance)
-                #expect(resolved.alpha > 0, "\(accent.displayName) n'a rien rendu")
-            }
+            let resolved = accent.cgColor(for: Self.dark)
+            #expect(resolved.alpha > 0, "\(accent.displayName) n'a rien rendu")
         }
     }
 
@@ -50,7 +49,7 @@ struct SettingsBehaviorTests {
 
     @Test("la translucidité n'abaisse que l'alpha du fond des panneaux")
     func opacityFadesOnlyThePanelBackground() throws {
-        let base = OverlayPalette.base(for: Self.dark)
+        let base = OverlayPalette.base
         let faded = base.fadingPanel(to: 0.5)
 
         #expect(faded.panelBackground.alpha == 0.5)
@@ -61,7 +60,7 @@ struct SettingsBehaviorTests {
 
     @Test("à 100 % la palette est inchangée, et l'alpha ne descend jamais sous le plancher")
     func opacityIsClamped() {
-        let base = OverlayPalette.base(for: Self.light)
+        let base = OverlayPalette.base
 
         #expect(base.fadingPanel(to: 1).panelBackground == base.panelBackground)
         #expect(base.fadingPanel(to: 0).panelBackground.alpha == 0.2)
@@ -88,8 +87,10 @@ struct SettingsBehaviorTests {
 
         #expect(small.height == WidgetSize.small.panelHeight)
         #expect(large.height == WidgetSize.large.panelHeight)
-        // Les deux restent accrochées au même haut : seule la hauteur change.
-        #expect(small.maxY == large.maxY)
+        // Les deux restent centrées sur le même milieu de bord : seule la hauteur change.
+        #expect(small.midY == large.midY)
+        // Et c'est bien là que la zone sensible va les chercher.
+        #expect(PanelGeometry.hotZone(on: screen, anchoredTo: .left).midY == small.midY)
     }
 
     // MARK: - Raccourci global
@@ -121,7 +122,6 @@ struct SettingsBehaviorTests {
         defaults.removePersistentDomain(forName: suite)
 
         let storage = SettingsStorage(defaults: defaults)
-        storage.settings.general.appearanceMode = .dark
         storage.settings.general.accentColor = .pink
         storage.settings.general.panelOpacity = 0.5
         storage.settings.general.togglePanelShortcut = .optionCommandN

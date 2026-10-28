@@ -3,7 +3,8 @@ import AppKit
 /// Contenu du panneau de l'encoche : une silhouette sombre suspendue au haut de l'écran, qui
 /// passe de la forme de l'encoche (ou d'une pastille, sur un Mac sans encoche) à un panneau
 /// large portant l'onglet choisi, surmonté d'une capsule de navigation détachée, posée sous lui
-/// et qui n'est donc pas un morceau de sa silhouette. Global porte la semaine ; AI
+/// et qui n'est donc pas un morceau de sa silhouette. Global porte la semaine ; Calendar porte
+/// l'agenda et la grille mensuelle ; AI
 /// porte les deux colonnes d'utilisation — les bagues **en ligne** à gauche, la carte détaillée
 /// à droite ; Tray affiche le bac à fichiers, qui vit hors de la vue (`FileShelfStore`) et
 /// retient donc ce qu'on y dépose d'un dépliage à l'autre, et d'un lancement à l'autre.
@@ -34,9 +35,12 @@ final class NotchPanelContentView: NSView {
     /// de `contentContainer`, que la silhouette découpe.
     private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
-    /// L'onglet Global : la semaine, seule.
+    /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
+    /// L'onglet Calendar : l'agenda et la grille du mois.
+    private let calendarTab = NSView()
+    private let calendarWidget = CalendarWidgetView()
     private let fileTray = FileTrayView()
 
     /// L'onglet AI : les deux colonnes d'utilisation — les bagues et la carte —, qui se montrent
@@ -128,6 +132,8 @@ final class NotchPanelContentView: NSView {
         globalTab.addSubview(weekStrip)
         contentContainer.addSubview(globalTab)
 
+        calendarTab.addSubview(calendarWidget)
+        contentContainer.addSubview(calendarTab)
         contentContainer.addSubview(fileTray)
 
         // Hors du conteneur de contenu, et donc hors du masque de la silhouette : la capsule est
@@ -212,21 +218,26 @@ final class NotchPanelContentView: NSView {
 
     // MARK: - Onglets
 
-    private var tabContentViews: [NSView] { [globalTab, fileTray, aiColumns] }
+    private var tabContentViews: [NSView] { [globalTab, calendarTab, fileTray, aiColumns] }
 
     private func contentView(for tab: NotchTab) -> NSView {
         switch tab {
         case .global: globalTab
+        case .calendar: calendarTab
         case .tray: fileTray
         case .ai: aiColumns
         }
     }
 
-    /// Bascule d'onglet, au clic dans la barre ou au repli du panneau, qui ramène sur Global.
-    /// Remet la semaine à la bonne date — appelé à chaque dépliage, le panneau restant en
-    /// mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
+    func apply(agendaState: CalendarAgendaState) {
+        calendarWidget.apply(agendaState)
+    }
+
+    /// Remet la semaine et le calendrier à la bonne date — appelé à chaque dépliage,
+    /// le panneau restant en mémoire d'un survol à l'autre et parfois d'un jour à l'autre.
     func refreshWeek() {
         weekStrip.refresh()
+        calendarWidget.refresh()
     }
 
     func select(_ tab: NotchTab, animated: Bool) {
@@ -355,15 +366,21 @@ final class NotchPanelContentView: NSView {
                 : body.insetBy(dx: inset, dy: 0)
         }
 
-        // Dans le repère de `globalTab` : la semaine en tête, sur toute la largeur utile. Le
-        // corps est plus haut qu'elle — c'est l'onglet AI qui le dimensionne — et elle reste en
-        // tête plutôt que centrée, à la place qu'elle occupait quand les colonnes la suivaient.
+        // Dans le repère de `globalTab`, la semaine prend toute la largeur utile et reste
+        // inchangée par rapport à la version précédente.
         let weekHeight = NotchPanelGeometry.weekStripHeight
         weekStrip.frame = NSRect(
             x: globalTab.bounds.minX,
             y: globalTab.bounds.maxY - weekHeight,
             width: globalTab.bounds.width,
             height: weekHeight
+        )
+
+        calendarWidget.frame = NSRect(
+            x: calendarTab.bounds.minX,
+            y: calendarTab.bounds.minY,
+            width: calendarTab.bounds.width,
+            height: calendarTab.bounds.height
         )
 
         // Dans le repère de `aiColumns` : les deux colonnes se partagent toute sa hauteur.

@@ -29,6 +29,10 @@ final class NotchPanelController {
     private var pollTimer: Timer?
 
     private var usageState: ClaudeUsageState = .loading
+
+    /// Dernier agenda connu, rejoué sur chaque panneau neuf : il y en a un par écran, et un
+    /// écran branché après la première lecture ne doit pas rester sur un widget vide.
+    private var agendaState: CalendarAgendaState = .loading
     private var isActive = false
 
     /// Dépliage forcé, hors survol (`--show-notch-panel`) : le curseur est alors n'importe où,
@@ -112,6 +116,11 @@ final class NotchPanelController {
 
     /// Diffuse le dernier instantané à toutes les fenêtres, y compris celles qui sont repliées :
     /// elles doivent être déjà à jour au moment où elles se déplient, pas se remplir après coup.
+    func apply(agendaState newState: CalendarAgendaState) {
+        agendaState = newState
+        windows.values.forEach { $0.apply(agendaState: newState) }
+    }
+
     func apply(usageState newState: ClaudeUsageState) {
         usageState = newState
         windows.values.forEach { $0.apply(usageState: newState, animated: true) }
@@ -141,6 +150,7 @@ final class NotchPanelController {
         isPinned = true
         hasVisitedPinnedPanel = false
         window.apply(usageState: usageState, animated: false)
+        window.apply(agendaState: agendaState)
         window.setExpanded(true)
         startPolling()
     }
@@ -202,6 +212,7 @@ final class NotchPanelController {
             expandedDisplay = displayID
         }
         window.apply(usageState: usageState, animated: false)
+        window.apply(agendaState: agendaState)
         window.setExpanded(true)
         startPolling()
 
@@ -267,6 +278,7 @@ final class NotchPanelController {
                 // panneau de lui-même.
                 window.onOpenSettings = { SettingsWindowController.shared.show() }
                 window.apply(usageState: usageState, animated: false)
+                window.apply(agendaState: agendaState)
                 windows[displayID] = window
             }
 

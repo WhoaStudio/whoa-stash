@@ -44,8 +44,9 @@ enum PanelGeometry {
     /// tient en moins. C'est aussi la hauteur de celles qui n'ont pas de contenu à mesurer.
     static let minimumPanelHeight: CGFloat = 300
 
-    /// Marge sous le bas de la barre de menus, pour qu'une bande ne soit pas soudée à elle.
-    static let topInset: CGFloat = 8
+    /// Marge conservée avec le haut et le bas de la zone visible, pour qu'une bande trop haute
+    /// pour l'écran ne soit soudée ni à la barre de menus ni au bas de l'écran.
+    static let screenInset: CGFloat = 8
 
     /// Largeur de la bande de luminosité : la barre de graduations et ses deux marges, rien de
     /// plus. Le soleil, lui, vit hors de la bande, dans la marge transparente que lui laisse
@@ -83,7 +84,13 @@ enum PanelGeometry {
 
     /// Cadre affleurant le bord demandé, en coordonnées globales AppKit : c'est depuis ce bord
     /// que le contenu glisse, donc la bande doit y toucher — l'espacement visuel vient des coins
-    /// arrondis, pas d'une marge. Le panneau est centré verticalement sur l'écran.
+    /// arrondis, pas d'une marge.
+    ///
+    /// La bande est **centrée verticalement** sur la zone visible de l'écran, au milieu de son
+    /// bord : c'est là que la zone sensible va la chercher (`hotZone(on:anchoredTo:)`), et les
+    /// deux doivent se répondre — une bande posée ailleurs sur le bord s'ouvrirait loin du
+    /// curseur qui l'a appelée. Une bande plus haute que l'écran est ramenée à la zone visible,
+    /// marges comprises.
     ///
     /// Deux bandes posées sur les deux bords du même écran partagent donc cadre et hauteur : ce
     /// sont bien deux images l'une de l'autre.
@@ -93,9 +100,11 @@ enum PanelGeometry {
         height: CGFloat = minimumPanelHeight,
         width: CGFloat = panelWidth
     ) -> NSRect {
+        let visible = screen.visibleFrame
+        let available = max(0, visible.height - 2 * screenInset)
+        let clamped = min(height, available)
         let x = edge == .right ? screen.frame.maxX - width : screen.frame.minX
-        let y = screen.frame.midY - height / 2
-        return NSRect(x: x, y: y, width: width, height: height)
+        return NSRect(x: x, y: visible.midY - clamped / 2, width: width, height: clamped)
     }
 
     // MARK: - Poignée repliée
@@ -114,17 +123,20 @@ enum PanelGeometry {
 
     // MARK: - Zone sensible
 
-    /// Zone sensible d'une bande : 100 pt de haut sur 20 pt de large, mesurée depuis le milieu
-    /// vertical de son bord d'accroche. On va chercher la bande là où elle vit — ailleurs sur
-    /// le bord, elle s'ouvrirait loin du curseur qui l'a appelée.
+    /// Zone sensible d'une bande : 100 pt de haut sur 20 pt de large, centrée sur le milieu de
+    /// son bord d'accroche — donc sur le milieu de la bande qu'elle ouvre, puisque `panelFrame`
+    /// y centre le cadre. On va chercher la bande là où elle vit : ailleurs sur le bord, elle
+    /// s'ouvrirait loin du curseur qui l'a appelée.
+    ///
+    /// Le milieu est celui de la **zone visible**, comme pour le cadre, et non celui de l'écran :
+    /// la barre de menus décale l'un par rapport à l'autre.
     static let hotZoneWidth: CGFloat = 20
     static let hotZoneHeight: CGFloat = 100
 
     static func hotZone(on screen: NSScreen, anchoredTo edge: EdgePosition) -> NSRect {
-        let frame = screen.frame
         return NSRect(
-            x: edge == .right ? frame.maxX - hotZoneWidth : frame.minX,
-            y: frame.midY - hotZoneHeight / 2,
+            x: edge == .right ? screen.frame.maxX - hotZoneWidth : screen.frame.minX,
+            y: screen.visibleFrame.midY - hotZoneHeight / 2,
             width: hotZoneWidth,
             height: hotZoneHeight
         )

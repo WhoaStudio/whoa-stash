@@ -20,7 +20,11 @@ final class ClaudeUsageRingStripView: NSView {
 
     override init(frame frameRect: NSRect) {
         rings = SidePanelGeometry.ringSlots.map { slot in
-            ClaudeUsageRingView(tileSize: SidePanelGeometry.ringTileSize, mark: slot.mark)
+            ClaudeUsageRingView(
+                tileSize: SidePanelGeometry.ringTileSize,
+                mark: slot.mark,
+                serviceName: slot.serviceName
+            )
         }
         super.init(frame: frameRect)
         wantsLayer = true
@@ -28,7 +32,10 @@ final class ClaudeUsageRingStripView: NSView {
 
         // Les cases sans source partent — et restent — sur un anneau vide.
         for (position, ring) in rings.enumerated() where !SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(.unavailable(reason: "Not connected"), animated: false)
+            let reason = SidePanelGeometry.ringSlots[position].mark == .copilot
+                ? "Individual quota unavailable from GitHub"
+                : "Usage unavailable"
+            ring.apply(.unavailable(reason: reason), animated: false)
         }
     }
 
@@ -37,9 +44,16 @@ final class ClaudeUsageRingStripView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(_ state: ClaudeUsageState, animated: Bool) {
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
         for (position, ring) in rings.enumerated() where SidePanelGeometry.ringSlots[position].isConnected {
-            ring.apply(state, animated: animated)
+            switch SidePanelGeometry.ringSlots[position].mark {
+            case .claude:
+                ring.apply(claudeState, animated: animated)
+            case .copilot:
+                ring.applyCopilot(copilotState, animated: animated)
+            default:
+                break
+            }
         }
     }
 

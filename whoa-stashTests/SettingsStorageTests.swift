@@ -27,14 +27,14 @@ struct SettingsStorageTests {
         let defaults = Self.makeDefaults()
 
         let first = SettingsStorage(defaults: defaults)
-        first.settings.general.appearanceMode = .dark
+        first.settings.general.panelOpacity = 0.6
         first.settings.general.accentColor = .purple
         first.settings.brightness.glowIntensity = 1.6
         first.settings.notchPanel.enabled = false
 
         // Deuxième instance sur la même suite : c'est ce que fait un relancement de l'app.
         let second = SettingsStorage(defaults: defaults)
-        #expect(second.settings.general.appearanceMode == .dark)
+        #expect(second.settings.general.panelOpacity == 0.6)
         #expect(second.settings.general.accentColor == .purple)
         #expect(second.settings.brightness.glowIntensity == 1.6)
         #expect(second.settings.notchPanel.enabled == false)
@@ -53,11 +53,11 @@ struct SettingsStorageTests {
     func missingKeysKeepTheirDefaults() throws {
         let defaults = Self.makeDefaults()
         // Un blob d'une version antérieure, qui ne connaît qu'une partie des réglages.
-        let partial = #"{"general":{"appearanceMode":"light"}}"#
+        let partial = #"{"general":{"accentColor":"purple"}}"#
         defaults.set(Data(partial.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
 
         let storage = SettingsStorage(defaults: defaults)
-        #expect(storage.settings.general.appearanceMode == .light)
+        #expect(storage.settings.general.accentColor == .purple)
         // Non écrits par le blob partiel, donc rendus par les valeurs par défaut du modèle.
         #expect(storage.settings.general.enableAnimations == GeneralSettings().enableAnimations)
         #expect(storage.settings.brightness == BrightnessSettings())
@@ -66,13 +66,26 @@ struct SettingsStorageTests {
     @Test("une valeur d'énumération inconnue retombe sur la valeur par défaut")
     func unknownEnumCaseFallsBack() {
         let defaults = Self.makeDefaults()
-        let blob = #"{"general":{"accentColor":"chartreuse","appearanceMode":"dark"}}"#
+        let blob = #"{"general":{"accentColor":"chartreuse","enableAnimations":false}}"#
         defaults.set(Data(blob.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
 
         let storage = SettingsStorage(defaults: defaults)
         #expect(storage.settings.general.accentColor == GeneralSettings().accentColor)
         // Le voisin lisible est conservé : un cas inconnu n'emporte pas la section.
-        #expect(storage.settings.general.appearanceMode == .dark)
+        #expect(storage.settings.general.enableAnimations == false)
+    }
+
+    /// `appearanceMode` a été retiré avec le thème clair : un blob écrit par une version qui le
+    /// portait encore ne doit pas emporter les réglages posés à côté de lui.
+    @Test("une clé retirée depuis est ignorée sans emporter le reste de la section")
+    func retiredKeyIsIgnored() {
+        let defaults = Self.makeDefaults()
+        let blob = #"{"general":{"appearanceMode":"light","accentColor":"pink"}}"#
+        defaults.set(Data(blob.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+
+        let storage = SettingsStorage(defaults: defaults)
+        #expect(storage.settings.general.accentColor == .pink)
+        #expect(storage.settings.general.enableAnimations == GeneralSettings().enableAnimations)
     }
 
     /// Les réglages ajoutés par cette version : un blob qui les ignore doit garder le reste.
@@ -99,15 +112,15 @@ struct SettingsStorageTests {
         defaults.removePersistentDomain(forName: suite)
 
         let storage = SettingsStorage(defaults: defaults)
-        storage.settings.general.appearanceMode = .dark
+        storage.settings.general.accentColor = .purple
         let afterFirstWrite = defaults.writeCount
         #expect(afterFirstWrite > 0)
 
         // `SettingsStorage` compare l'ancienne et la nouvelle valeur avant de persister.
-        storage.settings.general.appearanceMode = .dark
+        storage.settings.general.accentColor = .purple
         #expect(defaults.writeCount == afterFirstWrite)
 
-        storage.settings.general.appearanceMode = .light
+        storage.settings.general.accentColor = .blue
         #expect(defaults.writeCount == afterFirstWrite + 1)
     }
 }

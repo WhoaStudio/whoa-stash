@@ -40,10 +40,6 @@ final class GeneralSettingsViewModel: ObservableObject {
         launchAtLoginService.setEnabled(enabled)
     }
 
-    func setAppearanceMode(_ mode: AppearanceMode) {
-        storage.settings.general.appearanceMode = mode
-    }
-
     func setAccentColor(_ color: AccentColor) {
         storage.settings.general.accentColor = color
     }

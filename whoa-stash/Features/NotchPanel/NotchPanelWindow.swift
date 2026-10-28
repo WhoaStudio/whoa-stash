@@ -40,10 +40,6 @@ final class NotchPanelWindow {
         panel.hidesOnDeactivate = false
         panel.level = Self.restingLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        // Toujours sombre, contrairement aux autres panneaux de l'overlay qui suivent le réglage
-        // Général > Appearance : replié, celui-ci doit se confondre avec le noir matériel de
-        // l'encoche, qu'une palette claire trahirait immédiatement.
-        panel.appearance = NSAppearance(named: .darkAqua)
         panel.contentView = contentView
     }
 
@@ -55,6 +51,10 @@ final class NotchPanelWindow {
     var onOpenSettings: (() -> Void)? {
         get { contentView.onOpenSettings }
         set { contentView.onOpenSettings = newValue }
+    }
+
+    func apply(agendaState: CalendarAgendaState) {
+        contentView.apply(agendaState: agendaState)
     }
 
     func apply(usageState: ClaudeUsageState, animated: Bool) {

@@ -26,7 +26,8 @@ final class SidePanelStackView: NSView {
 
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
+        // Keep wheel/trackpad scrolling without showing a scrollbar in the narrow side panel.
+        scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.scrollerStyle = .overlay
@@ -41,8 +42,8 @@ final class SidePanelStackView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(usageState: ClaudeUsageState, animated: Bool) {
-        ringStrip.apply(usageState, animated: animated)
+    func apply(claudeState: ClaudeUsageState, copilotState: CopilotUsageState, animated: Bool) {
+        ringStrip.apply(claudeState: claudeState, copilotState: copilotState, animated: animated)
     }
 
     func setHighlightedRing(_ index: Int?) {

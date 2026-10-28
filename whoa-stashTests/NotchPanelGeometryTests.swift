@@ -110,4 +110,40 @@ struct NotchPanelGeometryTests {
         let notchHeight: CGFloat = 38
         #expect(NotchPanelGeometry.contentInsetTop(forCollapsedHeight: notchHeight) > notchHeight)
     }
+
+    // MARK: - Onglets calendrier
+
+    /// La bande de la semaine reste dans Global, tandis que le nouvel onglet Calendar reçoit
+    /// toute la hauteur du contenu pour afficher la grille du mois sans la tasser.
+    @Test("l'onglet Calendar laisse la grille du mois respirer")
+    func calendarTabHoldsMonthGrid() {
+        let calendarHeight = NotchPanelGeometry.calendarTabHeight
+        #expect(
+            calendarHeight >= 15 + CGFloat(MonthGridLayout.weekRowCount) * 20,
+            "la grille du mois serait tassée dans \(calendarHeight) pt"
+        )
+    }
+
+    /// Le panneau garde une seule taille d'un onglet à l'autre, et c'est le plus haut qui la
+    /// fixe. L'invariant vaut quel que soit celui qui prend la tête.
+    @Test("la hauteur de contenu couvre tous les onglets")
+    func tabContentHeightCoversEveryTab() {
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.calendarTabHeight)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.cardSize.height)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.weekStripHeight)
+    }
+
+    /// Les deux colonnes du widget se partagent la largeur de l'onglet : la grille du mois est
+    /// calée à droite, et il doit rester de quoi écrire un agenda à gauche.
+    @Test("la grille du mois laisse une colonne utile à l'agenda")
+    func monthGridLeavesRoomForTheAgenda() {
+        let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
+        let bodyWidth = size.width - 2 * NotchPanelGeometry.contentInsetX
+        let agendaWidth = bodyWidth
+            - NotchPanelGeometry.monthGridWidth
+            - NotchPanelGeometry.columnGap
+            - NotchPanelGeometry.dividerWidth
+
+        #expect(agendaWidth > NotchPanelGeometry.monthGridWidth, "l'agenda porte du texte, il doit rester le plus large")
+    }
 }
