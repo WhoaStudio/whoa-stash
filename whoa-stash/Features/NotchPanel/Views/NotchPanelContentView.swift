@@ -16,11 +16,7 @@ import AppKit
 /// Mise en page entièrement en frames, comme le reste de l'overlay.
 final class NotchPanelContentView: NSView {
 
-    /// Fond plein : c'est lui qui se confond avec le noir de l'encoche tant que le panneau est
-    /// replié, puis il s'efface au profit du verre.
     private let backgroundLayer = CAShapeLayer()
-    /// Fond en verre du panneau déplié, découpé par la même silhouette que `backgroundLayer`.
-    private let glass = GlassBackdrop()
     private let strokeLayer = CAShapeLayer()
     private let contentMask = CAShapeLayer()
 
@@ -105,13 +101,9 @@ final class NotchPanelContentView: NSView {
         // qui porte un menu.
         menu = OverlayContextMenu.shared.menu
 
-        // Replié, fond plein : sur un Mac à encoche la silhouette doit se confondre avec du noir
-        // matériel, qu'aucun verre n'imite. Déplié, le verre prend le relais (`applyGlassReveal`).
+        // Fond plein et non `NSVisualEffectView` : sur un Mac à encoche la silhouette repliée
+        // doit se confondre avec du noir matériel, qu'aucun matériau translucide n'imite.
         layer?.addSublayer(backgroundLayer)
-        // Du noir de l'encoche en haut vers le verre en bas : le panneau déplié sort de
-        // l'encoche au lieu d'y être collé.
-        glass.fadeToGlass(from: CGPoint(x: 0.5, y: 1), to: CGPoint(x: 0.5, y: 0))
-        addSubview(glass)
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = PanelGeometry.strokeWidth
@@ -166,7 +158,6 @@ final class NotchPanelContentView: NSView {
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         backgroundLayer.fillColor = palette.panelBackground
-        glass.applyTint(from: palette)
         strokeLayer.strokeColor = palette.strokeColor
     }
 
@@ -527,35 +518,6 @@ final class NotchPanelContentView: NSView {
         updateCameraActivity()
     }
 
-    /// Le fond plein et le verre se passent le relais pendant le dépliage : plein replié, verre
-    /// déplié. Le fondu est celui du contenu, pour que les deux fonds ne se superposent jamais
-    /// à pleine opacité.
-    private func applyGlassReveal(expanded: Bool, animated: Bool) {
-        glass.frame = bounds
-        // Le verre a le cadre entier de la fenêtre, capsule comprise, alors que le panneau n'en
-        // occupe que le haut : le dégradé est ramené à la hauteur du panneau, sans quoi il
-        // finirait sous la silhouette, dans la bande de la capsule.
-        let panelShare = panelRect.height / max(1, bounds.height)
-        glass.fadeToGlass(
-            from: CGPoint(x: 0.5, y: 1),
-            to: CGPoint(x: 0.5, y: 0),
-            solidUntil: 0.72 * panelShare,
-            clearBy: 0.97 * panelShare
-        )
-        glass.applyTint(from: OverlayPalette.resolved(for: effectiveAppearance))
-        guard let glassLayer = glass.layer else { return }
-        if animated {
-            PanelFold.fade(glassLayer, to: expanded ? 1 : 0)
-            PanelFold.fade(backgroundLayer, to: expanded ? 0 : 1)
-        } else {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            glassLayer.opacity = expanded ? 1 : 0
-            backgroundLayer.opacity = expanded ? 0 : 1
-            CATransaction.commit()
-        }
-    }
-
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
@@ -570,11 +532,10 @@ final class NotchPanelContentView: NSView {
         // La capsule ne se contente pas de suivre le fondu du contenu : elle monte à sa place et
         // y redescend, puisqu'elle est la seule surface à ne pas être portée par la silhouette.
         applyCapsuleReveal(animated: animated)
-        applyGlassReveal(expanded: expanded, animated: animated)
 
         PanelFold.apply(
             path: path,
-            to: [backgroundLayer, glass.shapeMask, strokeLayer, contentMask],
+            to: [backgroundLayer, strokeLayer, contentMask],
             in: bounds,
             fading: contentContainer.layer.map { [$0] } ?? [],
             to: expanded ? 1 : 0,

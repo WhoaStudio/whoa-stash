@@ -23,9 +23,9 @@ enum TabBarMetrics {
     /// Marges de la capsule de part et d'autre de la rangée de bulles.
     static let capsuleHorizontalPadding: CGFloat = 6
 
-    /// Écart entre la capsule des onglets et la bulle des Préférences, qui est à sa droite et
-    /// non dedans : l'engrenage n'est pas un onglet, et c'est ce vide qui le dit.
-    static let gearBubbleGap: CGFloat = 8
+    /// Air entre le dernier onglet et l'engrenage, plus large que l'écart entre deux onglets :
+    /// l'engrenage est dans la capsule mais n'est pas un onglet, et c'est cet écart qui le dit.
+    static let gearBubbleGap: CGFloat = 10
 
     /// Taille du glyphe au centre d'une bulle.
     static let iconSize: CGFloat = 15

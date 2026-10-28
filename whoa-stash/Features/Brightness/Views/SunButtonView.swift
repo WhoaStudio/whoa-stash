@@ -10,7 +10,7 @@ final class SunButtonView: NSView {
 
     var onTap: (() -> Void)?
 
-    private let glass = GlassBackdrop()
+    private let backgroundLayer = CALayer()
     private let strokeLayer = CAShapeLayer()
     private let iconLayer = CALayer()
     private let percentLayer = CATextLayer()
@@ -46,8 +46,8 @@ final class SunButtonView: NSView {
     }
 
     private func setUp() {
-        glass.layer?.zPosition = Depth.background
-        addSubview(glass)
+        backgroundLayer.zPosition = Depth.background
+        layer?.addSublayer(backgroundLayer)
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = 1
@@ -86,8 +86,8 @@ final class SunButtonView: NSView {
 
         let radius = bounds.width / 2
 
-        glass.frame = bounds
-        glass.useRoundedCorners(radius: radius)
+        backgroundLayer.frame = bounds
+        backgroundLayer.cornerRadius = radius
 
         strokeLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 0.5, dy: 0.5), transform: nil)
 
@@ -110,7 +110,7 @@ final class SunButtonView: NSView {
 
     func apply(palette: OverlayPalette) {
         self.palette = palette
-        glass.applyTint(from: palette)
+        backgroundLayer.backgroundColor = palette.panelBackground
         strokeLayer.strokeColor = palette.strokeColor
         percentLayer.foregroundColor = palette.buttonSymbolColor.cgColor
         iconLayer.contents = symbolImage(tint: palette.buttonSymbolColor)

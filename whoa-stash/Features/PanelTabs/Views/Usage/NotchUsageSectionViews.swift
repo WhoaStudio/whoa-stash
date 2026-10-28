@@ -178,9 +178,7 @@ final class NotchUsageFilterPillView: NSView {
 /// Section « Activity » : mois courant et quatre mesures.
 ///
 /// TODO: ni jetons, ni coût, ni prévision, ni jours actifs n'existent dans les modèles de
-/// données ; chaque mesure affiche « — » plutôt qu'un chiffre inventé. Le fond paysage flouté de
-/// la référence est le fond verre du panneau (`GlassBackdrop`) laissant voir le fond d'écran :
-/// aucune image n'est embarquée.
+/// données ; chaque mesure affiche « — » plutôt qu'un chiffre inventé.
 final class NotchUsageActivityView: NSView {
 
     private static let monthFormatter: DateFormatter = {

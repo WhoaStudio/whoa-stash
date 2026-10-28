@@ -1,9 +1,8 @@
 import AppKit
 
-/// Barre de navigation du panneau de l'encoche, posée sous le panneau et détachée de lui : une
-/// capsule de verre (Liquid Glass) qui porte les onglets, et à sa droite, **hors** de la capsule,
-/// une bulle de verre pour l'engrenage des Préférences. Rien que des glyphes — un onglet ne porte
-/// pas son intitulé ici, c'est le cercle qui dit lequel est actif.
+/// Capsule de navigation du panneau de l'encoche : une barre à part, posée sous le panneau et
+/// détachée de lui, qui porte les trois onglets puis l'engrenage des Préférences. Rien que des
+/// glyphes — un onglet ne porte pas son intitulé ici, c'est le cercle qui dit lequel est actif.
 ///
 /// Ce cercle est un seul calque, partagé par tous les onglets, qui **se déplace** d'une bulle à
 /// l'autre sur un ressort plutôt que d'apparaître et disparaître. C'est ce glissement qui relie
@@ -27,29 +26,17 @@ final class NotchTabCapsuleView: NSView {
     private let items: [NotchTabBubbleView]
     private let gearButton = NotchGearButtonView()
 
-    /// Le conteneur de verre rend les deux surfaces en une passe ; son espacement reste à zéro,
-    /// sans quoi la capsule et la bulle fusionneraient en une seule forme.
-    private let container = NSGlassEffectContainerView()
-    private let holder = NSView()
-    private let tabsGlass = NSGlassEffectView()
-    private let tabsContent = NSView()
-    private let settingsGlass = NSGlassEffectView()
-
     private var selectedTab: NotchTab
 
-    /// Largeur de la capsule seule : les bulles des onglets, leurs écarts et les deux marges.
-    static var tabsWidth: CGFloat {
+    /// Largeur de la capsule : les bulles des onglets, leurs écarts, l'engrenage après le sien,
+    /// et les deux marges. Une constante — rien de ce qu'elle porte ne change de taille —, dont
+    /// le panneau se sert pour centrer la capsule sous lui.
+    static var width: CGFloat {
         let count = CGFloat(NotchTab.allCases.count)
         return 2 * TabBarMetrics.capsuleHorizontalPadding
-            + count * TabBarMetrics.bubbleSize
+            + (count + 1) * TabBarMetrics.bubbleSize
             + max(0, count - 1) * TabBarMetrics.bubbleSpacing
-    }
-
-    /// Largeur de la barre entière : la capsule, l'écart, puis la bulle des Préférences, ronde à
-    /// la hauteur de la capsule. Une constante — rien de ce qu'elle porte ne change de taille —,
-    /// dont le panneau se sert pour centrer la barre sous lui.
-    static var width: CGFloat {
-        tabsWidth + TabBarMetrics.gearBubbleGap + TabBarMetrics.capsuleHeight
+            + TabBarMetrics.gearBubbleGap
     }
 
     init(selectedTab: NotchTab) {
@@ -66,27 +53,21 @@ final class NotchTabCapsuleView: NSView {
     }
 
     private func setUp() {
-        container.contentView = holder
-        addSubview(container)
-        holder.addSubview(tabsGlass)
-        holder.addSubview(settingsGlass)
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = PanelGeometry.strokeWidth
 
-        // Tout ce que porte la capsule vit dans le `contentView` de son verre — le seul
-        // emplacement dont `NSGlassEffectView` garantit qu'il est posé dans l'effet.
-        // Le cercle est ajouté avant les bulles : il doit rester *derrière* les glyphes, et
-        // l'ordre des sous-calques suit l'ordre d'ajout.
-        tabsContent.wantsLayer = true
+        // Ajouté avant les bulles : le cercle doit rester *derrière* les glyphes, et l'ordre des
+        // sous-calques suit l'ordre d'ajout.
         circleLayer.cornerCurve = .continuous
-        tabsContent.layer?.addSublayer(circleLayer)
-        tabsGlass.contentView = tabsContent
+        layer?.addSublayer(circleLayer)
 
         for item in items {
             item.onClick = { [weak self] tab in self?.onSelect?(tab) }
-            tabsContent.addSubview(item)
+            addSubview(item)
         }
 
         gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
-        settingsGlass.contentView = gearButton
+        addSubview(gearButton)
 
         applyPalette()
         applySelection(animated: false)
@@ -99,6 +80,8 @@ final class NotchTabCapsuleView: NSView {
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
+        layer?.backgroundColor = palette.tabCapsuleFill
+        layer?.borderColor = palette.strokeColor
         circleLayer.backgroundColor = palette.tabCircleFill
         items.forEach { $0.applyPalette(palette) }
         gearButton.applyPalette(palette)
@@ -139,35 +122,26 @@ final class NotchTabCapsuleView: NSView {
         )
     }
 
-    /// Pose la capsule à gauche et la bulle des Préférences à sa droite, puis la rangée de
-    /// bulles dans la capsule. Rien ne se resserre : la barre reçoit exactement la largeur que
-    /// `width` annonce.
+    /// Pose la rangée de bulles de gauche à droite, puis l'engrenage après son écart. Rien ne se
+    /// resserre : la capsule reçoit exactement la largeur que `width` annonce.
     override func layout() {
         super.layout()
 
-        container.frame = bounds
-        holder.frame = bounds
-
-        let height = bounds.height
-        tabsGlass.frame = NSRect(x: 0, y: 0, width: Self.tabsWidth, height: height)
-        tabsGlass.cornerRadius = height / 2
-        settingsGlass.frame = NSRect(
-            x: Self.tabsWidth + TabBarMetrics.gearBubbleGap,
-            y: 0,
-            width: height,
-            height: height
-        )
-        settingsGlass.cornerRadius = height / 2
-        tabsContent.frame = tabsGlass.bounds
+        layer?.cornerRadius = bounds.height / 2
 
         let size = TabBarMetrics.bubbleSize
-        let y = tabsContent.bounds.midY - size / 2
-        var x = TabBarMetrics.capsuleHorizontalPadding
+        let y = bounds.midY - size / 2
+        var x = bounds.minX + TabBarMetrics.capsuleHorizontalPadding
 
         for item in items {
             item.frame = NSRect(x: x, y: y, width: size, height: size)
             x += size + TabBarMetrics.bubbleSpacing
         }
+
+        // Le dernier écart posé est celui entre deux onglets : l'engrenage réclame le sien, plus
+        // large, et c'est la différence qu'il faut rattraper.
+        x += TabBarMetrics.gearBubbleGap - TabBarMetrics.bubbleSpacing
+        gearButton.frame = NSRect(x: x, y: y, width: size, height: size)
 
         // Les cadres des bulles viennent de changer : le cercle doit les suivre sans rejouer le
         // glissement, qui n'a de sens qu'au changement d'onglet.
@@ -266,8 +240,8 @@ private final class NotchTabBubbleView: NSView {
 
 // MARK: - Engrenage
 
-/// Bouton des Préférences, posé dans sa propre bulle de verre à droite de la capsule. Un simple
-/// glyphe qui s'éclaircit au survol — la bulle de verre est son seul fond.
+/// Bouton des Préférences à l'extrémité droite de la capsule. Un simple glyphe qui s'éclaircit au
+/// survol — pas de cercle, pour ne pas concurrencer celui de l'onglet actif.
 private final class NotchGearButtonView: NSView {
 
     var onClick: (() -> Void)?
