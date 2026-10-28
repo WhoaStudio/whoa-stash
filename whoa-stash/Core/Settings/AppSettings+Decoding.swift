@@ -92,11 +92,16 @@ extension EdgeSliderSettings {
 extension NotchPanelSettings {
     enum CodingKeys: String, CodingKey {
         case enabled
+        case notchlessStyle
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(enabled: container.value(.enabled, NotchPanelSettings().enabled))
+        let defaults = NotchPanelSettings()
+        self.init(
+            enabled: container.value(.enabled, defaults.enabled),
+            notchlessStyle: container.value(.notchlessStyle, defaults.notchlessStyle)
+        )
     }
 }
 

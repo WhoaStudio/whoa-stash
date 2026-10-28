@@ -27,6 +27,8 @@ final class NotchPanelController {
     private var dragDetector = FileDragDetector()
 
     private var screenObserver: NSObjectProtocol?
+    private var styleCancellable: AnyCancellable?
+    private var notchlessStyle: NotchPanelStyle
     private var enabledCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
@@ -58,6 +60,7 @@ final class NotchPanelController {
 
     init(storage: SettingsStorage = .shared) {
         self.storage = storage
+        self.notchlessStyle = storage.settings.notchPanel.notchlessStyle
     }
 
     func activate() {
@@ -68,6 +71,19 @@ final class NotchPanelController {
             .removeDuplicates()
             .sink { [weak self] enabled in
                 enabled ? self?.start() : self?.stop()
+            }
+
+        // La forme sur écran sans encoche se règle à chaud : les fenêtres existantes sont
+        // simplement recadrées, sans être reconstruites.
+        styleCancellable = storage.$settings
+            .map(\.notchPanel.notchlessStyle)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] style in
+                // `$settings` publie avant l'écriture : on retient la valeur reçue.
+                guard let self else { return }
+                self.notchlessStyle = style
+                if self.isActive { self.rebuildWindows() }
             }
 
         // Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
@@ -244,7 +260,7 @@ final class NotchPanelController {
             return
         }
 
-        let inHotZone = NotchPanelGeometry.hotZone(on: screen).contains(location)
+        let inHotZone = NotchPanelGeometry.hotZone(on: screen, style: notchlessStyle).contains(location)
         // Le panneau reste déplié tant que le curseur est dessus : c'est ce qui permet d'aller
         // lire la carte sans que tout se referme en chemin.
         let overPanel = expandedDisplay == displayID && window.isExpanded && window.interactiveFrameContains(location)
@@ -334,7 +350,7 @@ final class NotchPanelController {
 
             // Un écran déjà connu a pu changer de taille, de position ou de barre de menus : le
             // panneau est visible en permanence, donc tous sont recadrés, pas seulement l'actif.
-            window.place(on: screen)
+            window.place(on: screen, style: notchlessStyle)
         }
 
         for (displayID, window) in windows where !connected.contains(displayID) {

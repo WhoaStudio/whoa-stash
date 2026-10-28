@@ -261,18 +261,27 @@ enum NotchPanelGeometry {
         notchRect(on: screen).map { NSSize(width: $0.width, height: $0.height) } ?? pillSize
     }
 
+    /// Écart entre le bord du haut et la silhouette repliée : nul sauf en mode île, qui ne vaut
+    /// que sur un écran sans encoche — l'encoche matérielle, elle, est collée au bord.
+    static let islandTopGap: CGFloat = 6
+
+    static func collapsedTopGap(on screen: NSScreen, style: NotchPanelStyle) -> CGFloat {
+        notchRect(on: screen) == nil && style == .island ? islandTopGap : 0
+    }
+
     /// Zone sensible qui déclenche le dépliage : la silhouette repliée, élargie de quoi
     /// l'atteindre sans viser au pixel près.
     static let hotZonePadding: CGFloat = 18
 
-    static func hotZone(on screen: NSScreen) -> NSRect {
+    static func hotZone(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSRect {
         let size = collapsedSize(on: screen)
+        let gap = collapsedTopGap(on: screen, style: style)
         let top = topAnchor(on: screen)
         return NSRect(
             x: screen.frame.midX - size.width / 2 - hotZonePadding,
-            y: top - size.height - hotZonePadding,
+            y: top - gap - size.height - hotZonePadding,
             width: size.width + 2 * hotZonePadding,
-            height: size.height + hotZonePadding
+            height: gap + size.height + hotZonePadding
         )
     }
 }

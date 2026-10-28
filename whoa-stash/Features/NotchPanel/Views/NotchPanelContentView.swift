@@ -85,6 +85,15 @@ final class NotchPanelContentView: NSView {
         }
     }
 
+    /// Écart entre le bord du haut et la silhouette repliée : non nul pour la pastille flottante
+    /// d'un écran sans encoche (voir `NotchPanelGeometry.collapsedTopGap`).
+    var collapsedTopGap: CGFloat = 0 {
+        didSet {
+            guard collapsedTopGap != oldValue else { return }
+            needsLayout = true
+        }
+    }
+
     private(set) var isExpanded = false
 
     override init(frame frameRect: NSRect) {
@@ -355,7 +364,7 @@ final class NotchPanelContentView: NSView {
         let wingedWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
         deviceStatusPill.frame = NSRect(
             x: bounds.midX - wingedWidth / 2,
-            y: panel.maxY - collapsedSize.height,
+            y: panel.maxY - collapsedTopGap - collapsedSize.height,
             width: wingedWidth,
             height: collapsedSize.height)
 
@@ -493,7 +502,10 @@ final class NotchPanelContentView: NSView {
     /// le dépliage animable d'un seul `CASpringAnimation` sur `path`.
 
     private func collapsedPath() -> CGPath {
-        PanelGeometry.silhouette(
+        if collapsedTopGap > 0 {
+            return PanelGeometry.islandSilhouette(in: panelRect, size: collapsedSize, topGap: collapsedTopGap)
+        }
+        return PanelGeometry.silhouette(
             in: panelRect,
             anchoredTo: .top,
             size: collapsedSize,
@@ -504,7 +516,15 @@ final class NotchPanelContentView: NSView {
 
     /// L'encoche élargie par ses deux ailes — même hauteur, mêmes rayons.
     private func wingedPath() -> CGPath {
-        PanelGeometry.silhouette(
+        if collapsedTopGap > 0 {
+            return PanelGeometry.islandSilhouette(
+                in: panelRect,
+                size: NSSize(
+                    width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
+                    height: collapsedSize.height),
+                topGap: collapsedTopGap)
+        }
+        return PanelGeometry.silhouette(
             in: panelRect,
             anchoredTo: .top,
             size: NSSize(

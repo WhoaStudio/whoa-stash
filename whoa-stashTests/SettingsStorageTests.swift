@@ -31,6 +31,7 @@ struct SettingsStorageTests {
         first.settings.general.accentColor = .purple
         first.settings.brightness.glowIntensity = 1.6
         first.settings.notchPanel.enabled = false
+        first.settings.notchPanel.notchlessStyle = .notch
 
         // Deuxième instance sur la même suite : c'est ce que fait un relancement de l'app.
         let second = SettingsStorage(defaults: defaults)
@@ -38,6 +39,18 @@ struct SettingsStorageTests {
         #expect(second.settings.general.accentColor == .purple)
         #expect(second.settings.brightness.glowIntensity == 1.6)
         #expect(second.settings.notchPanel.enabled == false)
+        #expect(second.settings.notchPanel.notchlessStyle == .notch)
+    }
+
+    @Test("une forme d'encoche inconnue ou absente retombe sur la valeur par défaut")
+    func unknownNotchlessStyleFallsBack() {
+        let defaults = Self.makeDefaults()
+        let blob = #"{"notchPanel":{"enabled":false,"notchlessStyle":"capsule"}}"#
+        defaults.set(Data(blob.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+
+        let storage = SettingsStorage(defaults: defaults)
+        #expect(storage.settings.notchPanel.notchlessStyle == NotchPanelSettings().notchlessStyle)
+        #expect(storage.settings.notchPanel.enabled == false)
     }
 
     @Test("un blob illisible retombe sur les valeurs par défaut au lieu de planter")

@@ -161,4 +161,24 @@ struct NotchPanelGeometryTests {
 
         #expect(agendaWidth > NotchPanelGeometry.monthGridWidth, "l'agenda porte du texte, il doit rester le plus large")
     }
+
+    @Test("la pastille flottante est détachée du bord du haut et reste dans sa boîte")
+    func islandFloatsBelowTheTopEdge() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 200)
+        let gap = NotchPanelGeometry.islandTopGap
+        let bounds = PanelGeometry.islandSilhouette(
+            in: rect, size: NotchPanelGeometry.pillSize, topGap: gap
+        ).boundingBoxOfPath
+
+        #expect(abs(bounds.maxY - (rect.maxY - gap)) < 0.01)
+        #expect(abs(bounds.height - NotchPanelGeometry.pillSize.height) < 0.01)
+        #expect(abs(bounds.midX - rect.midX) < 0.01)
+    }
+
+    @Test("un écran sans encoche en mode notch garde la silhouette collée au bord")
+    func notchStyleHasNoGap() {
+        guard let screen = NSScreen.screens.first(where: { NotchPanelGeometry.notchRect(on: $0) == nil }) else { return }
+        #expect(NotchPanelGeometry.collapsedTopGap(on: screen, style: .notch) == 0)
+        #expect(NotchPanelGeometry.collapsedTopGap(on: screen, style: .island) == NotchPanelGeometry.islandTopGap)
+    }
 }

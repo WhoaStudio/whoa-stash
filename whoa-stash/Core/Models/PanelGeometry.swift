@@ -220,6 +220,35 @@ enum PanelGeometry {
         return path.copy(using: &placement) ?? path
     }
 
+    /// Pastille flottante : même séquence de segments que `silhouette` (départ, arc, flanc, arc,
+    /// fond, arc, flanc, arc, fermeture), donc interpolable avec elle, mais détachée du bord du
+    /// haut — décalée de `topGap` vers le bas, et arrondie sur ses quatre coins.
+    static func islandSilhouette(in rect: CGRect, size: CGSize, topGap: CGFloat) -> CGPath {
+        let along = min(size.width, rect.width)
+        let across = min(size.height, rect.height - topGap)
+        let r = min(across, along) / 2
+        let top = -topGap
+        let bottom = top - across
+        let left = rect.midX - along / 2
+        let right = left + along
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: left + r, y: rect.maxY + top))
+        path.addArc(center: CGPoint(x: left + r, y: rect.maxY + top - r), radius: r,
+                    startAngle: .pi / 2, endAngle: .pi, clockwise: false)
+        path.addLine(to: CGPoint(x: left, y: rect.maxY + bottom + r))
+        path.addArc(center: CGPoint(x: left + r, y: rect.maxY + bottom + r), radius: r,
+                    startAngle: .pi, endAngle: 3 * .pi / 2, clockwise: false)
+        path.addLine(to: CGPoint(x: right - r, y: rect.maxY + bottom))
+        path.addArc(center: CGPoint(x: right - r, y: rect.maxY + bottom + r), radius: r,
+                    startAngle: -.pi / 2, endAngle: 0, clockwise: false)
+        path.addLine(to: CGPoint(x: right, y: rect.maxY + top - r))
+        path.addArc(center: CGPoint(x: right - r, y: rect.maxY + top - r), radius: r,
+                    startAngle: 0, endAngle: .pi / 2, clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+
     /// La recette, dans le repère du bord : le bord d'accroche est la ligne `y = 0`, et la
     /// silhouette s'enfonce vers les `y` négatifs sur `across` de profondeur.
     private static func stackSilhouette(

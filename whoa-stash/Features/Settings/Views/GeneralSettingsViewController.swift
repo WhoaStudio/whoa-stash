@@ -18,6 +18,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private let notchPanelSwitch = NSSwitch()
     private let panelOpacitySlider = LabeledSliderView(minValue: 0.35, maxValue: 1, value: 1)
     private let shortcutPopUp = NSPopUpButton()
+    private let notchlessStylePopUp = NSPopUpButton()
     private let resetButton = NSButton(title: "Reset…", target: nil, action: nil)
 
     override func makeCards() -> [SettingsCardView] {
@@ -56,6 +57,10 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         shortcutPopUp.action = #selector(shortcutChanged)
         GlobalShortcut.allCases.forEach { shortcutPopUp.addItem(withTitle: $0.displayName) }
 
+        notchlessStylePopUp.target = self
+        notchlessStylePopUp.action = #selector(notchlessStyleChanged)
+        NotchPanelStyle.allCases.forEach { notchlessStylePopUp.addItem(withTitle: $0.displayName) }
+
         resetButton.target = self
         resetButton.action = #selector(resetTapped)
         resetButton.bezelStyle = .rounded
@@ -69,6 +74,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
         let notchPanelCard = SettingsCardView(title: "Notch Panel", rows: [
             SettingsRowView(title: "Show notch panel", accessory: notchPanelSwitch),
+            SettingsRowView(title: "Style without notch", accessory: notchlessStylePopUp),
             SettingsRowView(title: "Toggle shortcut", accessory: shortcutPopUp),
         ])
 
@@ -84,6 +90,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         cancellable = viewModel.$settings.sink { [weak self] in self?.apply($0) }
         notchPanelCancellable = viewModel.$notchPanel.sink { [weak self] in
             self?.notchPanelSwitch.state = $0.enabled ? .on : .off
+            self?.notchlessStylePopUp.selectItem(at: NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
         }
     }
 
@@ -119,6 +126,10 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func notchPanelChanged() {
         viewModel.setNotchPanelEnabled(notchPanelSwitch.state == .on)
+    }
+
+    @objc private func notchlessStyleChanged() {
+        viewModel.setNotchlessStyle(NotchPanelStyle.allCases[notchlessStylePopUp.indexOfSelectedItem])
     }
 
     @objc private func shortcutChanged() {

@@ -60,6 +60,10 @@ final class GeneralSettingsViewModel: ObservableObject {
         storage.settings.notchPanel.enabled = enabled
     }
 
+    func setNotchlessStyle(_ style: NotchPanelStyle) {
+        storage.settings.notchPanel.notchlessStyle = style
+    }
+
     func setPanelOpacity(_ opacity: Double) {
         storage.settings.general.panelOpacity = opacity
     }

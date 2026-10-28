@@ -80,6 +80,22 @@ enum WidgetSize: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Forme du panneau de l'encoche replié sur un écran sans encoche : suspendu au bord du haut
+/// comme une encoche, ou pastille flottante sous ce bord, façon Dynamic Island.
+enum NotchPanelStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case notch
+    case island
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notch: return "Notch"
+        case .island: return "Island"
+        }
+    }
+}
+
 struct GeneralSettings: Codable, Equatable, Sendable {
     var launchAtLogin: Bool = false
     var accentColor: AccentColor = .green
@@ -120,6 +136,9 @@ struct EdgeSliderSettings: Codable, Equatable, Sendable {
 /// drapeau permet de n'en garder qu'un.
 struct NotchPanelSettings: Codable, Equatable, Sendable {
     var enabled: Bool = true
+    /// Forme repliée sur un écran **sans** encoche matérielle ; un écran à encoche garde
+    /// toujours la silhouette de l'encoche, quel que soit ce réglage.
+    var notchlessStyle: NotchPanelStyle = .island
 }
 
 /// Racine unique des préférences de l'application, persistée automatiquement par
