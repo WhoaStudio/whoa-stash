@@ -39,6 +39,9 @@ final class NotchPanelContentView: NSView {
     /// de `contentContainer`, que la silhouette découpe.
     private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
+    /// Engrenage des Préférences, en haut à droite du panneau, à hauteur de l'encoche.
+    private let gearButton = NotchGearButtonView()
+
     /// État d'un appareil Bluetooth qui vient de se connecter : l'encoche s'élargit de part et
     /// d'autre, sans changer de hauteur, et cette vue porte le glyphe à gauche et la batterie à
     /// droite, dans les deux ailes ainsi ouvertes.
@@ -125,12 +128,13 @@ final class NotchPanelContentView: NSView {
         calendarTab.addSubview(calendarWidget)
         contentContainer.addSubview(calendarTab)
         contentContainer.addSubview(fileTray)
+        gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
+        contentContainer.addSubview(gearButton)
 
         // Hors du conteneur de contenu, et donc hors du masque de la silhouette : la capsule est
         // justement ce qui se trouve en dehors d'elle. Elle part invisible et suit le dépliage en
         // fondu, comme le contenu.
         capsule.onSelect = { [weak self] tab in self?.select(tab, animated: true) }
-        capsule.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
         capsule.layer?.opacity = 0
         addSubview(capsule)
         deviceStatusPill.layer?.opacity = 0
@@ -158,6 +162,7 @@ final class NotchPanelContentView: NSView {
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         backgroundLayer.fillColor = palette.panelBackground
+        gearButton.applyPalette(palette)
         strokeLayer.strokeColor = palette.strokeColor
     }
 
@@ -295,21 +300,36 @@ final class NotchPanelContentView: NSView {
         // soit l'onglet affiché jusque-là. C'est aussi ce qui garantit qu'il est bien là, et
         // visible, au moment où le fichier tombe.
         select(.tray, animated: true)
-        fileTray.setDropHighlighted(true)
-        return .copy
+        return updateTrayDrag(sender)
     }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        fileTray.canAccept(sender) ? .copy : []
+        guard fileTray.canAccept(sender) else { return [] }
+        return updateTrayDrag(sender)
+    }
+
+    /// Montre les zones du bac et allume celle sous le curseur.
+    private func updateTrayDrag(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        let target = fileTray.dropTarget(for: sender, in: self)
+        fileTray.setDragActive(true, fromTray: fileTray.isFromTray(sender), hovered: target)
+        return .copy
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
-        fileTray.setDropHighlighted(false)
+        fileTray.setDragActive(false)
+    }
+
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        fileTray.setDragActive(false)
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        fileTray.setDropHighlighted(false)
-        return fileTray.accept(sender)
+        let target = fileTray.dropTarget(for: sender, in: self)
+        fileTray.setDragActive(false)
+        return switch target {
+        case .keep: fileTray.accept(sender)
+        case .airDrop: fileTray.airDrop(sender)
+        }
     }
 
     // MARK: - Mise en page
@@ -375,6 +395,16 @@ final class NotchPanelContentView: NSView {
         )
 
         calendarWidget.frame = calendarTab.bounds
+
+        // Engrenage : coin haut droit du panneau, à hauteur de la bande de l'encoche, abaissé de `gearDrop`, dans la
+        // marge latérale des onglets.
+        let gearSize = TabBarMetrics.bubbleSize
+        gearButton.frame = NSRect(
+            x: panel.maxX - inset - gearSize - NotchPanelGeometry.gearInsetX,
+            y: panel.maxY - collapsedSize.height / 2 - gearSize / 2 - NotchPanelGeometry.gearDrop,
+            width: gearSize,
+            height: gearSize
+        )
 
         // Mirror pose son cercle lui-même, contre le bas du panneau : il a donc tout le cadre du
         // panneau Mirror, quel que soit l'onglet affiché.

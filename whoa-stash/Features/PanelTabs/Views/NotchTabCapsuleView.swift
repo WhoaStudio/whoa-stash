@@ -1,8 +1,7 @@
 import AppKit
 
 /// Capsule de navigation du panneau de l'encoche : une barre à part, posée sous le panneau et
-/// détachée de lui, qui porte les trois onglets puis l'engrenage des Préférences. Rien que des
-/// glyphes — un onglet ne porte pas son intitulé ici, c'est le cercle qui dit lequel est actif.
+/// détachée de lui, qui porte les onglets. Rien que des glyphes — un onglet ne porte pas son intitulé ici, c'est le cercle qui dit lequel est actif.
 ///
 /// Ce cercle est un seul calque, partagé par tous les onglets, qui **se déplace** d'une bulle à
 /// l'autre sur un ressort plutôt que d'apparaître et disparaître. C'est ce glissement qui relie
@@ -19,24 +18,18 @@ final class NotchTabCapsuleView: NSView {
     /// quoi en faire.
     var onSelect: ((NotchTab) -> Void)?
 
-    /// Appelé au clic sur l'engrenage.
-    var onOpenSettings: (() -> Void)?
-
     private let circleLayer = CALayer()
     private let items: [NotchTabBubbleView]
-    private let gearButton = NotchGearButtonView()
 
     private var selectedTab: NotchTab
 
-    /// Largeur de la capsule : les bulles des onglets, leurs écarts, l'engrenage après le sien,
-    /// et les deux marges. Une constante — rien de ce qu'elle porte ne change de taille —, dont
+    /// Largeur de la capsule : les bulles des onglets, leurs écarts, et les deux marges. Une constante — rien de ce qu'elle porte ne change de taille —, dont
     /// le panneau se sert pour centrer la capsule sous lui.
     static var width: CGFloat {
         let count = CGFloat(NotchTab.allCases.count)
         return 2 * TabBarMetrics.capsuleHorizontalPadding
-            + (count + 1) * TabBarMetrics.bubbleSize
+            + count * TabBarMetrics.bubbleSize
             + max(0, count - 1) * TabBarMetrics.bubbleSpacing
-            + TabBarMetrics.gearBubbleGap
     }
 
     init(selectedTab: NotchTab) {
@@ -66,9 +59,6 @@ final class NotchTabCapsuleView: NSView {
             addSubview(item)
         }
 
-        gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
-        addSubview(gearButton)
-
         applyPalette()
         applySelection(animated: false)
     }
@@ -84,7 +74,6 @@ final class NotchTabCapsuleView: NSView {
         layer?.borderColor = palette.strokeColor
         circleLayer.backgroundColor = palette.tabCircleFill
         items.forEach { $0.applyPalette(palette) }
-        gearButton.applyPalette(palette)
     }
 
     func select(_ tab: NotchTab, animated: Bool) {
@@ -122,7 +111,7 @@ final class NotchTabCapsuleView: NSView {
         )
     }
 
-    /// Pose la rangée de bulles de gauche à droite, puis l'engrenage après son écart. Rien ne se
+    /// Pose la rangée de bulles de gauche à droite. Rien ne se
     /// resserre : la capsule reçoit exactement la largeur que `width` annonce.
     override func layout() {
         super.layout()
@@ -137,11 +126,6 @@ final class NotchTabCapsuleView: NSView {
             item.frame = NSRect(x: x, y: y, width: size, height: size)
             x += size + TabBarMetrics.bubbleSpacing
         }
-
-        // Le dernier écart posé est celui entre deux onglets : l'engrenage réclame le sien, plus
-        // large, et c'est la différence qu'il faut rattraper.
-        x += TabBarMetrics.gearBubbleGap - TabBarMetrics.bubbleSpacing
-        gearButton.frame = NSRect(x: x, y: y, width: size, height: size)
 
         // Les cadres des bulles viennent de changer : le cercle doit les suivre sans rejouer le
         // glissement, qui n'a de sens qu'au changement d'onglet.
@@ -235,100 +219,5 @@ private final class NotchTabBubbleView: NSView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.contains(location) else { return }
         onClick?(tab)
-    }
-}
-
-// MARK: - Engrenage
-
-/// Bouton des Préférences à l'extrémité droite de la capsule. Un simple glyphe qui s'éclaircit au
-/// survol — pas de cercle, pour ne pas concurrencer celui de l'onglet actif.
-private final class NotchGearButtonView: NSView {
-
-    var onClick: (() -> Void)?
-
-    private let iconView = NSImageView()
-    private var palette = OverlayPalette.resolved(for: .currentDrawing())
-    private var isHovered = false
-    private var trackingArea: NSTrackingArea?
-
-    init() {
-        super.init(frame: .zero)
-        wantsLayer = true
-        setUp()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    private func setUp() {
-        let configuration = NSImage.SymbolConfiguration(
-            pointSize: TabBarMetrics.iconSize,
-            weight: .medium
-        )
-        iconView.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")?
-            .withSymbolConfiguration(configuration)
-        iconView.imageScaling = .scaleProportionallyUpOrDown
-        addSubview(iconView)
-
-        applyTint()
-    }
-
-    func applyPalette(_ palette: OverlayPalette) {
-        self.palette = palette
-        applyTint()
-    }
-
-    private func applyTint() {
-        iconView.contentTintColor = isHovered ? palette.tabActiveContent : palette.tabInactiveContent
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovered = true
-        applyTint()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovered = false
-        applyTint()
-    }
-
-    override func layout() {
-        super.layout()
-        let icon = TabBarMetrics.iconSize
-        iconView.frame = NSRect(
-            x: bounds.midX - icon / 2,
-            y: bounds.midY - icon / 2,
-            width: icon,
-            height: icon
-        )
-    }
-
-    /// Même raison que pour une bulle : le glyphe est une sous-vue, et c'est lui que le clic
-    /// atteindrait.
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(convert(point, from: superview)) ? self : nil
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        let location = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(location) else { return }
-        onClick?()
     }
 }

@@ -31,7 +31,13 @@ final class FileTrayView: NSView {
 
     private let tileSpacing: CGFloat = 8
 
-    private var isDropTarget = false
+    /// Cible actuellement survolée par un glisser, `nil` hors glisser. Tant qu'elle est non
+    /// nulle, le bac montre ses deux zones : « Keep in tray » et AirDrop.
+    private var dropTarget: FileTrayDropTarget?
+    private var isDragActive = false
+    private var isDragFromTray = false
+    private let airDropZone = AirDropZoneView()
+    private let keepIcon = NSImageView()
 
     init(frame frameRect: NSRect = .zero, store: FileShelfStore = .shared) {
         self.store = store
@@ -67,6 +73,15 @@ final class FileTrayView: NSView {
         emptyLabel.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
         addSubview(emptyLabel)
 
+        keepIcon.image = NSImage(systemSymbolName: "tray.and.arrow.down", accessibilityDescription: "Keep in tray")?
+            .withSymbolConfiguration(.init(pointSize: 30, weight: .regular))
+        keepIcon.imageScaling = .scaleNone
+        keepIcon.isHidden = true
+        addSubview(keepIcon)
+
+        airDropZone.isHidden = true
+        addSubview(airDropZone)
+
         // Il y a une vue par écran, et elles vont et viennent avec les fenêtres : chacune suit
         // le bac partagé plutôt que d'être tenue par lui.
         storeObserver = NotificationCenter.default.addObserver(
@@ -87,27 +102,25 @@ final class FileTrayView: NSView {
 
     private func applyPalette() {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
-        let dropColor = NSColor.systemBlue
-        emptyLabel.textColor = dropColor
-        // Le liseré se renforce pendant le survol d'un glisser, sans changer de teinte.
-        dropHighlightLayer.strokeColor = dropColor
-            .withAlphaComponent(isDropTarget ? 1 : 0.72)
-            .cgColor
+        // Gris au repos, blanc quand la zone est survolée : le bleu est réservé à AirDrop.
+        emptyLabel.textColor = .gray
+        keepIcon.contentTintColor = dropTarget == .keep ? .white : .gray
+        dropHighlightLayer.strokeColor = (dropTarget == .keep ? NSColor.white : NSColor.gray).cgColor
         items.forEach { $0.applyPalette(palette) }
     }
 
     // MARK: - Dépôt
 
-    /// Le glisser est-il de ceux que le bac retient ? Un glisser venu d'une ligne du bac
-    /// lui-même ne l'est pas : relâcher là d'où l'on vient doit se lire comme un glisser annulé,
-    /// qui laisse le fichier en place, et non comme un dépôt abouti qui l'en retirerait.
+    /// Le glisser porte-t-il des fichiers ? Un glisser venu du bac lui-même n'est pas rangé à
+    /// nouveau (`accept` le refuse) : il ne peut que partir en AirDrop.
     func canAccept(_ sender: any NSDraggingInfo) -> Bool {
-        guard !(sender.draggingSource is FileTrayItemView) else { return false }
         return sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: readingOptions)
     }
 
-    /// Range dans le bac ce que le panneau vient de recevoir.
+    /// Range dans le bac ce que le panneau vient de recevoir. Un fichier qui vient du bac y est
+    /// déjà : le lâcher sur « garder » le laisse en place.
     func accept(_ sender: any NSDraggingInfo) -> Bool {
+        if isFromTray(sender) { return true }
         guard
             canAccept(sender),
             let dropped = sender.draggingPasteboard.readObjects(
@@ -120,12 +133,59 @@ final class FileTrayView: NSView {
         return !store.add(dropped).isEmpty
     }
 
-    /// Allume le liseré pendant qu'un glisser survole le panneau. C'est lui qui dit où le
-    /// fichier va tomber, alors que la cible, elle, est tout le panneau.
-    func setDropHighlighted(_ highlighted: Bool) {
-        guard highlighted != isDropTarget else { return }
-        isDropTarget = highlighted
+    /// Montre les deux zones et allume celle que le glisser survole (`nil` : le glisser est
+    /// parti, le bac reprend son aspect de repos). La cible du système reste tout le panneau ;
+    /// ce sont ces zones qui disent où le fichier va tomber.
+    func setDragActive(_ active: Bool, fromTray: Bool = false, hovered target: FileTrayDropTarget? = nil) {
+        guard active != isDragActive || fromTray != isDragFromTray || target != dropTarget else { return }
+        let appearing = active && !isDragActive
+        isDragActive = active
+        isDragFromTray = fromTray
+        dropTarget = active ? target : nil
+        airDropZone.isHidden = !active
+        keepIcon.isHidden = !active
+        airDropZone.isHighlighted = dropTarget == .airDrop
+        keepIcon.alphaValue = dropTarget == .keep ? 1 : 0.6
+        items.forEach { $0.isHidden = active }
+        emptyLabel.isHidden = active || !store.isEmpty
         applyPalette()
+        needsLayout = true
+        if appearing {
+            layoutSubtreeIfNeeded()
+            airDropZone.playEntrance()
+        }
+    }
+
+    /// Le glisser vient-il d'une vignette du bac ? Il ne peut alors que partir en AirDrop.
+    func isFromTray(_ sender: any NSDraggingInfo) -> Bool {
+        sender.draggingSource is FileTrayItemView
+    }
+
+    /// Cible sous la position d'un glisser, donnée dans le repère de `view`.
+    func dropTarget(for sender: any NSDraggingInfo, in view: NSView) -> FileTrayDropTarget {
+        let point = convert(sender.draggingLocation, from: view)
+        return FileTrayDropTarget.target(at: point, in: bounds)
+    }
+
+    /// Envoie par AirDrop ce que le panneau vient de recevoir, sans le ranger dans le bac.
+    func airDrop(_ sender: any NSDraggingInfo) -> Bool {
+        guard
+            canAccept(sender),
+            let dropped = sender.draggingPasteboard.readObjects(
+                forClasses: [NSURL.self],
+                options: readingOptions
+            ) as? [URL],
+            !dropped.isEmpty,
+            let service = NSSharingService(named: .sendViaAirDrop),
+            service.canPerform(withItems: dropped)
+        else {
+            Log.sidePanel.error("AirDrop indisponible pour ce dépôt")
+            return false
+        }
+        // L'app n'a pas d'icône du Dock : sans activation, le sélecteur s'ouvrirait derrière.
+        NSApp.activate()
+        service.perform(withItems: dropped)
+        return true
     }
 
     private var readingOptions: [NSPasteboard.ReadingOptionKey: Any] {
@@ -136,7 +196,8 @@ final class FileTrayView: NSView {
         items.forEach { $0.removeFromSuperview() }
         items = store.urls.map { FileTrayItemView(url: $0, store: store) }
         items.forEach(addSubview)
-        emptyLabel.isHidden = !store.isEmpty
+        emptyLabel.isHidden = isDragActive || !store.isEmpty
+        items.forEach { $0.isHidden = isDragActive }
         applyPalette()
         needsLayout = true
     }
@@ -144,9 +205,24 @@ final class FileTrayView: NSView {
     override func layout() {
         super.layout()
 
+        // Pendant un glisser, la moitié gauche est « Keep in tray », la droite est AirDrop.
+        let gap: CGFloat = 6
+        let keepFrame = isDragActive
+            ? NSRect(x: bounds.minX, y: bounds.minY, width: bounds.midX - gap / 2 - bounds.minX, height: bounds.height)
+            : bounds
+        airDropZone.frame = NSRect(
+            x: bounds.midX + gap / 2, y: bounds.minY,
+            width: bounds.maxX - bounds.midX - gap / 2, height: bounds.height
+        )
+        let iconSize = keepIcon.intrinsicContentSize
+        keepIcon.frame = NSRect(
+            x: keepFrame.midX - iconSize.width / 2, y: keepFrame.midY - iconSize.height / 2,
+            width: iconSize.width, height: iconSize.height
+        )
+
         dropHighlightLayer.frame = bounds
         dropHighlightLayer.path = CGPath(
-            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            roundedRect: keepFrame.insetBy(dx: 0.5, dy: 0.5),
             cornerWidth: 10,
             cornerHeight: 10,
             transform: nil
@@ -356,9 +432,8 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
         // Le bac possède réellement les fichiers qu'il contient : Finder doit donc déplacer
         // le fichier hors de son dossier géré, plutôt que d'en créer une copie.
         case .outsideApplication: .move
-        // Dans l'app, il n'y a rien où déposer : relâcher sur le bac doit se lire comme un
-        // glisser annulé.
-        default: []
+        // Dans l'app, seule la zone AirDrop du bac reçoit : en copie, le fichier reste dans le bac.
+        default: .copy
         }
     }
 
@@ -368,8 +443,9 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
         operation: NSDragOperation
     ) {
         store.isDraggingOut = false
-        // Une opération vide, c'est un glisser annulé ou relâché dans le vide : le fichier reste.
-        guard !operation.isEmpty else { return }
+        // Seul un déplacement hors de l'app retire le fichier : vide (annulé) ou copie (AirDrop
+        // depuis le bac), il reste.
+        guard operation.contains(.move) else { return }
         store.remove(url)
     }
 

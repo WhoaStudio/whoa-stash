@@ -221,7 +221,12 @@ final class NotchPanelController {
 
         // Un fichier en train d'être sorti du bac : le suivi est gelé pour la même raison. Le
         // curseur emmène le fichier loin du panneau, qui se refermerait sous la main.
-        guard !FileShelfStore.shared.isDraggingOut else { return }
+        // Le panneau reste en revanche sous l'image du fichier glissé : à son niveau de repos il
+        // la masquerait, et on ne verrait plus le fichier au moment de viser la zone AirDrop.
+        guard !FileShelfStore.shared.isDraggingOut else {
+            windows.values.forEach { $0.setFileDragActive(true) }
+            return
+        }
 
         // Tous les écrans, et pas seulement celui du curseur : un glisser traverse les écrans, et
         // le panneau qu'il survolera ensuite doit déjà être prêt à le recevoir.

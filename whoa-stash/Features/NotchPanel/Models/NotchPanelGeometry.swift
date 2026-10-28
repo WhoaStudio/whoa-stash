@@ -63,7 +63,15 @@ enum NotchPanelGeometry {
     }
 
     /// Air entre le bas de la bande à laquelle le panneau est suspendu et le début du contenu.
-    static let topClearance: CGFloat = 4
+    static let topClearance: CGFloat = 14
+
+    /// Dont l'engrenage des Préférences est descendu sous le centre de la bande de l'encoche :
+    /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
+    static let gearDrop: CGFloat = 8
+
+    /// Dont l'engrenage est rentré depuis le bord droit du contenu : il se centre ainsi sur la
+    /// dernière colonne de la semaine (onglet Global) au lieu de déborder à sa droite.
+    static let gearInsetX: CGFloat = 16
 
     /// Marge haute. En profondeur la silhouette est pleine, mais le cadre de la fenêtre part du
     /// bord haut de la dalle : le contenu doit donc passer sous la barre de menus et, sur un Mac
