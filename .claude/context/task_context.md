@@ -2,20 +2,20 @@
 
 ## Goal
 
-Redesign the notch panel's AI tab to match the user's "Usage" screenshot (header with provider tabs, selected-provider card, filter pills, Activity section). Notch only; no data-layer changes.
+Add an AirDrop drop zone to the Tray tab: while a file is dragged over the notch panel, the tray shows two targets, "Keep in tray" (current behavior) and "AirDrop" (opens the system AirDrop picker via `NSSharingService(named: .sendViaAirDrop)`).
 
 ## Status
 
-- Explored: `NotchPanelContentView` (AI tab = `aiColumns`: rings + `ClaudeUsagePanelView` card), `NotchPanelGeometry` (shared `tabContentHeight`, card 270x172), `SidePanelGeometry.ringSlots` (Claude, Copilot connected; Codex, Gemini not), `UsageMarkPath` icons.
-- Copilot state is not wired to the notch yet (AppDelegate only sends it to the side panel).
+- Explored: `NotchPanelContentView` is the only drop target (whole panel) and forwards to `FileTrayView.canAccept/accept/setDropHighlighted`. `FileShelfStore.add` moves files into the tray folder.
 - Plan proposed in chat; waiting for approval. No code edited.
 
 ## Next steps
 
-1. Get answers on panel height, tab mapping and placeholder handling.
-2. Implement per the approved plan.
+1. Get approval / answers to open questions.
+2. Implement: drop-target enum + hit test in `FileTrayView`, AirDrop zone view, route `draggingUpdated`/`performDragOperation` by zone.
+3. Build with `xcodebuild -scheme whoa-stash -destination 'platform=macOS' build`, run tests.
 
 ## Open questions
 
-- Grow the panel for every tab, or only while AI is selected?
-- No data for resets available, activity metrics, filters, landscape image: TODO placeholders.
+- Cursor outside the tray rect (e.g. over the notch at the top): default to Keep?
+- Allow AirDropping files already in the tray (dragged from a tile)?

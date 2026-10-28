@@ -12,6 +12,8 @@
 - 2026-10-28: onglet AI de l'encoche refait en bloc vertical (en-tête, carte, filtres, activité) — le panneau ne grandit que sur AI (`NotchPanelGeometry.panelRect(in:tab:)`), la fenêtre garde le cadre le plus haut ; filtres, métriques d'activité et « resets available » restent en TODO faute de source.
 - 2026-10-28: onglet Mirror (caméra) ajouté à l'encoche — la session ne tourne que panneau déplié + onglet choisi ; la luminosité du curseur n'agit que par deux voiles sur l'aperçu, jamais sur l'écran ; même hauteur que Calendar.
 - 2026-10-28: Liquid Glass (`NSGlassEffectView`) retiré de toute l'app, travail gardé dans `git stash` (`liquid-glass`) — à reprendre plus tard ; fonds pleins conservés en attendant.
+- 2026-10-28: zone AirDrop dans le bac — le panneau reste l'unique cible de dépôt ; moitié gauche = garder, droite = AirDrop, y compris pour un glisser venu d'une vignette (la copie laisse le fichier dans le bac, seul `.move` hors de l'app l'en retire) ; le panneau reste sous l'image glissée pendant un glisser sortant.
+- 2026-10-28: engrenage des Préférences sorti de la capsule d'onglets, posé en haut à droite du panneau ; `topClearance` porté de 4 à 14 pour plus d'air sous l'encoche.
 
 ## Tried and rejected
 
