@@ -1,11 +1,11 @@
 import AppKit
 import OSLog
 
-/// Expose l'état d'utilisation Claude aux vues AppKit avec un simple callback, comme
-/// `DockExtensionViewModel` — pas de Combine côté vue.
+/// Expose l'état d'utilisation Claude aux vues AppKit avec un simple callback — pas de Combine
+/// côté vue.
 ///
-/// Une seule instance est partagée par la bague du Dock et le panneau latéral : c'est ce qui
-/// garantit qu'ils montrent le même instantané, et qu'un seul appel réseau alimente les deux.
+/// Une seule instance alimente la bande latérale et la bulle de détail : c'est ce qui garantit
+/// qu'elles montrent le même instantané, et qu'un seul appel réseau les sert toutes les deux.
 @MainActor
 final class ClaudeUsageViewModel {
 

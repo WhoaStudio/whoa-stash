@@ -1,7 +1,7 @@
 import OSLog
 
 /// Points d'entrée `OSLog` de l'app — un `Logger` par domaine, filtrable dans Console.app
-/// (`subsystem:ugolin-olle.whoa-stash category:dock-geometry`). Remplace `print`, qui n'est pas
+/// (`subsystem:ugolin-olle.whoa-stash category:side-panel`). Remplace `print`, qui n'est pas
 /// retiré en Release : les traces `.debug` ci-dessous ne coûtent rien dans un build de
 /// production et n'interpolent leur message que si quelqu'un écoute réellement.
 ///
@@ -24,12 +24,6 @@ enum Log {
     /// contexte non isolé (le callback C de l'`AXObserver`, par exemple).
     nonisolated private static let subsystem = "ugolin-olle.whoa-stash"
 
-    /// Suivi AX du Dock système : permissions, géométrie, cadence de polling.
-    nonisolated static let dockGeometry = Logger(subsystem: subsystem, category: "dock-geometry")
-
-    /// Extension du Dock : slots configurés, fenêtre flottante, cycle révéler/masquer.
-    nonisolated static let dockExtension = Logger(subsystem: subsystem, category: "dock-extension")
-
     /// Overlay de luminosité et pilotage de l'écran.
     nonisolated static let brightness = Logger(subsystem: subsystem, category: "brightness")
 
@@ -38,4 +32,7 @@ enum Log {
 
     /// Panneau latéral et récupération de l'utilisation Claude.
     nonisolated static let sidePanel = Logger(subsystem: subsystem, category: "side-panel")
+
+    /// Widget calendrier : droit d'accès et lecture des événements.
+    nonisolated static let calendar = Logger(subsystem: subsystem, category: "calendar")
 }

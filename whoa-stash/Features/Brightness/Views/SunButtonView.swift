@@ -1,14 +1,16 @@
 import AppKit
 
-/// Bouton circulaire flouté à droite de la barre. Affiche une icône soleil au repos,
-/// et bascule vers le pourcentage de luminosité (crossfade + léger scale) pendant
-/// l'interaction, avant de revenir automatiquement à l'icône après une courte pause.
+/// Bulle circulaire posée **hors** de la bande, à côté d'elle, sur le même fond plein que la
+/// pilule et que le panneau de l'encoche (`OverlayPalette.panelBackground`). Elle porte l'icône
+/// soleil au repos, et bascule vers le pourcentage de luminosité (crossfade + léger scale)
+/// pendant le réglage, avant de revenir automatiquement à l'icône après une courte pause : la
+/// bande elle-même n'affiche donc jamais de chiffre, et la valeur se lit au même endroit que
+/// le soleil, détachée de la surface.
 final class SunButtonView: NSView {
 
     var onTap: (() -> Void)?
 
-    private let visualEffectView = NSVisualEffectView()
-    private let tintLayer = CALayer()
+    private let backgroundLayer = CALayer()
     private let strokeLayer = CAShapeLayer()
     private let iconLayer = CALayer()
     private let percentLayer = CATextLayer()
@@ -33,27 +35,19 @@ final class SunButtonView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // zPosition explicite pour tout : NSView (addSubview) et CALayer (addSublayer) mélangés
-    // comme frères ne gardent pas un ordre stable — AppKit resynchronise le calque de
-    // visualEffectView à sa guise et peut repasser devant l'icône/le texte. zPosition
-    // fige le stacking indépendamment de l'ordre d'insertion.
+    // zPosition explicite pour tout : l'ordre d'insertion des sous-calques suffirait
+    // aujourd'hui, mais le stacking de cette vue a déjà été cassé une fois par un calque
+    // qu'AppKit resynchronisait à sa guise. zPosition le fige, quoi qu'il arrive ensuite.
     private enum Depth {
-        static let blur: CGFloat = 0
-        static let tint: CGFloat = 1
-        static let stroke: CGFloat = 2
-        static let icon: CGFloat = 3
-        static let percent: CGFloat = 4
+        static let background: CGFloat = 0
+        static let stroke: CGFloat = 1
+        static let icon: CGFloat = 2
+        static let percent: CGFloat = 3
     }
 
     private func setUp() {
-        visualEffectView.blendingMode = .behindWindow
-        visualEffectView.state = .active
-        visualEffectView.wantsLayer = true
-        addSubview(visualEffectView)
-        visualEffectView.layer?.zPosition = Depth.blur
-
-        tintLayer.zPosition = Depth.tint
-        layer?.addSublayer(tintLayer)
+        backgroundLayer.zPosition = Depth.background
+        layer?.addSublayer(backgroundLayer)
 
         strokeLayer.fillColor = nil
         strokeLayer.lineWidth = 1
@@ -90,13 +84,10 @@ final class SunButtonView: NSView {
     override func layout() {
         super.layout()
 
-        visualEffectView.frame = bounds
         let radius = bounds.width / 2
-        visualEffectView.layer?.cornerRadius = radius
-        visualEffectView.layer?.masksToBounds = true
 
-        tintLayer.frame = bounds
-        tintLayer.cornerRadius = radius
+        backgroundLayer.frame = bounds
+        backgroundLayer.cornerRadius = radius
 
         strokeLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 0.5, dy: 0.5), transform: nil)
 
@@ -119,8 +110,7 @@ final class SunButtonView: NSView {
 
     func apply(palette: OverlayPalette) {
         self.palette = palette
-        visualEffectView.material = palette.backgroundMaterial
-        tintLayer.backgroundColor = palette.backgroundTint
+        backgroundLayer.backgroundColor = palette.panelBackground
         strokeLayer.strokeColor = palette.strokeColor
         percentLayer.foregroundColor = palette.buttonSymbolColor.cgColor
         iconLayer.contents = symbolImage(tint: palette.buttonSymbolColor)

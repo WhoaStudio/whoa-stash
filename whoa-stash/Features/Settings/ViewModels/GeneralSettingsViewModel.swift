@@ -10,28 +10,34 @@ final class GeneralSettingsViewModel: ObservableObject {
     private let storage: SettingsStorage
     private let launchAtLoginService: LaunchAtLoginService
     private var cancellable: AnyCancellable?
+    private var notchPanelCancellable: AnyCancellable?
 
     @Published private(set) var settings: GeneralSettings
+    /// Le panneau de l'encoche n'a pas de section à lui : son unique réglage est présenté
+    /// dans « General », d'où ce second flux à côté de `settings`.
+    @Published private(set) var notchPanel: NotchPanelSettings
 
     init(storage: SettingsStorage = .shared, launchAtLoginService: LaunchAtLoginService = .shared) {
         self.storage = storage
         self.launchAtLoginService = launchAtLoginService
         self.settings = storage.settings.general
+        self.notchPanel = storage.settings.notchPanel
 
         cancellable = storage.$settings
             .map(\.general)
             .removeDuplicates()
             .sink { [weak self] in self?.settings = $0 }
+
+        notchPanelCancellable = storage.$settings
+            .map(\.notchPanel)
+            .removeDuplicates()
+            .sink { [weak self] in self?.notchPanel = $0 }
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
         guard settings.launchAtLogin != enabled else { return }
         storage.settings.general.launchAtLogin = enabled
         launchAtLoginService.setEnabled(enabled)
-    }
-
-    func setAppearanceMode(_ mode: AppearanceMode) {
-        storage.settings.general.appearanceMode = mode
     }
 
     func setAccentColor(_ color: AccentColor) {
@@ -48,5 +54,27 @@ final class GeneralSettingsViewModel: ObservableObject {
 
     func setEnableSoundFeedback(_ enabled: Bool) {
         storage.settings.general.enableSoundFeedback = enabled
+    }
+
+    func setNotchPanelEnabled(_ enabled: Bool) {
+        storage.settings.notchPanel.enabled = enabled
+    }
+
+    func setPanelOpacity(_ opacity: Double) {
+        storage.settings.general.panelOpacity = opacity
+    }
+
+    func setTogglePanelShortcut(_ shortcut: GlobalShortcut) {
+        storage.settings.general.togglePanelShortcut = shortcut
+    }
+
+    /// Remet tout à zéro, y compris l'effet de bord système : `resetToDefaults` ne touche que le
+    /// modèle, donc le lancement au démarrage doit être désenregistré explicitement.
+    func resetToDefaults() {
+        let wasLaunchingAtLogin = settings.launchAtLogin
+        storage.resetToDefaults()
+        if wasLaunchingAtLogin != AppSettings.default.general.launchAtLogin {
+            launchAtLoginService.setEnabled(AppSettings.default.general.launchAtLogin)
+        }
     }
 }

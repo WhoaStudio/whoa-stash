@@ -1,11 +1,7 @@
 import AppKit
 
-/// Contenu du panneau latéral : l'en-tête « Claude Usage », porté par la même bague que la case
-/// du Dock, et les deux fenêtres de quota, chacune avec sa barre horizontale, son pourcentage et
-/// son instant de réinitialisation.
-///
-/// La bague est reprise ici parce que la case du Dock s'en va avec le Dock lui-même en masquage
-/// automatique : la carte doit pouvoir se lire seule.
+/// Contenu du panneau latéral : l'en-tête « Claude Usage » et les deux fenêtres de quota, chacune
+/// avec sa barre horizontale, son pourcentage et son instant de réinitialisation.
 ///
 /// Mise en page en frames, comme le reste de l'overlay — `layout()` est la seule source de vérité
 /// des positions, et les hauteurs sont des constantes nommées plutôt que des nombres répétés.
@@ -30,12 +26,11 @@ final class ClaudeUsagePanelView: NSView {
         }
     }
     private let verticalInset: CGFloat = 18
-    /// Hauteur de l'en-tête, et donc diamètre de la bague : `SidePanelGeometry.panelHeight` en
-    /// tient compte.
+    /// Hauteur de l'en-tête, et donc diamètre de la bague.
     private let headerHeight: CGFloat = 30
-    private let headerSpacing: CGFloat = 16
     /// Entre la bague et le titre.
     private let headerGap: CGFloat = 10
+    private let headerSpacing: CGFloat = 16
     private let rowSpacing: CGFloat = 16
 
     override init(frame frameRect: NSRect) {
@@ -75,25 +70,40 @@ final class ClaudeUsagePanelView: NSView {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         titleLabel.textColor = palette.buttonSymbolColor
         ring.markColor = palette.buttonSymbolColor.cgColor
-        ring.applyAppearance(effectiveAppearance)
-        // La couleur du ruban dépend aussi de l'apparence quand aucun instantané n'est connu :
-        // on la refait passer plutôt que de la laisser figée sur l'ancienne teinte neutre.
         applyRing(animated: false)
         sessionRow.applyPalette()
         allModelsRow.applyPalette()
     }
 
-    private func applyRing(animated: Bool) {
-        ring.apply(utilization: state.snapshot?.session.utilization, appearance: effectiveAppearance, animated: animated)
-    }
-
     // MARK: - État
 
-    func apply(_ newState: ClaudeUsageState, animated: Bool) {
-        state = newState
-        applyRing(animated: animated)
+    private func applyRing(animated: Bool) {
+        ring.apply(utilization: state.snapshot?.session.utilization, animated: animated)
+    }
 
-        switch newState {
+    func apply(_ state: ClaudeUsageState, animated: Bool) {
+        apply(
+            state,
+            title: "Claude Usage",
+            primaryLabel: "Current session",
+            secondaryLabel: "All models",
+            animated: animated
+        )
+    }
+
+    func apply(
+        _ state: ClaudeUsageState,
+        title: String,
+        primaryLabel: String,
+        secondaryLabel: String,
+        animated: Bool
+    ) {
+        self.state = state
+        applyRing(animated: animated)
+        titleLabel.stringValue = title
+        sessionRow.title = primaryLabel
+        allModelsRow.title = secondaryLabel
+        switch state {
         case .loaded(let snapshot):
             sessionRow.apply(window: snapshot.session, animated: animated)
             allModelsRow.apply(window: snapshot.allModels, animated: animated)
@@ -124,7 +134,7 @@ final class ClaudeUsagePanelView: NSView {
         titleLabel.frame = NSRect(
             x: leadingInset + headerHeight + headerGap,
             y: headerTop + (headerHeight - titleSize.height) / 2,
-            width: titleSize.width,
+            width: titleLabel.layoutWidth,
             height: titleSize.height
         )
 
@@ -164,6 +174,11 @@ private final class ClaudeUsageRowView: NSView {
         setUp()
     }
 
+    var title: String {
+        get { titleLabel.stringValue }
+        set { titleLabel.stringValue = newValue }
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -199,7 +214,7 @@ private final class ClaudeUsageRowView: NSView {
         titleLabel.textColor = palette.buttonSymbolColor
         usedLabel.textColor = palette.buttonSymbolColor
         resetLabel.textColor = .secondaryLabelColor
-        trackLayer.backgroundColor = ClaudeUsagePalette.track(for: effectiveAppearance)
+        trackLayer.backgroundColor = ClaudeUsagePalette.track
     }
 
     func apply(window: ClaudeUsageWindow, animated: Bool) {
@@ -243,12 +258,12 @@ private final class ClaudeUsageRowView: NSView {
 
         let titleTop = bounds.maxY - Self.titleHeight
         let titleSize = titleLabel.intrinsicContentSize
-        titleLabel.frame = NSRect(x: 0, y: titleTop, width: titleSize.width, height: Self.titleHeight)
+        let titleWidth = titleLabel.layoutWidth
+        titleLabel.frame = NSRect(x: 0, y: titleTop, width: titleWidth, height: Self.titleHeight)
 
-        let resetSize = resetLabel.intrinsicContentSize
         // Le libellé de droite ne mord jamais sur celui de gauche : il est tronqué par la
         // largeur disponible plutôt que de se superposer quand la locale est verbeuse.
-        let resetX = max(titleSize.width + 8, bounds.width - resetSize.width)
+        let resetX = max(titleWidth + 8, bounds.width - resetLabel.layoutWidth)
         resetLabel.frame = NSRect(x: resetX, y: titleTop, width: bounds.width - resetX, height: Self.titleHeight)
 
         let barY = titleTop - Self.innerSpacing - Self.barHeight
@@ -260,7 +275,6 @@ private final class ClaudeUsageRowView: NSView {
         fillLayer.cornerRadius = Self.barHeight / 2
         updateFill(animated: false)
 
-        let usedSize = usedLabel.intrinsicContentSize
-        usedLabel.frame = NSRect(x: 0, y: bounds.minY, width: usedSize.width, height: Self.usedHeight)
+        usedLabel.frame = NSRect(x: 0, y: bounds.minY, width: usedLabel.layoutWidth, height: Self.usedHeight)
     }
 }

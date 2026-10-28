@@ -15,18 +15,18 @@ final class BrightnessViewModel {
     var onVisibilityChanged: ((Bool) -> Void)?
 
     private let controller: BrightnessControlling
-    private let feedback: BrightnessFeedback
+    private let feedback: OverlayFeedback
     private let storage: SettingsStorage
     /// Sensibilité de base au scroll, multipliée par `Brightness > Scroll sensitivity`.
     private let baseScrollSensitivity: Float = 0.0035
 
     /// `feedback` et `storage` ont des valeurs par défaut indépendantes : un appelant qui
     /// injecte un `storage` de test doit aussi passer le `feedback` correspondant
-    /// (`NoOpBrightnessFeedback`), sans quoi le retour sensoriel lirait encore `.shared`.
+    /// (`NoOpOverlayFeedback`), sans quoi le retour sensoriel lirait encore `.shared`.
     /// `BrightnessOverlayController` fait ce câblage explicitement.
     init(
         controller: BrightnessControlling,
-        feedback: BrightnessFeedback = SystemBrightnessFeedback(),
+        feedback: OverlayFeedback = SystemOverlayFeedback(),
         storage: SettingsStorage = .shared
     ) {
         self.controller = controller
