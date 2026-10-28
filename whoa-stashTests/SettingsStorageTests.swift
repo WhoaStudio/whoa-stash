@@ -148,3 +148,46 @@ private final class CountingDefaults: UserDefaults {
         super.set(value, forKey: defaultName)
     }
 }
+
+@MainActor
+struct TrackpadSettingsStorageTests {
+
+    private static func makeDefaults() -> UserDefaults {
+        let name = "whoa-stash.tests.trackpad.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    @Test("par défaut, seul le tap simple à droite éteint l'écran")
+    func defaultMapping() {
+        let settings = TrackpadGestureSettings()
+        #expect(settings.enabled)
+        #expect(settings.action(side: .right, taps: 1) == .displayOff)
+        #expect(settings.action(side: .right, taps: 2) == .none)
+        #expect(settings.action(side: .left, taps: 1) == .none)
+        #expect(settings.action(side: .left, taps: 2) == .none)
+    }
+
+    @Test("les choix de taps survivent à un relancement")
+    func choicesSurviveRelaunch() {
+        let defaults = Self.makeDefaults()
+        let first = SettingsStorage(defaults: defaults)
+        first.settings.trackpad.leftDouble = .playPause
+        first.settings.trackpad.rightSingle = .lockScreen
+        first.settings.trackpad.enabled = false
+
+        let second = SettingsStorage(defaults: defaults)
+        #expect(second.settings.trackpad.leftDouble == .playPause)
+        #expect(second.settings.trackpad.rightSingle == .lockScreen)
+        #expect(!second.settings.trackpad.enabled)
+    }
+
+    @Test("une action inconnue ou une clé absente retombe sur la valeur par défaut")
+    func toleratesUnknownAction() throws {
+        let json = #"{"leftSingle":"teleport"}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(TrackpadGestureSettings.self, from: json)
+        #expect(decoded.leftSingle == .none)
+        #expect(decoded.rightSingle == .displayOff)
+    }
+}

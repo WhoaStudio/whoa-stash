@@ -9,7 +9,7 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Volume dial | Top-left corner | Scroll to set the default output device's volume. |
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
-| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (today's agenda), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). |
+| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (today's agenda), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). |
 
 ## Requirements
 
@@ -51,9 +51,10 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 |---|---|
 | `--show-settings[=general\|brightness\|about]` | Opens Preferences on that pane (default `general`). |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
-| `--notch-tab=global\|calendar\|tray\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
+| `--notch-tab=global\|calendar\|tray\|clipboard\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
 | `--show-usage-panel` | Opens the side panel without hovering. |
 | `--show-volume-dial` | Opens the volume dial without hovering. |
+| `--clipboard-history=sample` | Fixed sample clips in the Clipboard tab, in a throwaway store. |
 | `--claude-usage=<session>,<weekly>` | Fixed Claude percentages, for example `73,7`. Skips the network and Keychain. |
 | `--copilot-usage=<percent>` | Fixed Copilot percentage. |
 | `--camera-mirror=granted\|denied\|notDetermined` | Fake camera for the Mirror tab: a gradient instead of video, with the given access state. |

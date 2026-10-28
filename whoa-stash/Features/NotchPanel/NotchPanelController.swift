@@ -39,6 +39,17 @@ final class NotchPanelController {
     /// Dernier agenda connu, rejoué sur chaque panneau neuf : il y en a un par écran, et un
     /// écran branché après la première lecture ne doit pas rester sur un widget vide.
     private var agendaState: CalendarAgendaState = .loading
+    private var clipboardItems: [ClipboardItem] = []
+
+    var onClearClipboard: (() -> Void)? {
+        didSet { windows.values.forEach { $0.onClearClipboard = onClearClipboard } }
+    }
+    var onSelectClipboardItem: ((ClipboardItem) -> Void)? {
+        didSet { windows.values.forEach { $0.onSelectClipboardItem = onSelectClipboardItem } }
+    }
+    var clipboardImageURL: ((ClipboardItem) -> URL?)? {
+        didSet { windows.values.forEach { $0.clipboardImageURL = clipboardImageURL } }
+    }
     private var isActive = false
 
     /// Dernière lecture connue, rejouée sur chaque panneau neuf comme l'agenda.
@@ -155,6 +166,11 @@ final class NotchPanelController {
         windows.values.forEach { $0.apply(agendaState: newState) }
     }
 
+    func apply(clipboardItems newItems: [ClipboardItem]) {
+        clipboardItems = newItems
+        windows.values.forEach { $0.apply(clipboardItems: newItems) }
+    }
+
     /// Relance les sources d'utilisation, depuis le bouton « actualiser » de l'onglet AI.
     var onRefreshUsage: (() -> Void)? {
         didSet { windows.values.forEach { $0.onRefreshUsage = onRefreshUsage } }
@@ -207,7 +223,7 @@ final class NotchPanelController {
         }
     }
 
-    /// Onglet demandé par `--notch-tab=<global|calendar|tray|mirror|ai>`, `nil` sans le drapeau ou
+    /// Onglet demandé par `--notch-tab=<global|calendar|tray|clipboard|mirror|ai>`, `nil` sans le drapeau ou
     /// avec un nom inconnu.
     private static func launchTab(_ arguments: [String] = CommandLine.arguments) -> NotchTab? {
         guard let argument = arguments.first(where: { $0.hasPrefix("--notch-tab=") }) else { return nil }
@@ -367,6 +383,10 @@ final class NotchPanelController {
                 window.apply(copilotUsageState: copilotUsageState)
                 window.onRefreshUsage = onRefreshUsage
                 window.apply(agendaState: agendaState)
+                window.onClearClipboard = onClearClipboard
+                window.onSelectClipboardItem = onSelectClipboardItem
+                window.clipboardImageURL = clipboardImageURL
+                window.apply(clipboardItems: clipboardItems)
                 window.onNowPlayingCommand = onNowPlayingCommand
                 window.showNowPlaying(nowPlayingState)
                 window.updateNowPlayingPlayer(nowPlayingPlayer)

@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
+    private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
     private var deviceStatusCoordinator: DeviceStatusCoordinator?
     private var nowPlayingViewModel: NowPlayingViewModel?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
@@ -23,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
+    private var trackpadGestureController: TrackpadGestureController?
+    private var trackpadCancellable: AnyCancellable?
 
     /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
     /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
@@ -105,6 +108,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         nowPlaying.activate()
         nowPlayingViewModel = nowPlaying
+
+        // Historique du presse-papiers, affiché dans l'onglet Clipboard de l'encoche.
+        // `--clipboard-history=sample` substitue quelques copies fixes à la vraie source.
+        let clipboard = ClipboardHistoryViewModel(
+            provider: MockClipboardProvider.fromLaunchArguments() ?? PasteboardClipboardProvider(),
+            store: MockClipboardProvider.fromLaunchArguments() != nil
+                ? ClipboardHistoryStore(directory: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("whoa-stash-clipboard-sample"))
+                : ClipboardHistoryStore())
+        clipboard.onStateChanged = { [weak self] items in
+            self?.notchPanelController?.apply(clipboardItems: items)
+        }
+        notchPanelController?.onClearClipboard = { [weak clipboard] in clipboard?.clear() }
+        notchPanelController?.onSelectClipboardItem = { [weak clipboard] item in clipboard?.recopy(item) }
+        notchPanelController?.clipboardImageURL = { [weak clipboard] item in clipboard?.store.imageURL(for: item) }
+        clipboard.activate()
+        clipboardHistoryViewModel = clipboard
+
+        // Taps de bord du trackpad : une action par côté et nombre de taps, réglée dans les
+        // Préférences. `--edge-tap=right-single` en simule un (voir `MockTrackpadTouchProvider`).
+        let trackpad = TrackpadGestureController(
+            provider: MockTrackpadTouchProvider.fromLaunchArguments() ?? MultitouchTrackpadProvider())
+        trackpad.onNowPlayingCommand = { [weak nowPlaying] command in nowPlaying?.send(command) }
+        trackpadGestureController = trackpad
+        trackpadCancellable = settings.$settings
+            .map(\.trackpad)
+            .removeDuplicates()
+            .sink { [weak trackpad] in trackpad?.apply(settings: $0) }
 
         // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
         // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.

@@ -17,6 +17,7 @@
 - 2026-10-28: réglage `notchPanel.notchlessStyle` (défaut `island`) — seul l'état replié flotte (6 pt sous le bord) sur un écran sans encoche ; le panneau déplié reste suspendu au bord ; un écran à encoche ignore le réglage.
 - 2026-10-28: « Now Playing » via `mediaremote-adapter` (perl titré, seule voie MediaRemote depuis macOS 15.4), livré comme `MediaRemoteAdapter.bin` + script en ressources, lien `*.framework` recréé dans les caches à l'exécution — le groupe synchronisé d'Xcode ne copie ni un `.framework` ni un `.dylib` en ressource. Visualiseur simulé ; titre/artiste/commandes dans l'onglet Global déplié.
 - 2026-10-28: onglet Global = semaine en haut + lecteur dessous (172 pt suffisent : 46 + 8 + 112) ; le lecteur reste au repos (« Nothing playing », dernier morceau en pause) ; seules les ailes de l'encoche se masquent 5 s après l'arrêt. Ailes de lecture 60 pt, +2 pt de hauteur repliée, pastille Bluetooth inchangée.
+- 2026-10-28: taps de bord du trackpad via `MultitouchSupport` chargé par `dlopen` (frames lues à des décalages fixes de `MTTouch`, 96 octets), classés par `EdgeTapClassifier` (pur, horloge injectée) ; défaut = tap simple à droite éteint l'écran ; le tap simple n'attend un double tap que sur les côtés dont le double a une action ; un callback `@convention(c)` capturant `self` fait planter le compilateur (SendNonSendable), d'où le callback statique.
 
 ## Tried and rejected
 
@@ -25,3 +26,4 @@
 ## Lessons
 
 - _Thing that bit us — how to avoid it._
+- 2026-10-28: onglet Clipboard dans l'encoche — sondage de `changeCount` toutes les 0,5 s, 50 éléments gardés dans `Application Support/whoa-stash/Clipboard/` (JSON + PNG, pas `UserDefaults`), contenus `ConcealedType`/`TransientType` ignorés ; un fichier quelconque n'a pas de filtre propre (visible sous « All Clips » seulement), vidéo en orange.

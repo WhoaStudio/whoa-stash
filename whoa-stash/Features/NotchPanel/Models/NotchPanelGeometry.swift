@@ -149,7 +149,7 @@ enum NotchPanelGeometry {
         switch tab {
         case .ai: aiTabHeight
         case .mirror: mirrorTabHeight
-        case .global, .calendar, .tray: calendarTabHeight
+        case .global, .calendar, .tray, .clipboard: calendarTabHeight
         }
     }
 

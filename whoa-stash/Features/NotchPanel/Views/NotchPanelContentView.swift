@@ -62,6 +62,19 @@ final class NotchPanelContentView: NSView {
     private let calendarTab = NSView()
     private let calendarWidget = CalendarWidgetView()
     private let fileTray = FileTrayView()
+    /// L'onglet Clipboard : historique des copies, nourri par `apply(clipboardItems:)`.
+    private let clipboardTab = ClipboardTabView()
+
+    /// Relayés jusqu'au contrôleur : « Clear » et le clic sur une carte.
+    var onClearClipboard: (() -> Void)? {
+        didSet { clipboardTab.onClear = onClearClipboard }
+    }
+    var onSelectClipboardItem: ((ClipboardItem) -> Void)? {
+        didSet { clipboardTab.onSelect = onSelectClipboardItem }
+    }
+    var clipboardImageURL: ((ClipboardItem) -> URL?)? {
+        didSet { clipboardTab.imageURLProvider = clipboardImageURL }
+    }
 
     /// L'onglet AI : en-tête, carte du fournisseur, filtres et activité.
     private let usageTab = NotchUsageTabView()
@@ -149,6 +162,7 @@ final class NotchPanelContentView: NSView {
         calendarTab.addSubview(calendarWidget)
         contentContainer.addSubview(calendarTab)
         contentContainer.addSubview(fileTray)
+        contentContainer.addSubview(clipboardTab)
         gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
         contentContainer.addSubview(gearButton)
 
@@ -219,16 +233,21 @@ final class NotchPanelContentView: NSView {
 
     // MARK: - Onglets
 
-    private var tabContentViews: [NSView] { [globalTab, calendarTab, fileTray, mirrorTab, usageTab] }
+    private var tabContentViews: [NSView] { [globalTab, calendarTab, fileTray, clipboardTab, mirrorTab, usageTab] }
 
     private func contentView(for tab: NotchTab) -> NSView {
         switch tab {
         case .global: globalTab
         case .calendar: calendarTab
         case .tray: fileTray
+        case .clipboard: clipboardTab
         case .mirror: mirrorTab
         case .ai: usageTab
         }
+    }
+
+    func apply(clipboardItems: [ClipboardItem]) {
+        clipboardTab.apply(items: clipboardItems)
     }
 
     func apply(agendaState: CalendarAgendaState) {

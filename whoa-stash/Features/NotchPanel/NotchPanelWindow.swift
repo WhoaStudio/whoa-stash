@@ -53,6 +53,25 @@ final class NotchPanelWindow {
         set { contentView.onOpenSettings = newValue }
     }
 
+    func apply(clipboardItems: [ClipboardItem]) {
+        contentView.apply(clipboardItems: clipboardItems)
+    }
+
+    var onClearClipboard: (() -> Void)? {
+        get { contentView.onClearClipboard }
+        set { contentView.onClearClipboard = newValue }
+    }
+
+    var onSelectClipboardItem: ((ClipboardItem) -> Void)? {
+        get { contentView.onSelectClipboardItem }
+        set { contentView.onSelectClipboardItem = newValue }
+    }
+
+    var clipboardImageURL: ((ClipboardItem) -> URL?)? {
+        get { contentView.clipboardImageURL }
+        set { contentView.clipboardImageURL = newValue }
+    }
+
     func apply(agendaState: CalendarAgendaState) {
         contentView.apply(agendaState: agendaState)
     }
