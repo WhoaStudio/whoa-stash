@@ -43,6 +43,11 @@ final class NotchPanelController {
 
     private var hoveredRingIndex: Int?
 
+    /// Pastille d'appareil Bluetooth : visible `deviceStatusDuration`, puis elle se retire.
+    private let deviceStatusDuration: Duration = .seconds(3)
+    private var deviceStatusTask: Task<Void, Never>?
+    private var deviceStatusDisplay: CGDirectDisplayID?
+
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est
     /// téléporté, ou qu'il quitte la zone pendant un changement de Space, plus aucun événement
     /// n'arrive et le panneau resterait déplié. Ce rafraîchissement ne tourne que pendant qu'un
@@ -106,6 +111,9 @@ final class NotchPanelController {
             self.screenObserver = nil
         }
         stopPolling()
+        deviceStatusTask?.cancel()
+        deviceStatusTask = nil
+        deviceStatusDisplay = nil
 
         windows.values.forEach { $0.close() }
         windows.removeAll()
@@ -124,6 +132,30 @@ final class NotchPanelController {
     func apply(usageState newState: ClaudeUsageState) {
         usageState = newState
         windows.values.forEach { $0.apply(usageState: newState, animated: true) }
+    }
+
+    /// Montre la pastille d'un appareil qui vient de se connecter, sur l'écran principal. Une
+    /// nouvelle connexion remplace la précédente et relance le délai.
+    func showDeviceStatus(_ status: DeviceStatus) {
+        guard
+            isActive,
+            let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
+            let window = windows[displayID]
+        else { return }
+
+        deviceStatusTask?.cancel()
+        if let previous = deviceStatusDisplay, previous != displayID {
+            windows[previous]?.hideDeviceStatus()
+        }
+        deviceStatusDisplay = displayID
+        window.showDeviceStatus(status)
+
+        deviceStatusTask = Task { [weak self, duration = deviceStatusDuration] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            window.hideDeviceStatus()
+            self?.deviceStatusDisplay = nil
+        }
     }
 
     /// Déplie (ou replie) le panneau de l'écran qui contient le curseur — appelé par

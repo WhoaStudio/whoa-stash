@@ -35,6 +35,12 @@ final class NotchPanelContentView: NSView {
     /// de `contentContainer`, que la silhouette découpe.
     private let capsule = NotchTabCapsuleView(selectedTab: .global)
 
+    /// Pastille d'état d'un appareil Bluetooth qui vient de se connecter : posée sous la
+    /// silhouette repliée, hors de `contentContainer` et donc hors de son masque.
+    private let deviceStatusPill = DeviceStatusPillView()
+    private var deviceStatusRestingPosition: CGPoint = .zero
+    private var isShowingDeviceStatus = false
+
     /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
@@ -143,6 +149,8 @@ final class NotchPanelContentView: NSView {
         capsule.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
         capsule.layer?.opacity = 0
         addSubview(capsule)
+        deviceStatusPill.layer?.opacity = 0
+        addSubview(deviceStatusPill)
         applySelection(animated: false)
 
         // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -348,6 +356,14 @@ final class NotchPanelContentView: NSView {
         capsuleRestingPosition = capsule.layer?.position ?? .zero
         applyCapsuleReveal(animated: false)
 
+        deviceStatusPill.frame = NSRect(
+            origin: NSPoint(
+                x: bounds.midX - DeviceStatusPillView.size.width / 2,
+                y: panel.maxY - collapsedSize.height - Self.deviceStatusGap - DeviceStatusPillView.size.height),
+            size: DeviceStatusPillView.size)
+        deviceStatusRestingPosition = deviceStatusPill.layer?.position ?? .zero
+        applyDeviceStatusReveal(animated: false)
+
         // Corps de l'onglet : tout l'intérieur du panneau. Les trois onglets l'occupent en entier
         // et se relaient dedans.
         let bodyTop = panel.maxY - NotchPanelGeometry.contentInsetTop(forCollapsedHeight: collapsedSize.height)
@@ -452,6 +468,49 @@ final class NotchPanelContentView: NSView {
         PanelFold.fade(layer, to: opacity)
     }
 
+    // MARK: - Pastille d'appareil
+
+    private static let deviceStatusGap: CGFloat = 10
+    private static let deviceStatusTravel: CGFloat = 24
+
+    func showDeviceStatus(_ status: DeviceStatus) {
+        // Dépliée, la silhouette occupe déjà la place de la pastille.
+        guard !isExpanded else { return }
+        deviceStatusPill.apply(status)
+        deviceStatusPill.layoutSubtreeIfNeeded()
+        isShowingDeviceStatus = true
+        applyDeviceStatusReveal(animated: true)
+    }
+
+    func hideDeviceStatus(animated: Bool = true) {
+        guard isShowingDeviceStatus else { return }
+        isShowingDeviceStatus = false
+        applyDeviceStatusReveal(animated: animated)
+    }
+
+    private func applyDeviceStatusReveal(animated: Bool) {
+        guard let layer = deviceStatusPill.layer, deviceStatusRestingPosition != .zero else { return }
+
+        let target = isShowingDeviceStatus
+            ? deviceStatusRestingPosition
+            : CGPoint(
+                x: deviceStatusRestingPosition.x,
+                y: deviceStatusRestingPosition.y + Self.deviceStatusTravel)
+        let opacity: Float = isShowingDeviceStatus ? 1 : 0
+
+        guard animated else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.position = target
+            layer.opacity = opacity
+            CATransaction.commit()
+            return
+        }
+
+        layer.springAnimate(keyPath: "position", to: target, preset: .gentle)
+        PanelFold.fade(layer, to: opacity)
+    }
+
     // MARK: - Silhouette
 
     /// Les deux états, tirés de la même recette que les bandes de flanc
@@ -487,6 +546,7 @@ final class NotchPanelContentView: NSView {
     func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
+        if expanded { hideDeviceStatus(animated: animated) }
         applyShape(expanded: expanded, animated: animated)
     }
 

@@ -81,6 +81,14 @@ final class NotchPanelWindow {
         contentView.setHighlightedRing(index)
     }
 
+    func showDeviceStatus(_ status: DeviceStatus) {
+        contentView.showDeviceStatus(status)
+    }
+
+    func hideDeviceStatus() {
+        contentView.hideDeviceStatus()
+    }
+
     /// Montre l'onglet Tray — appelé quand un glisser de fichiers arrive sur le panneau, quel
     /// que soit l'onglet affiché jusque-là.
     func revealFileShelf() {
