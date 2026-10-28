@@ -9,7 +9,7 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Volume dial | Top-left corner | Scroll to set the default output device's volume. |
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
-| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (today's agenda), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **AI** (the same usage rings). |
+| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (today's agenda), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). |
 
 ## Requirements
 
@@ -36,6 +36,7 @@ TODO: there is no release, archive or notarization process in the repo yet.
 ### What the app asks for
 
 - **Calendars** (full access). The notch panel requests it the first time it loads the agenda. If you deny it, the panel shows an access-denied card.
+- **Camera.** The Mirror tab asks the first time it is shown. The camera runs only while the panel is unfolded on that tab; the green LED goes off as soon as it folds or you switch tab. If you deny it, the tab shows a card that opens System Settings.
 - **Keychain items owned by other apps.** The usage rings read the OAuth tokens that Claude Code (`Claude Code-credentials*`) and GitHub (`github-copilot-app` or `gh:github.com`) store. macOS asks you to allow each one on the first read. If you refuse, that ring shows as unavailable. Tokens stay in memory only.
 - The app is not sandboxed (`ENABLE_APP_SANDBOX = NO`).
 - Info.plist declares an Accessibility usage string, but no code path requests Accessibility today (`AccessibilityPermissionService` is unused).
@@ -50,10 +51,12 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 |---|---|
 | `--show-settings[=general\|brightness\|about]` | Opens Preferences on that pane (default `general`). |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
+| `--notch-tab=global\|calendar\|tray\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
 | `--show-usage-panel` | Opens the side panel without hovering. |
 | `--show-volume-dial` | Opens the volume dial without hovering. |
 | `--claude-usage=<session>,<weekly>` | Fixed Claude percentages, for example `73,7`. Skips the network and Keychain. |
 | `--copilot-usage=<percent>` | Fixed Copilot percentage. |
+| `--camera-mirror=granted\|denied\|notDetermined` | Fake camera for the Mirror tab: a gradient instead of video, with the given access state. |
 | `--calendar-agenda=granted\|denied\|notDetermined` | A fixed sample day with the given access state. |
 
 ## Tests

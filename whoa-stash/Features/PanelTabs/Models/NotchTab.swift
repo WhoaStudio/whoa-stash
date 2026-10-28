@@ -3,12 +3,13 @@ import Foundation
 /// Les onglets de la barre haute du panneau, dans l'ordre où ils s'y présentent.
 ///
 /// `Global` porte la bande horizontale de la semaine ; `Calendar` porte l'agenda et la grille
-/// mensuelle ; `Tray` recueille les fichiers qu'on y dépose ; `AI` est réservé et n'affiche
-/// encore qu'un écriteau.
+/// mensuelle ; `Tray` recueille les fichiers qu'on y dépose ; `Mirror` montre la caméra dans un
+/// cercle ; `AI` porte l'utilisation des agents.
 enum NotchTab: Int, CaseIterable {
     case global
     case calendar
     case tray
+    case mirror
     case ai
 
     var title: String {
@@ -16,6 +17,7 @@ enum NotchTab: Int, CaseIterable {
         case .global: "Global"
         case .calendar: "Calendar"
         case .tray: "Tray"
+        case .mirror: "Mirror"
         case .ai: "AI"
         }
     }
@@ -27,6 +29,7 @@ enum NotchTab: Int, CaseIterable {
         case .global: "globe"
         case .calendar: "calendar"
         case .tray: "tray"
+        case .mirror: "camera"
         case .ai: "sparkles"
         }
     }

@@ -63,7 +63,7 @@ enum NotchPanelGeometry {
     }
 
     /// Air entre le bas de la bande à laquelle le panneau est suspendu et le début du contenu.
-    static let topClearance: CGFloat = 8
+    static let topClearance: CGFloat = 4
 
     /// Marge haute. En profondeur la silhouette est pleine, mais le cadre de la fenêtre part du
     /// bord haut de la dalle : le contenu doit donc passer sous la barre de menus et, sur un Mac
@@ -103,38 +103,32 @@ enum NotchPanelGeometry {
     ///
     /// C'est cet onglet qui est désormais le plus haut, et donc lui qui dimensionne le panneau
     /// (voir `tabContentHeight`).
-    static let calendarTabHeight: CGFloat = 210
+    static let calendarTabHeight: CGFloat = 172
 
-    /// Colonne de gauche de l'onglet AI : les bagues d'utilisation posées **en ligne** et non
-    /// empilées, c'est tout ce qui distingue cette mise en page de celle de la bande du bord
-    /// droit. Elles sont plus petites que celles de la bande : le panneau est resserré, et
-    /// c'est la rangée entière qui doit tenir à côté de la carte.
-    static let ringTileSize: CGFloat = 50
-    static let ringSpacing: CGFloat = 16
-
-    /// Écart de chaque côté du filet qui sépare les deux colonnes.
+    /// Écart de chaque côté du filet qui sépare les deux colonnes du widget Calendar.
     static let columnGap: CGFloat = 18
     static let dividerWidth: CGFloat = 1
 
-    /// Colonne de droite de l'onglet AI : la carte d'utilisation détaillée, aux dimensions que
-    /// `ClaudeUsagePanelView` demande pour tenir son en-tête et ses deux lignes.
-    static let cardSize = NSSize(width: 270, height: 190)
+    /// Onglet AI : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus
+    /// haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir `panelRect`).
+    static let aiTabHeight: CGFloat = 290
 
-    static var ringRowWidth: CGFloat {
-        let count = CGFloat(SidePanelGeometry.ringCount)
-        return count * ringTileSize + max(0, count - 1) * ringSpacing
+    /// Largeur du contenu de l'onglet AI, et donc du panneau : le plus large des onglets.
+    static let aiTabWidth: CGFloat = 540
+
+    /// Hauteur du contenu d'un onglet, sous la barre.
+    static func contentHeight(for tab: NotchTab) -> CGFloat {
+        tab == .ai ? aiTabHeight : calendarTabHeight
     }
 
-    /// Hauteur du contenu d'un onglet, sous la barre : celle de l'onglet le plus haut, pour que la
-    /// silhouette dépliée ne change pas de taille d'un onglet à l'autre.
+    /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
+    /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, cardSize.height)
+        max(calendarTabHeight, aiTabHeight)
     }
 
-    /// Largeur du contenu de l'onglet le plus large — AI, avec ses deux colonnes.
-    static var tabContentWidth: CGFloat {
-        ringRowWidth + 2 * columnGap + dividerWidth + cardSize.width
-    }
+    /// Largeur du contenu de l'onglet le plus large — AI.
+    static var tabContentWidth: CGFloat { aiTabWidth }
 
     /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
     /// est donc celle du panneau **plus** la bande basse où flotte la capsule.
@@ -198,24 +192,23 @@ enum NotchPanelGeometry {
 
     // MARK: - Cadres
 
-    /// Le panneau proprement dit dans le cadre de la fenêtre : tout sauf la bande basse, qui
-    /// revient à la capsule. C'est ce rectangle, et non le cadre entier, que la silhouette
-    /// occupe et dans lequel le contenu se pose.
-    static func panelRect(in bounds: CGRect) -> CGRect {
-        CGRect(
-            x: bounds.minX,
-            y: bounds.minY + capsuleBandHeight,
-            width: bounds.width,
-            height: max(0, bounds.height - capsuleBandHeight)
-        )
+    /// Le panneau proprement dit dans le cadre de la fenêtre, pour l'onglet affiché : suspendu au
+    /// haut du cadre, il s'arrête où le contenu de l'onglet s'arrête. La bande basse et le
+    /// surplus des onglets plus courts restent vides ; c'est la capsule qui suit le bas du panneau
+    /// (voir `capsuleRect`). C'est ce rectangle, et non le cadre entier, que la silhouette occupe
+    /// et dans lequel le contenu se pose.
+    static func panelRect(in bounds: CGRect, tab: NotchTab) -> CGRect {
+        let slack = tabContentHeight - contentHeight(for: tab)
+        let height = max(0, bounds.height - capsuleBandHeight - slack)
+        return CGRect(x: bounds.minX, y: bounds.maxY - height, width: bounds.width, height: height)
     }
 
-    /// Cadre de la capsule : tout en bas, centrée sous le panneau.
-    static func capsuleRect(in bounds: CGRect) -> CGRect {
+    /// Cadre de la capsule : sous le panneau de l'onglet affiché, centrée.
+    static func capsuleRect(in bounds: CGRect, tab: NotchTab) -> CGRect {
         let width = min(NotchTabCapsuleView.width, bounds.width)
         return CGRect(
             x: bounds.midX - width / 2,
-            y: bounds.minY,
+            y: panelRect(in: bounds, tab: tab).minY - capsuleBandHeight,
             width: width,
             height: TabBarMetrics.capsuleHeight
         )

@@ -19,7 +19,7 @@ struct NotchPanelGeometryTests {
 
     private static func expandedPath(_ size: NSSize) -> CGPath {
         PanelGeometry.silhouette(
-            in: NotchPanelGeometry.panelRect(in: NSRect(origin: .zero, size: size)),
+            in: NotchPanelGeometry.panelRect(in: NSRect(origin: .zero, size: size), tab: .ai),
             anchoredTo: .top,
             shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
             farRadius: NotchPanelGeometry.expandedBottomRadius
@@ -31,7 +31,7 @@ struct NotchPanelGeometryTests {
     /// plus la bande basse où flotte la capsule, où le panneau ne peint rien.
     private static func contentBox(_ size: NSSize) -> NSRect {
         let inset = NotchPanelGeometry.contentInsetX
-        let panel = NotchPanelGeometry.panelRect(in: NSRect(origin: .zero, size: size))
+        let panel = NotchPanelGeometry.panelRect(in: NSRect(origin: .zero, size: size), tab: .ai)
         return NSRect(
             x: panel.minX + inset,
             y: panel.minY + NotchPanelGeometry.contentInsetBottom,
@@ -95,12 +95,14 @@ struct NotchPanelGeometryTests {
     func capsuleSitsBelowThePanel() {
         let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
         let bounds = NSRect(origin: .zero, size: size)
-        let capsule = NotchPanelGeometry.capsuleRect(in: bounds)
-        let panel = NotchPanelGeometry.panelRect(in: bounds)
+        for tab in NotchTab.allCases {
+            let capsule = NotchPanelGeometry.capsuleRect(in: bounds, tab: tab)
+            let panel = NotchPanelGeometry.panelRect(in: bounds, tab: tab)
 
-        #expect(capsule.maxY <= panel.minY)
-        #expect(panel.minY - capsule.maxY == NotchPanelGeometry.capsuleGap)
-        #expect(capsule.minY >= bounds.minY)
+            #expect(capsule.maxY <= panel.minY)
+            #expect(panel.minY - capsule.maxY == NotchPanelGeometry.capsuleGap)
+            #expect(capsule.minY >= bounds.minY)
+        }
     }
 
     /// Sur un Mac à encoche, le cadre de la fenêtre part du bord haut de la dalle : le contenu
@@ -129,8 +131,21 @@ struct NotchPanelGeometryTests {
     @Test("la hauteur de contenu couvre tous les onglets")
     func tabContentHeightCoversEveryTab() {
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.calendarTabHeight)
-        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.cardSize.height)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.aiTabHeight)
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.weekStripHeight)
+    }
+
+    /// Seul l'onglet AI est plus haut : les autres gardent leur panneau court, suspendu au même
+    /// bord haut, et la capsule remonte sous lui.
+    @Test("le panneau ne grandit que pour l'onglet AI")
+    func panelGrowsOnlyForAI() {
+        let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
+        let bounds = NSRect(origin: .zero, size: size)
+        let ai = NotchPanelGeometry.panelRect(in: bounds, tab: .ai)
+        let calendar = NotchPanelGeometry.panelRect(in: bounds, tab: .calendar)
+
+        #expect(ai.maxY == calendar.maxY)
+        #expect(ai.height - calendar.height == NotchPanelGeometry.aiTabHeight - NotchPanelGeometry.calendarTabHeight)
     }
 
     /// Les deux colonnes du widget se partagent la largeur de l'onglet : la grille du mois est

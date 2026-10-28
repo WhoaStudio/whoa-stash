@@ -123,9 +123,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         copilotViewModel.onStateChanged = { [weak self] in
             guard let self, let state = self.copilotUsageViewModel?.state else { return }
             self.sidePanelController?.apply(copilotUsageState: state)
+            self.notchPanelController?.apply(copilotUsageState: state)
         }
 
         copilotViewModel.activate()
+
+        notchPanelController?.onRefreshUsage = { [weak self] in
+            self?.claudeUsageViewModel?.refresh()
+            self?.copilotUsageViewModel?.refresh()
+        }
 
         // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
         // a un par écran.

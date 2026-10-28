@@ -25,13 +25,22 @@ final class ClaudeUsagePanelView: NSView {
             needsLayout = true
         }
     }
-    private let verticalInset: CGFloat = 18
+    private var verticalInset: CGFloat = 18
     /// Hauteur de l'en-tête, et donc diamètre de la bague.
     private let headerHeight: CGFloat = 30
     /// Entre la bague et le titre.
     private let headerGap: CGFloat = 10
-    private let headerSpacing: CGFloat = 16
-    private let rowSpacing: CGFloat = 16
+    private var headerSpacing: CGFloat = 16
+    private var rowSpacing: CGFloat = 16
+
+    /// Resserre les marges et les écarts verticaux : la carte du panneau de l'encoche tient en
+    /// 172 pt au lieu de 190, sans toucher à la bulle de la bande latérale, qui garde les siens.
+    func useCompactSpacing() {
+        verticalInset = 10
+        headerSpacing = 10
+        rowSpacing = 10
+        needsLayout = true
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

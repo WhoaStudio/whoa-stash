@@ -32,6 +32,7 @@ final class NotchPanelController {
     private var pollTimer: Timer?
 
     private var usageState: ClaudeUsageState = .loading
+    private var copilotUsageState: CopilotUsageState = .loading
 
     /// Dernier agenda connu, rejoué sur chaque panneau neuf : il y en a un par écran, et un
     /// écran branché après la première lecture ne doit pas rester sur un widget vide.
@@ -43,8 +44,6 @@ final class NotchPanelController {
     /// cette logique jusqu'à ce que l'utilisateur soit venu sur le panneau puis en soit ressorti.
     private var isPinned = false
     private var hasVisitedPinnedPanel = false
-
-    private var hoveredRingIndex: Int?
 
     /// Pastille d'appareil Bluetooth : visible `deviceStatusDuration`, puis elle se retire.
     private let deviceStatusDuration: Duration = .seconds(3)
@@ -122,7 +121,6 @@ final class NotchPanelController {
         windows.removeAll()
         expandedDisplay = nil
         isPinned = false
-        hoveredRingIndex = nil
     }
 
     /// Diffuse le dernier instantané à toutes les fenêtres, y compris celles qui sont repliées :
@@ -130,6 +128,16 @@ final class NotchPanelController {
     func apply(agendaState newState: CalendarAgendaState) {
         agendaState = newState
         windows.values.forEach { $0.apply(agendaState: newState) }
+    }
+
+    /// Relance les sources d'utilisation, depuis le bouton « actualiser » de l'onglet AI.
+    var onRefreshUsage: (() -> Void)? {
+        didSet { windows.values.forEach { $0.onRefreshUsage = onRefreshUsage } }
+    }
+
+    func apply(copilotUsageState newState: CopilotUsageState) {
+        copilotUsageState = newState
+        windows.values.forEach { $0.apply(copilotUsageState: newState) }
     }
 
     func apply(usageState newState: ClaudeUsageState) {
@@ -161,6 +169,14 @@ final class NotchPanelController {
         }
     }
 
+    /// Onglet demandé par `--notch-tab=<global|calendar|tray|mirror|ai>`, `nil` sans le drapeau ou
+    /// avec un nom inconnu.
+    private static func launchTab(_ arguments: [String] = CommandLine.arguments) -> NotchTab? {
+        guard let argument = arguments.first(where: { $0.hasPrefix("--notch-tab=") }) else { return nil }
+        let name = argument.dropFirst("--notch-tab=".count)
+        return NotchTab.allCases.first { $0.title.lowercased() == name.lowercased() }
+    }
+
     /// Déplie (ou replie) le panneau de l'écran qui contient le curseur — appelé par
     /// `--show-notch-panel`.
     func togglePinnedReveal() {
@@ -185,7 +201,9 @@ final class NotchPanelController {
         isPinned = true
         hasVisitedPinnedPanel = false
         window.apply(usageState: usageState, animated: false)
+        window.apply(copilotUsageState: copilotUsageState)
         window.apply(agendaState: agendaState)
+        if let tab = Self.launchTab() { window.select(tab) }
         window.setExpanded(true)
         startPolling()
     }
@@ -224,7 +242,7 @@ final class NotchPanelController {
         let inHotZone = NotchPanelGeometry.hotZone(on: screen).contains(location)
         // Le panneau reste déplié tant que le curseur est dessus : c'est ce qui permet d'aller
         // lire la carte sans que tout se referme en chemin.
-        let overPanel = expandedDisplay == displayID && window.isExpanded && window.frame.contains(location)
+        let overPanel = expandedDisplay == displayID && window.isExpanded && window.interactiveFrameContains(location)
 
         if isPinned {
             // Le panneau épinglé ne se replie qu'une fois le curseur venu dessus puis reparti —
@@ -232,7 +250,6 @@ final class NotchPanelController {
             if overPanel {
                 hasVisitedPinnedPanel = true
                 if draggingFiles { window.revealFileShelf() }
-                updateRingHover(at: location, displayID: displayID)
             } else if hasVisitedPinnedPanel {
                 isPinned = false
                 collapseActive()
@@ -250,6 +267,7 @@ final class NotchPanelController {
             expandedDisplay = displayID
         }
         window.apply(usageState: usageState, animated: false)
+        window.apply(copilotUsageState: copilotUsageState)
         window.apply(agendaState: agendaState)
         window.setExpanded(true)
         startPolling()
@@ -258,8 +276,6 @@ final class NotchPanelController {
         // voir, et c'est lui qui doit être là pour recevoir le dépôt. Le reste du dépôt est au
         // `FileTrayView` de l'onglet Tray — il n'y a pas d'autre cible de dépôt.
         if draggingFiles { window.revealFileShelf() }
-
-        updateRingHover(at: location, displayID: displayID)
     }
 
     /// Un glisser de fichiers est-il en cours sous le curseur ? Le bouton gauche enfoncé ne
@@ -278,24 +294,8 @@ final class NotchPanelController {
         )
     }
 
-    /// Confronte le curseur aux bagues : celle qu'il survole est mise en avant et reçoit la
-    /// plaque d'accent. Seules les bagues branchées répondent, les autres n'ayant rien à montrer.
-    private func updateRingHover(at location: NSPoint, displayID: CGDirectDisplayID) {
-        guard let window = windows[displayID] else { return }
-
-        let hovered = (0..<window.ringCount).first { index in
-            SidePanelGeometry.ringSlots[index].isConnected
-                && window.ringScreenRect(at: index)?.contains(location) ?? false
-        }
-
-        guard hovered != hoveredRingIndex else { return }
-        hoveredRingIndex = hovered
-        window.setHighlightedRing(hovered)
-    }
-
     private func collapseActive() {
         isPinned = false
-        hoveredRingIndex = nil
         guard let expandedDisplay else { return }
         windows[expandedDisplay]?.setExpanded(false)
         self.expandedDisplay = nil
@@ -321,6 +321,8 @@ final class NotchPanelController {
                 // panneau de lui-même.
                 window.onOpenSettings = { SettingsWindowController.shared.show() }
                 window.apply(usageState: usageState, animated: false)
+                window.apply(copilotUsageState: copilotUsageState)
+                window.onRefreshUsage = onRefreshUsage
                 window.apply(agendaState: agendaState)
                 windows[displayID] = window
             }
