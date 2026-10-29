@@ -4,50 +4,63 @@ import Testing
 
 /// Balayage d'onglets : un geste surtout horizontal et assez long change d'onglet, tout le reste
 /// (clic, petit mouvement, défilement vertical) ne change rien.
+@MainActor
 struct TabSwipeTrackerTests {
 
     @Test func balayageVersLaGaucheVaAuOngletSuivant() {
         var tracker = TabSwipeTracker()
-        #expect(tracker.move(dx: -80, dy: 2))
-        #expect(tracker.end() == .next)
+        let moved = tracker.move(dx: -80, dy: 2)
+        #expect(moved)
+        let result = tracker.end()
+        #expect(result == .next)
     }
 
     @Test func balayageVersLaDroiteVaAuOngletPrecedent() {
         var tracker = TabSwipeTracker()
         tracker.move(dx: 80, dy: 0)
-        #expect(tracker.end() == .previous)
+        let result = tracker.end()
+        #expect(result == .previous)
     }
 
     @Test func unClicSansMouvementNeChangeRien() {
         var tracker = TabSwipeTracker()
-        #expect(tracker.end() == nil)
+        let result = tracker.end()
+        #expect(result == nil)
     }
 
     @Test func unPetitMouvementResteUnClic() {
         var tracker = TabSwipeTracker()
-        #expect(!tracker.move(dx: -3, dy: 1))
-        #expect(tracker.end() == nil)
+        let moved = tracker.move(dx: -3, dy: 1)
+        #expect(!moved)
+        let result = tracker.end()
+        #expect(result == nil)
     }
 
     @Test func unBalayageTropCourtNeChangePasDOnglet() {
         var tracker = TabSwipeTracker()
-        #expect(tracker.move(dx: -30, dy: 0))
-        #expect(tracker.end() == nil)
+        let moved = tracker.move(dx: -30, dy: 0)
+        #expect(moved)
+        let result = tracker.end()
+        #expect(result == nil)
     }
 
     @Test func unDefilementVerticalEstAbandonne() {
         var tracker = TabSwipeTracker()
-        #expect(!tracker.move(dx: -4, dy: 40))
+        let moved = tracker.move(dx: -4, dy: 40)
+        #expect(!moved)
         // Même si le doigt dérive ensuite vers le côté, le geste reste un défilement.
-        #expect(!tracker.move(dx: -200, dy: 0))
-        #expect(tracker.end() == nil)
+        let movedAgain = tracker.move(dx: -200, dy: 0)
+        #expect(!movedAgain)
+        let result = tracker.end()
+        #expect(result == nil)
     }
 
     @Test func leSuiveurEstRemisAZeroApresLeRelache() {
         var tracker = TabSwipeTracker()
         tracker.move(dx: -80, dy: 0)
         _ = tracker.end()
-        #expect(tracker.end() == nil)
+        let result = tracker.end()
+        #expect(result == nil)
         #expect(tracker.offset == 0)
     }
 
