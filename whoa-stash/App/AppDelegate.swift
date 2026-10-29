@@ -26,7 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
     private var knockController: KnockController?
+    private var radialMenuController: RadialMenuController?
+    private var radialMenuCancellable: AnyCancellable?
     private var knockCancellable: AnyCancellable?
+    private var dockController: DockController?
+    private var dockModel: DockModel?
+    private var runningAppsProvider: RunningAppsProviding?
+    private var systemDockService: SystemDockService?
+    private var dockCancellables: Set<AnyCancellable> = []
 
     /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
     /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
@@ -153,6 +160,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .sink { [weak knock] in knock?.apply(settings: $0) }
 
+        // Menu radial : un bouton de souris maintenu l'ouvre sous le curseur ; les éléments choisis
+        // dans les Préférences s'appliquent à chaud.
+        let radialMenu = RadialMenuController()
+        radialMenu.activate()
+        radialMenuController = radialMenu
+        radialMenuCancellable = settings.$settings
+            .map(\.radialMenu)
+            .removeDuplicates()
+            .sink { [weak radialMenu] in radialMenu?.apply(settings: $0) }
+
+        // Dock personnalisé : une seule fenêtre, alimentée par un seul modèle (épingles copiées une
+        // fois de `com.apple.dock`, applis lancées suivies par `NSWorkspace`). `--dock=sample`
+        // substitue des applis lancées fixes.
+        let pinnedStore = PinnedAppsStore(storage: settings)
+        pinnedStore.seedIfNeeded()
+        WorkspaceSeeder.seedIfNeeded(settings)
+        let dockModel = DockModel()
+        let dock = DockController(
+            readAppearance: { [settings] in
+                DockAppearance.read(from: SystemDockDefaults(), saved: settings.settings.dock.savedSystemDock)
+            },
+            onTogglePin: { [settings] item in
+                settings.settings.dock.togglePin(DockPinnedApp(bundleID: item.bundleID, path: item.path))
+            },
+            onSelectWorkspace: { [settings] in settings.settings.dock.activeWorkspaceID = $0 },
+            onPlaceApp: { [settings] app, index in settings.settings.dock.placeApp(app, at: index) },
+            onRemoveApp: { [settings] item in settings.settings.dock.unpinApp(bundleID: item.bundleID) })
+        dockModel.onStateChanged = { [weak dock] in dock?.apply(state: $0) }
+        let runningProvider: RunningAppsProviding =
+            MockRunningAppsProvider.fromLaunchArguments() ?? WorkspaceRunningAppsProvider()
+        runningProvider.onChange = { [weak dockModel] in dockModel?.setRunning($0) }
+        dock.activate()
+        dockModel.setPinned(settings.settings.dock.visibleApps)
+        dock.apply(workspaces: settings.settings.dock.workspaces, activeID: settings.settings.dock.activeWorkspaceID)
+        runningProvider.activate()
+        settings.$settings.map(\.dock.visibleApps).removeDuplicates()
+            .sink { [weak dockModel] in dockModel?.setPinned($0) }.store(in: &dockCancellables)
+        settings.$settings.map(\.dock.enabled).removeDuplicates()
+            .sink { [weak dock] in dock?.apply(enabled: $0) }.store(in: &dockCancellables)
+        settings.$settings.map { DockWorkspaceState(list: $0.dock.workspaces, activeID: $0.dock.activeWorkspaceID) }
+            .removeDuplicates()
+            .sink { [weak dock] in dock?.apply(workspaces: $0.list, activeID: $0.activeID) }.store(in: &dockCancellables)
+        settings.$settings.map(\.dock.autoHide).removeDuplicates()
+            .sink { [weak dock] in dock?.apply(autoHide: $0) }.store(in: &dockCancellables)
+        // Raccourci du dock : montre/cache le dock en basculant « Show dock ».
+        GlobalShortcutService.dock.onTrigger = { [settings] in settings.settings.dock.enabled.toggle() }
+        settings.$settings.map(\.dock.toggleHotkey).removeDuplicates()
+            .sink { GlobalShortcutService.dock.apply(keyCode: $0.keyCode, modifiers: $0.modifiers, name: $0.keyLabel) }
+            .store(in: &dockCancellables)
+        let systemDock = SystemDockService(storage: settings)
+        settings.$settings.map(\.dock.hideSystemDock).removeDuplicates()
+            .sink { [weak systemDock] in systemDock?.sync(hidden: $0) }.store(in: &dockCancellables)
+        self.dockModel = dockModel
+        dockController = dock
+        runningAppsProvider = runningProvider
+        systemDockService = systemDock
+
         // Raccourci global : même geste que le survol de l'encoche, au clavier. Branché après le
         // contrôleur, qui est sa cible, et réappliqué à chaque changement du réglage.
         GlobalShortcutService.shared.onTrigger = { [weak self] in
@@ -232,6 +296,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             volumeDialController?.togglePinnedReveal()
         }
 
+        // Et le menu radial : l'ouvrir sous le curseur, sans le bouton de souris.
+        if CommandLine.arguments.contains("--show-radial-menu") {
+            radialMenuController?.openForDevelopment()
+        }
+
         if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--show-settings") }) {
             let categoryRaw = arg.split(separator: "=").last.map(String.init)
             let category = categoryRaw.flatMap { SettingsCategory(rawValue: $0) } ?? .general
@@ -240,6 +309,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Nettoyage si besoin
+        // Le Dock macOS doit revenir tel que l'utilisateur l'avait, même si le réglage reste actif :
+        // au prochain lancement il sera masqué de nouveau.
+        systemDockService?.restore()
     }
 }

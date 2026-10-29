@@ -11,7 +11,17 @@ final class NotchGearButtonView: NSView {
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
 
-    init() {
+    private let symbolName: String
+    private let symbolDescription: String
+
+    /// Grisé et sans effet au clic quand il n'y a rien à faire.
+    var isEnabled = true {
+        didSet { applyTint() }
+    }
+
+    init(symbolName: String = "gearshape", description: String = "Settings") {
+        self.symbolName = symbolName
+        self.symbolDescription = description
         super.init(frame: .zero)
         wantsLayer = true
         setUp()
@@ -27,7 +37,7 @@ final class NotchGearButtonView: NSView {
             pointSize: TabBarMetrics.iconSize,
             weight: .medium
         )
-        iconView.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")?
+        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: symbolDescription)?
             .withSymbolConfiguration(configuration)
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
@@ -41,7 +51,8 @@ final class NotchGearButtonView: NSView {
     }
 
     private func applyTint() {
-        iconView.contentTintColor = isHovered ? palette.tabActiveContent : palette.tabInactiveContent
+        iconView.contentTintColor = isHovered && isEnabled ? palette.tabActiveContent : palette.tabInactiveContent
+        iconView.alphaValue = isEnabled ? 1 : 0.4
     }
 
     override func updateTrackingAreas() {
@@ -88,7 +99,7 @@ final class NotchGearButtonView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(location) else { return }
+        guard isEnabled, bounds.contains(location) else { return }
         onClick?()
     }
 }

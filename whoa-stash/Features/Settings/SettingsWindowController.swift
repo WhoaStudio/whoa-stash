@@ -166,6 +166,14 @@ private final class SettingsRootViewController: NSViewController {
     private func show(_ category: SettingsCategory) {
         guard category != currentCategory else { return }
 
+        let outgoing = currentChild
+        // Un fondu interrompu par un changement d'onglet trop rapide laisse son volet à l'écran, par-dessus
+        // le suivant : tout ce qui n'est pas le volet qui s'en va est un reste, retiré tout de suite.
+        for child in children where child !== outgoing {
+            child.view.removeFromSuperview()
+            child.removeFromParent()
+        }
+
         let next = makeViewController(for: category)
         addChild(next)
         next.view.translatesAutoresizingMaskIntoConstraints = false
@@ -176,18 +184,14 @@ private final class SettingsRootViewController: NSViewController {
             next.view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
             next.view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
         ])
+        // Le volet affiché change dès maintenant, pas à la fin du fondu : un clic suivant part de lui.
+        currentChild = next
+        currentCategory = category
 
-        guard let current = currentChild else {
-            currentChild = next
-            currentCategory = category
-            return
-        }
-
-        let finish = { [weak self] in
+        guard let current = outgoing else { return }
+        let finish = {
             current.view.removeFromSuperview()
             current.removeFromParent()
-            self?.currentChild = next
-            self?.currentCategory = category
         }
 
         if animationsEnabled() {
@@ -208,6 +212,9 @@ private final class SettingsRootViewController: NSViewController {
         case .general: return GeneralSettingsViewController(animationsEnabled: animationsEnabled)
         case .brightness: return BrightnessSettingsViewController(animationsEnabled: animationsEnabled)
         case .knock: return KnockSettingsViewController(animationsEnabled: animationsEnabled)
+        case .radialMenu: return RadialMenuSettingsViewController(animationsEnabled: animationsEnabled)
+        case .dock: return DockSettingsViewController(animationsEnabled: animationsEnabled)
+        case .workspaces: return WorkspacesSettingsViewController(animationsEnabled: animationsEnabled)
         case .about: return AboutSettingsViewController(animationsEnabled: animationsEnabled)
         }
     }

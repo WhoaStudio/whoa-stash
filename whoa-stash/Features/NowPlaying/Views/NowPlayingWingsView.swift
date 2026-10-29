@@ -18,6 +18,16 @@ final class NowPlayingWingsView: NSView {
     /// Hauteur ajoutée à l'encoche pendant la lecture.
     static let extraHeight: CGFloat = 2
 
+    /// Mode île : rien de matériel à contourner au centre, donc la pastille se resserre — ailes
+    /// et centre plus étroits — et gagne en hauteur pour porter la pochette à l'aise.
+    static let islandWingWidth: CGFloat = 52
+    static let islandCenterWidth: CGFloat = 76
+    static let islandExtraHeight: CGFloat = 10
+
+    /// Décalage vers le haut du contenu : il se centre sur la bande de l'encoche, pas sur le débord
+    /// sous elle. Nul en mode île, où le contenu se centre sur toute la pastille.
+    var lift: CGFloat = NowPlayingWingsView.extraHeight / 2 { didSet { needsLayout = true } }
+
     private let inset: CGFloat = 14
     private let artworkSize: CGFloat = 28
 
@@ -43,9 +53,9 @@ final class NowPlayingWingsView: NSView {
 
     override func layout() {
         super.layout()
-        // La vue déborde de `extraHeight` sous la bande de l'encoche : le contenu est centré sur la
-        // bande elle-même, pas sur le débord.
-        let lift = Self.extraHeight / 2
+        // La vue déborde sous la bande de l'encoche : le contenu est centré sur la bande
+        // elle-même, pas sur le débord (voir `lift`).
+        let inset = lift == 0 ? 12 : self.inset
         artworkView.frame = NSRect(
             x: inset, y: (bounds.height - artworkSize) / 2 + lift, width: artworkSize, height: artworkSize)
         let size = visualizer.intrinsicContentSize

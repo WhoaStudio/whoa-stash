@@ -30,6 +30,15 @@ final class NotchPanelContentView: NSView {
         didSet { usageTab.onOpenSettings = onOpenSettings }
     }
 
+    /// Appelé au clic sur « Launch all », relayé jusqu'au contrôleur.
+    var onLaunchAll: (() -> Void)?
+
+    /// Faux quand la liste d'applis est vide : le bouton est grisé.
+    var canLaunchAll: Bool {
+        get { launchButton.isEnabled }
+        set { launchButton.isEnabled = newValue }
+    }
+
     /// Appelé au clic sur « actualiser » de l'onglet AI.
     var onRefreshUsage: (() -> Void)? {
         didSet { usageTab.onRefresh = onRefreshUsage }
@@ -41,6 +50,7 @@ final class NotchPanelContentView: NSView {
 
     /// Engrenage des Préférences, en haut à droite du panneau, à hauteur de l'encoche.
     private let gearButton = NotchGearButtonView()
+    private let launchButton = NotchGearButtonView(symbolName: "square.grid.2x2", description: "Launch all")
 
     /// État d'un appareil Bluetooth qui vient de se connecter : l'encoche s'élargit de part et
     /// d'autre, sans changer de hauteur, et cette vue porte le glyphe à gauche et la batterie à
@@ -172,6 +182,8 @@ final class NotchPanelContentView: NSView {
         contentContainer.addSubview(clipboardTab)
         gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
         contentContainer.addSubview(gearButton)
+        launchButton.onClick = { [weak self] in self?.onLaunchAll?() }
+        contentContainer.addSubview(launchButton)
 
         // Hors du conteneur de contenu, et donc hors du masque de la silhouette : la capsule est
         // justement ce qui se trouve en dehors d'elle. Elle part invisible et suit le dépliage en
@@ -207,6 +219,7 @@ final class NotchPanelContentView: NSView {
         let palette = OverlayPalette.resolved(for: effectiveAppearance)
         backgroundLayer.fillColor = palette.panelBackground
         gearButton.applyPalette(palette)
+        launchButton.applyPalette(palette)
         strokeLayer.strokeColor = palette.strokeColor
     }
 
@@ -505,13 +518,28 @@ final class NotchPanelContentView: NSView {
         let deviceWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
         deviceStatusPill.frame = NSRect(
             x: bounds.midX - deviceWidth / 2, y: wingsY, width: deviceWidth, height: collapsedSize.height)
-        let mediaWidth = collapsedSize.width + 2 * NowPlayingWingsView.wingWidth
+        let media = nowPlayingSize
+        let mediaExtra = media.height - collapsedSize.height
+        nowPlayingWings.lift = collapsedTopGap > 0 ? 0 : NowPlayingWingsView.extraHeight / 2
         // Un peu plus haute que l'encoche : c'est ce qui signale la lecture, repliée.
         nowPlayingWings.frame = NSRect(
-            x: bounds.midX - mediaWidth / 2, y: wingsY - NowPlayingWingsView.extraHeight, width: mediaWidth,
-            height: collapsedSize.height + NowPlayingWingsView.extraHeight)
+            x: bounds.midX - media.width / 2, y: wingsY - mediaExtra, width: media.width,
+            height: media.height)
 
         layoutTabBodies()
+    }
+
+    /// Taille de la silhouette pendant la lecture : l'encoche élargie de ses ailes et un peu plus
+    /// haute ; en mode île, plus étroite et plus haute (voir `NowPlayingWingsView.islandWingWidth`).
+    private var nowPlayingSize: NSSize {
+        if collapsedTopGap > 0 {
+            return NSSize(
+                width: NowPlayingWingsView.islandCenterWidth + 2 * NowPlayingWingsView.islandWingWidth,
+                height: collapsedSize.height + NowPlayingWingsView.islandExtraHeight)
+        }
+        return NSSize(
+            width: collapsedSize.width + 2 * NowPlayingWingsView.wingWidth,
+            height: collapsedSize.height + NowPlayingWingsView.extraHeight)
     }
 
     /// Le panneau de l'onglet affiché, dans le repère de cette vue.
@@ -569,6 +597,7 @@ final class NotchPanelContentView: NSView {
         transformView.isHidden = !open
         fileTray.isHidden = open || selectedTab != .tray
         gearButton.isHidden = open
+        launchButton.isHidden = open
         capsule.isHidden = open
     }
 
@@ -618,6 +647,7 @@ final class NotchPanelContentView: NSView {
             width: gearSize,
             height: gearSize
         )
+        launchButton.frame = gearButton.frame.offsetBy(dx: -gearSize, dy: 0)
 
         // Mirror pose son cercle lui-même, contre le bas du panneau : il a donc tout le cadre du
         // panneau Mirror, quel que soit l'onglet affiché.
@@ -764,24 +794,20 @@ final class NotchPanelContentView: NSView {
 
     /// L'encoche élargie par ses deux ailes — même hauteur, mêmes rayons.
     private func wingedPath() -> CGPath {
-        // La lecture rend l'encoche un peu plus haute ; la pastille Bluetooth, non.
-        let extraHeight = isShowingDeviceStatus ? 0 : NowPlayingWingsView.extraHeight
-        // La pastille Bluetooth, quand elle est là, impose sa largeur ; sinon celle de la lecture.
-        let wingWidth = isShowingDeviceStatus ? DeviceStatusPillView.wingWidth : NowPlayingWingsView.wingWidth
+        // La pastille Bluetooth impose sa largeur et garde la hauteur de l'encoche ; sinon la
+        // lecture donne sa taille (`nowPlayingSize`).
+        let size = isShowingDeviceStatus
+            ? NSSize(
+                width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
+                height: collapsedSize.height)
+            : nowPlayingSize
         if collapsedTopGap > 0 {
-            return PanelGeometry.islandSilhouette(
-                in: panelRect,
-                size: NSSize(
-                    width: collapsedSize.width + 2 * wingWidth,
-                    height: collapsedSize.height + extraHeight),
-                topGap: collapsedTopGap)
+            return PanelGeometry.islandSilhouette(in: panelRect, size: size, topGap: collapsedTopGap)
         }
         return PanelGeometry.silhouette(
             in: panelRect,
             anchoredTo: .top,
-            size: NSSize(
-                width: collapsedSize.width + 2 * wingWidth,
-                height: collapsedSize.height + extraHeight),
+            size: size,
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
             farRadius: NotchPanelGeometry.collapsedBottomRadius
         )

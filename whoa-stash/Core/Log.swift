@@ -45,4 +45,9 @@ enum Log {
     /// Historique du presse-papiers : surveillance, stockage et copie en retour.
     nonisolated static let knock = Logger(subsystem: subsystem, category: "knock")
     nonisolated static let clipboard = Logger(subsystem: subsystem, category: "clipboard")
+
+    /// Dock personnalisé : applis suivies, Dock macOS masqué/restauré, fenêtres via Accessibilité.
+    nonisolated static let dock = Logger(subsystem: subsystem, category: "dock")
+    /// Menu radial : bouton de souris maintenu, ouverture sous le curseur, exécution des éléments.
+    nonisolated static let radialMenu = Logger(subsystem: subsystem, category: "radial-menu")
 }

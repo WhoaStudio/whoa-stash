@@ -1,0 +1,870 @@
+import AppKit
+
+/// Une icône du dock : l'icône de l'appli, un point dessous si elle tourne, un globe si c'est
+/// une web app. Le clic est traité au relâchement, dans la vue.
+final class DockIconView: NSView, NSDraggingSource {
+
+    /// Espace entre le bas de la vue (le point) et le bas de l'icône.
+    static let dotGap: CGFloat = 8
+    private static let dotSize: CGFloat = 4
+
+    var onClick: (() -> Void)?
+    var onContextMenu: ((NSEvent) -> Void)?
+    /// Appelé quand l'icône est lâchée hors du dock : l'appli doit en sortir.
+    var onDragOut: ((NSPoint) -> Void)?
+    private(set) var dragApp: DockPinnedApp?
+    private var didDrag = false
+    private let imageView = NSImageView()
+    private let dot = NSView()
+    private let badge = NSView()
+    private let globe = NSImageView()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(imageView)
+
+        dot.wantsLayer = true
+        dot.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.65).cgColor
+        dot.layer?.cornerRadius = Self.dotSize / 2
+        addSubview(dot)
+
+        badge.wantsLayer = true
+        badge.layer?.backgroundColor = NSColor.white.cgColor
+        badge.layer?.borderWidth = 1.5
+        badge.layer?.borderColor = NSColor.black.withAlphaComponent(0.25).cgColor
+        addSubview(badge)
+        globe.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "Web app")
+        globe.contentTintColor = .black
+        badge.addSubview(globe)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func apply(_ item: DockItem) {
+        // Les chemins du système (Safari…) passent par des liens : l'icône d'un lien porte la flèche d'alias.
+        imageView.image = NSWorkspace.shared.icon(forFile: URL(fileURLWithPath: item.path).resolvingSymlinksInPath().path)
+        toolTip = item.name
+        dragApp = DockPinnedApp(bundleID: item.bundleID, path: item.path)
+        dot.isHidden = !item.isRunning
+        badge.isHidden = !item.isWebApp
+        needsLayout = true
+    }
+
+    /// Rebondit tant que l'appli se lance.
+    func setBouncing(_ bouncing: Bool) {
+        guard let layer else { return }
+        if !bouncing {
+            layer.removeAnimation(forKey: "bounce")
+        } else if layer.animation(forKey: "bounce") == nil {
+            let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
+            animation.values = [0, bounds.width * 0.45, 0, bounds.width * 0.22, 0, 0]
+            animation.keyTimes = [0, 0.25, 0.5, 0.7, 0.85, 1]
+            animation.timingFunctions = [
+                CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeIn),
+                CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeIn),
+                CAMediaTimingFunction(name: .linear),
+            ]
+            animation.duration = 1.1
+            animation.repeatCount = .infinity
+            layer.add(animation, forKey: "bounce")
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        let size = bounds.width
+        imageView.frame = NSRect(x: 0, y: Self.dotGap, width: size, height: size)
+        dot.frame = NSRect(x: (size - Self.dotSize) / 2, y: 0, width: Self.dotSize, height: Self.dotSize)
+        let badgeSize = max(14, size * 0.38)
+        badge.frame = NSRect(x: size - badgeSize + 4, y: Self.dotGap - 4, width: badgeSize, height: badgeSize)
+        badge.layer?.cornerRadius = badgeSize / 2
+        globe.frame = badge.bounds.insetBy(dx: badgeSize * 0.15, dy: badgeSize * 0.15)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) { didDrag = false }
+
+    /// Saisie de l'icône : réorganiser le dock, ou la sortir pour l'y retirer.
+    override func mouseDragged(with event: NSEvent) {
+        guard !didDrag, let app = dragApp, let image = imageView.image else { return }
+        didDrag = true
+        layer?.removeAnimation(forKey: "bounce")
+        let item = DockAppDrag.item(for: app, image: image, size: imageView.frame.width)
+        item.draggingFrame = imageView.frame
+        alphaValue = 0.3
+        beginDraggingSession(with: [item], event: event, source: self)
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .withinApplication ? .move : []
+    }
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        alphaValue = 1
+        if operation.isEmpty { onDragOut?(screenPoint) }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if !didDrag, bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
+    }
+
+    override func rightMouseDown(with event: NSEvent) { onContextMenu?(event) }
+}
+
+extension NSColor {
+    /// `#RRGGBB` → couleur sRGB ; gris moyen si le texte est illisible.
+    convenience init(hex: String) {
+        let digits = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else {
+            self.init(white: 0.4, alpha: 1)
+            return
+        }
+        self.init(
+            srgbRed: CGFloat((value >> 16) & 0xFF) / 255, green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255, alpha: 1)
+    }
+
+    var hexString: String {
+        guard let rgb = usingColorSpace(.sRGB) else { return "#5A5A60" }
+        return String(
+            format: "#%02X%02X%02X", Int((rgb.redComponent * 255).rounded()), Int((rgb.greenComponent * 255).rounded()),
+            Int((rgb.blueComponent * 255).rounded()))
+    }
+}
+
+/// Une zone cliquable du dock : le clic est traité au relâchement.
+class DockButtonView: NSView {
+    var onClick: (() -> Void)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseUp(with event: NSEvent) {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
+    }
+}
+
+/// Un espace de travail dans le groupe de gauche : un rond avec son logo, ou — pour l'espace actif —
+/// une pastille de sa couleur avec le logo et le nom.
+final class DockChipView: DockButtonView {
+
+    private let icon = NSImageView()
+    private let label = NSTextField(labelWithString: "")
+    private(set) var workspace = DockWorkspace()
+    private(set) var isActive = false
+    private var scale: CGFloat = 1
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        addSubview(icon)
+        addSubview(label)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func apply(_ workspace: DockWorkspace, isActive: Bool, scale: CGFloat) {
+        self.workspace = workspace
+        self.isActive = isActive
+        self.scale = scale
+        let color = NSColor(hex: workspace.colorHex)
+        layer?.backgroundColor = isActive ? color.cgColor : NSColor.white.withAlphaComponent(0.08).cgColor
+        icon.image = NSImage(systemSymbolName: workspace.symbol, accessibilityDescription: workspace.name)?
+            .withSymbolConfiguration(.init(pointSize: 13 * scale, weight: .semibold))
+        icon.contentTintColor = isActive ? .white : color.blended(withFraction: 0.35, of: .white) ?? color
+        label.stringValue = workspace.name
+        label.font = .systemFont(ofSize: 13 * scale, weight: .semibold)
+        label.textColor = .white
+        label.sizeToFit()
+        label.isHidden = !isActive
+        toolTip = workspace.name
+    }
+
+    /// Largeur voulue : un rond au repos, une pastille quand l'espace est actif.
+    func preferredWidth(circle: CGFloat) -> CGFloat {
+        isActive ? 12 * scale * 2 + 16 * scale + 6 * scale + label.frame.width : circle
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = bounds.height / 2
+        let iconSide = 16 * scale
+        if isActive {
+            let contentWidth = iconSide + 6 * scale + label.frame.width
+            let startX = (bounds.width - contentWidth) / 2
+            icon.frame = NSRect(x: startX, y: (bounds.height - iconSide) / 2, width: iconSide, height: iconSide)
+            label.frame.origin = NSPoint(x: startX + iconSide + 6 * scale, y: (bounds.height - label.frame.height) / 2)
+        } else {
+            icon.frame = NSRect(x: (bounds.width - iconSide) / 2, y: (bounds.height - iconSide) / 2, width: iconSide, height: iconSide)
+        }
+    }
+}
+
+/// Le dossier des applis ouvertes qui ne sont pas dans l'espace actif : leurs icônes en miniature,
+/// en grille de deux comme un dossier d'iPhone, posées sur sa propre capsule noire.
+final class DockFolderView: NSView {
+
+    private var thumbnails: [NSImageView] = []
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func apply(items: [DockItem]) {
+        let shown = Array(items.prefix(4))
+        while thumbnails.count < shown.count {
+            let view = NSImageView()
+            view.imageScaling = .scaleProportionallyUpOrDown
+            addSubview(view)
+            thumbnails.append(view)
+        }
+        for (index, view) in thumbnails.enumerated() {
+            view.isHidden = index >= shown.count
+            if index < shown.count {
+                view.image = NSWorkspace.shared.icon(
+                    forFile: URL(fileURLWithPath: shown[index].path).resolvingSymlinksInPath().path)
+            }
+        }
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        // Quatre au plus, en deux par deux : le dossier garde une forme de carré.
+        let gap = bounds.width * 0.08
+        let side = (bounds.width - gap) / 2
+        for (index, view) in thumbnails.enumerated() {
+            let column = CGFloat(index % 2)
+            let row = CGFloat(index / 2)
+            view.frame = NSRect(x: column * (side + gap), y: bounds.height - side - row * (side + gap), width: side, height: side)
+        }
+    }
+}
+
+/// Une appli dans le panneau du dossier : son icône cliquable et son nom dessous.
+private final class DockPopoverCellView: NSView {
+    let iconView = DockIconView()
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        label.font = .systemFont(ofSize: 10)
+        label.textColor = NSColor.white.withAlphaComponent(0.75)
+        label.alignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(iconView)
+        addSubview(label)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func apply(_ item: DockItem) {
+        iconView.apply(item)
+        label.stringValue = item.name
+    }
+
+    func place(iconSize: CGFloat) {
+        label.frame = NSRect(x: 2, y: 0, width: bounds.width - 4, height: 14)
+        iconView.frame = NSRect(
+            x: (bounds.width - iconSize) / 2, y: 16, width: iconSize, height: iconSize + DockIconView.dotGap)
+    }
+}
+
+/// Contenu du panneau du dock : capsule de la couleur de l'encoche, groupe de gauche (crayon,
+/// espaces de travail, bulle), séparateur, puis les icônes. Les vues sont créées une fois et
+/// réutilisées d'une mise à jour à l'autre.
+///
+/// Les cotes sont données pour une icône de 52 pt et mises à l'échelle sur la taille d'icône du
+/// Dock macOS. La fenêtre est plus grande que la capsule : elle réserve la place où les icônes
+/// s'agrandissent au survol.
+final class DockContentView: NSView {
+
+    private static let designIconSize: CGFloat = 52
+
+    var onActivate: ((DockItem) -> Void)?
+    var onContextMenu: ((DockItem, DockIconView, NSEvent) -> Void)?
+    var onSelectWorkspace: ((String) -> Void)?
+    /// Une appli déposée dans le dock (glissée d'ici ou du Finder) à l'indice donné des épinglées.
+    var onPlaceApp: ((DockPinnedApp, Int) -> Void)?
+    /// Une icône épinglée lâchée hors du dock : elle en sort.
+    var onRemoveApp: ((DockItem, NSPoint) -> Void)?
+
+    private(set) var dockLook = DockAppearance()
+    private let backdrop = NSView()
+    /// La capsule du dossier : collée à celle du dock, de la même couleur.
+    private let folderBackdrop = NSView()
+    private let divider = NSView()
+    private var chips: [String: DockChipView] = [:]
+    private var workspaces: [DockWorkspace] = []
+    private var activeWorkspaceID: String?
+    private var iconViews: [String: DockIconView] = [:]
+    private var items: [DockItem] = []
+    private var overflow: [DockItem] = []
+    private let folderView = DockFolderView()
+    private let popover = NSView()
+    private var popoverCells: [String: DockPopoverCellView] = [:]
+    private(set) var isExpanded = false
+    private var collapseTask: Task<Void, Never>?
+    private var bouncing: Set<String> = []
+    private var hasLaidOut = false
+    /// Pendant un glisser au-dessus du dock : l'emplacement vide où l'appli va tomber.
+    private var gapIndex: Int?
+
+    // Agrandissement : le curseur et le degré d'agrandissement sont lissés image par image, pour
+    // que l'entrée et la sortie glissent au lieu de sauter.
+    private var hoverX: CGFloat?
+    private var smoothX: CGFloat?
+    private var magnify: CGFloat = 0
+    private var displayLink: CADisplayLink?
+    /// Léger agrandissement du dossier sous le curseur (0...1), lissé comme celui des icônes.
+    private var folderMagnify: CGFloat = 0
+    private var folderTarget: CGFloat = 0
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+
+        // Même fond que le panneau de l'encoche (`OverlayPalette.panelBackground`).
+        backdrop.wantsLayer = true
+        backdrop.layer?.backgroundColor = OverlayPalette.base.panelBackground
+        backdrop.layer?.borderWidth = 1
+        backdrop.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        addSubview(backdrop)
+        folderBackdrop.wantsLayer = true
+        folderBackdrop.layer?.backgroundColor = OverlayPalette.base.panelBackground
+        folderBackdrop.layer?.borderWidth = 1
+        folderBackdrop.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        folderBackdrop.isHidden = true
+        addSubview(folderBackdrop)
+
+        divider.wantsLayer = true
+        divider.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
+
+        addSubview(divider)
+        addSubview(folderView)
+        folderView.isHidden = true
+        popover.wantsLayer = true
+        popover.layer?.backgroundColor = OverlayPalette.base.panelBackground
+        popover.layer?.borderWidth = 1
+        popover.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        popover.isHidden = true
+        addSubview(popover)
+        applyScaledStyle()
+        registerForDraggedTypes([.dockApp, .fileURL])
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    // MARK: - Cotes
+
+    /// Les cotes sont celles d'un dock réel : peu d'air autour des icônes, capsule serrée.
+    private var k: CGFloat { dockLook.iconSize / Self.designIconSize }
+    private var buttonSize: CGFloat { 34 * k }
+    private var leftGap: CGFloat { 6 * k }
+    private var sidePadding: CGFloat { 12 * k }
+    private var dividerGap: CGFloat { 10 * k }
+    private var iconGap: CGFloat { 8 * k }
+    private var growth: CGFloat { dockLook.magnification ? dockLook.magnifiedSize - dockLook.iconSize : 0 }
+    private var iconRowBottom: CGFloat { 2 }
+    private var iconTopPadding: CGFloat { 6 }
+
+    /// Hauteur de la capsule : icône, point dessous, un peu d'air au-dessus.
+    var capsuleHeight: CGFloat { iconRowBottom + DockIconView.dotGap + dockLook.iconSize + iconTopPadding }
+    /// Hauteur de la fenêtre : la capsule plus la place de l'agrandissement.
+    var panelHeight: CGFloat { capsuleHeight + max(growth, overflow.isEmpty ? 0 : popoverSize.height + 8) }
+
+    // Panneau du dossier : une grille de cellules (icône + nom), cinq par rangée au plus.
+    private var popoverCellSize: NSSize { NSSize(width: dockLook.iconSize + 22, height: dockLook.iconSize + DockIconView.dotGap + 16) }
+    private var popoverColumns: Int { max(1, min(overflow.count, 5)) }
+    private var popoverSize: NSSize {
+        guard !overflow.isEmpty else { return .zero }
+        let rows = (overflow.count + popoverColumns - 1) / popoverColumns
+        return NSSize(
+            width: CGFloat(popoverColumns) * popoverCellSize.width + 24, height: CGFloat(rows) * popoverCellSize.height + 24)
+    }
+
+    /// Cadre du panneau ouvert, dans la fenêtre ; `nil` quand il est fermé.
+    var expandedPopoverRect: NSRect? { isExpanded ? popover.frame : nil }
+
+    private func chipWidths() -> [CGFloat] {
+        workspaces.map { workspace in
+            workspace.id == activeWorkspaceID
+                ? (12 * k * 2 + 16 * k + 6 * k + Self.textWidth(workspace.name, size: 13 * k)) : buttonSize
+        }
+    }
+
+    private static func textWidth(_ text: String, size: CGFloat) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: .semibold)]).width)
+    }
+
+    private var leftGroupWidth: CGFloat {
+        let widths = chipWidths()
+        return widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * leftGap
+    }
+
+    private func contentWidth(sizes: [CGFloat]) -> CGFloat {
+        let icons = sizes.reduce(0, +) + CGFloat(max(0, sizes.count - 1)) * iconGap
+        return sidePadding * 2 + leftGroupWidth + dividerGap * 2 + 1 + icons
+    }
+
+    /// La capsule du dossier : l'icône du dossier entourée du même air que celles du dock.
+    private var folderCapsuleWidth: CGFloat { dockLook.iconSize + 20 * k }
+    private var folderGap: CGFloat { 8 * k }
+    /// Place que le dossier ajoute à droite du dock.
+    private var folderExtra: CGFloat { overflow.isEmpty ? 0 : folderGap + folderCapsuleWidth }
+
+    /// Largeur de la fenêtre pour `count` icônes : le contenu au repos plus la place de la
+    /// croissance des icônes agrandies.
+    func panelWidth(forIconCount count: Int) -> CGFloat {
+        max(
+            contentWidth(sizes: Array(repeating: dockLook.iconSize, count: count)) + folderExtra + growth * 3 + dockLook.iconSize + iconGap,
+            popoverSize.width + 16)
+    }
+
+    /// Rectangle de la capsule dans la fenêtre — ce que le survol doit toucher pour révéler le dock.
+    var capsuleRect: NSRect { overflow.isEmpty ? backdrop.frame : backdrop.frame.union(folderBackdrop.frame) }
+
+    // MARK: - Mise à jour
+
+    func apply(appearance newAppearance: DockAppearance) {
+        guard newAppearance != dockLook else { return }
+        dockLook = newAppearance
+        applyScaledStyle()
+        needsLayout = true
+    }
+
+    private func applyScaledStyle() {
+        backdrop.layer?.cornerRadius = 20 * k
+        folderBackdrop.layer?.cornerRadius = 20 * k
+        refreshChips()
+    }
+
+    func apply(workspaces newWorkspaces: [DockWorkspace], activeID: String?) {
+        let ids = Set(newWorkspaces.map(\.id))
+        for (id, chip) in chips where !ids.contains(id) {
+            chip.removeFromSuperview()
+            chips[id] = nil
+        }
+        for workspace in newWorkspaces where chips[workspace.id] == nil {
+            let chip = DockChipView()
+            chip.onClick = { [weak self] in self?.onSelectWorkspace?(workspace.id) }
+            addSubview(chip)
+            chips[workspace.id] = chip
+        }
+        workspaces = newWorkspaces
+        activeWorkspaceID = activeID
+        refreshChips()
+    }
+
+    private func refreshChips() {
+        for workspace in workspaces {
+            chips[workspace.id]?.apply(workspace, isActive: workspace.id == activeWorkspaceID, scale: k)
+        }
+    }
+
+    private func item(withID id: String) -> DockItem? {
+        items.first { $0.id == id } ?? overflow.first { $0.id == id }
+    }
+
+    func apply(items newItems: [DockItem], overflow newOverflow: [DockItem]) {
+        let ids = Set(newItems.map(\.id))
+        for (id, view) in iconViews where !ids.contains(id) {
+            iconViews[id] = nil
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = hasLaidOut ? 0.2 : 0
+                view.animator().alphaValue = 0
+            }, completionHandler: { view.removeFromSuperview() })
+        }
+        for item in newItems {
+            let isNew = iconViews[item.id] == nil
+            let view = iconViews[item.id] ?? makeIconView(for: item.id)
+            view.apply(item)
+            if isNew && hasLaidOut { view.alphaValue = 0 }
+        }
+        items = newItems
+        syncBouncing()
+        applyOverflow(newOverflow)
+    }
+
+    private func applyOverflow(_ newOverflow: [DockItem]) {
+        overflow = newOverflow
+        folderView.isHidden = overflow.isEmpty
+        folderBackdrop.isHidden = overflow.isEmpty
+        folderView.apply(items: overflow)
+        let ids = Set(overflow.map(\.id))
+        for (id, cell) in popoverCells where !ids.contains(id) {
+            cell.removeFromSuperview()
+            popoverCells[id] = nil
+        }
+        for item in overflow {
+            let cell = popoverCells[item.id] ?? {
+                let created = DockPopoverCellView()
+                configure(created.iconView, id: item.id)
+                popover.addSubview(created)
+                popoverCells[item.id] = created
+                return created
+            }()
+            cell.apply(item)
+        }
+        if overflow.isEmpty && isExpanded {
+            isExpanded = false
+            popover.isHidden = true
+        }
+    }
+
+    private func makeIconView(for id: String) -> DockIconView {
+        let view = DockIconView()
+        configure(view, id: id)
+        addSubview(view)
+        iconViews[id] = view
+        return view
+    }
+
+    private func configure(_ view: DockIconView, id: String) {
+        view.onClick = { [weak self] in
+            guard let self, let item = self.item(withID: id) else { return }
+            self.onActivate?(item)
+        }
+        view.onDragOut = { [weak self] point in
+            guard let self, let item = self.item(withID: id), item.isPinned else { return }
+            self.onRemoveApp?(item, point)
+        }
+        view.onContextMenu = { [weak self, weak view] event in
+            guard let self, let view, let item = self.item(withID: id) else { return }
+            self.onContextMenu?(item, view, event)
+        }
+    }
+
+    func setBouncing(_ ids: Set<String>) {
+        bouncing = ids
+        syncBouncing()
+    }
+
+    private func syncBouncing() {
+        for (id, view) in iconViews { view.setBouncing(bouncing.contains(id)) }
+    }
+
+    // MARK: - Agrandissement au survol
+
+    /// Position du curseur dans la vue, ou `nil` hors du dock. C'est le contrôleur qui la fournit, à
+    /// partir de la position globale du curseur : les marges transparentes des icônes ne livrent
+    /// pas d'événements de souris, et une zone de survol propre à la vue clignoterait.
+    func setHover(_ point: NSPoint?) {
+        updateFolder(with: point)
+        // Les icônes ne s'agrandissent que sous le curseur qui les survole : ni au-dessus du panneau du
+        // dossier, ni sur le dossier lui-même, ni au-delà de la rangée — sinon la dernière icône gonflait
+        // quand on visait le dossier, jusque sur le panneau ouvert.
+        guard let point else {
+            setFolderTarget(0)
+            setMagnifyX(nil)
+            return
+        }
+        let overFolder = !overflow.isEmpty && folderBackdrop.frame.insetBy(dx: -4, dy: -6).contains(point)
+        setFolderTarget(overFolder && dockLook.magnification ? 1 : 0)
+        let overPopover = isExpanded && popover.frame.insetBy(dx: -8, dy: -8).contains(point)
+        let rowStart = restRowStart()
+        let rowEnd = rowStart + CGFloat(items.count) * (dockLook.iconSize + iconGap)
+        let inRow = point.x >= rowStart - iconGap && point.x <= rowEnd
+        setMagnifyX(overFolder || overPopover || !inRow ? nil : point.x)
+    }
+
+    private func setMagnifyX(_ x: CGFloat?) {
+        guard dockLook.magnification || hoverX != nil else { return }
+        hoverX = x
+        if let x, smoothX == nil { smoothX = x }
+        startTicking()
+    }
+
+    private func setFolderTarget(_ target: CGFloat) {
+        guard target != folderTarget else { return }
+        folderTarget = target
+        startTicking()
+    }
+
+    private func startTicking() {
+        guard displayLink == nil else { return }
+        let link = displayLink(target: self, selector: #selector(tick(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    // MARK: - Dossier
+
+    /// Le panneau s'ouvre dès que le curseur touche le dossier et reste ouvert tant qu'il est sur le
+    /// dossier ou sur lui ; il se referme un instant après — le temps de traverser l'espace entre les deux.
+    private func updateFolder(with point: NSPoint?) {
+        guard !overflow.isEmpty, let point else {
+            scheduleCollapse()
+            return
+        }
+        let overFolder = folderBackdrop.frame.insetBy(dx: -4, dy: -6).contains(point)
+        let overPopover = isExpanded && popover.frame.insetBy(dx: -8, dy: -8).contains(point)
+        if overFolder || overPopover {
+            collapseTask?.cancel()
+            collapseTask = nil
+            if !isExpanded { expand() }
+        } else {
+            scheduleCollapse()
+        }
+    }
+
+    private func expand() {
+        isExpanded = true
+        layoutPopover()
+        popover.isHidden = false
+        popover.alphaValue = 0
+        let rise = CABasicAnimation(keyPath: "transform.translation.y")
+        rise.fromValue = -10
+        rise.toValue = 0
+        rise.duration = 0.2
+        rise.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        popover.layer?.add(rise, forKey: "rise")
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            popover.animator().alphaValue = 1
+        }
+    }
+
+    private func scheduleCollapse() {
+        guard isExpanded, collapseTask == nil else { return }
+        collapseTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, let self else { return }
+            self.collapseTask = nil
+            self.isExpanded = false
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.15
+                self.popover.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, !self.isExpanded else { return }
+                    self.popover.isHidden = true
+                }
+            })
+        }
+    }
+
+    private func layoutPopover() {
+        let size = popoverSize
+        let target = NSRect(
+            x: max(4, min(folderView.frame.maxX + 6 - size.width, bounds.width - size.width - 4)),
+            y: capsuleHeight + 8, width: size.width, height: size.height)
+        popover.frame = target
+        popover.layer?.cornerRadius = 20 * k
+        let cell = popoverCellSize
+        let rows = (overflow.count + popoverColumns - 1) / popoverColumns
+        for (index, item) in overflow.enumerated() {
+            guard let view = popoverCells[item.id] else { continue }
+            view.frame = NSRect(
+                x: 12 + CGFloat(index % popoverColumns) * cell.width,
+                y: 12 + CGFloat(rows - 1 - index / popoverColumns) * cell.height, width: cell.width, height: cell.height)
+            view.place(iconSize: dockLook.iconSize)
+        }
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        let dt = max(0.001, link.targetTimestamp - link.timestamp)
+        let target: CGFloat = hoverX == nil ? 0 : 1
+        magnify += (target - magnify) * CGFloat(1 - exp(-dt * 16))
+        if let hoverX, let current = smoothX {
+            smoothX = current + (hoverX - current) * CGFloat(1 - exp(-dt * 40))
+        }
+        folderMagnify += (folderTarget - folderMagnify) * CGFloat(1 - exp(-dt * 16))
+        let folderSettled = abs(folderTarget - folderMagnify) < 0.003
+        let settled = abs(target - magnify) < 0.003 && folderSettled && (hoverX == nil || abs((smoothX ?? 0) - (hoverX ?? 0)) < 0.2)
+        if settled {
+            folderMagnify = folderTarget
+            magnify = target
+            if let hoverX { smoothX = hoverX } else { smoothX = nil }
+        }
+        layoutIcons(animated: false)
+        if settled {
+            link.invalidate()
+            displayLink = nil
+        }
+    }
+
+    /// Début de la rangée d'icônes quand tout est au repos.
+    private func restRowStart() -> CGFloat {
+        let restWidth = contentWidth(sizes: Array(repeating: dockLook.iconSize, count: items.count)) + folderExtra
+        let restOrigin = (bounds.width - restWidth) / 2
+        return restOrigin + sidePadding + leftGroupWidth + dividerGap * 2 + 1
+    }
+
+    /// Taille de chaque icône : cosinus sur 2,5 pas autour du curseur, calculé sur la disposition
+    /// au repos pour que le résultat ne dépende pas de l'agrandissement déjà appliqué.
+    private func iconSizes() -> [CGFloat] {
+        let base = dockLook.iconSize
+        guard dockLook.magnification, magnify > 0, gapIndex == nil, let cursor = smoothX else { return Array(repeating: base, count: items.count) }
+        let first = restRowStart()
+        let pitch = base + iconGap
+        let radius = pitch * 2.5
+        return items.indices.map { index in
+            let center = first + CGFloat(index) * pitch + base / 2
+            let t = min(1, abs(center - cursor) / radius)
+            return base + (dockLook.magnifiedSize - base) * 0.5 * (1 + cos(.pi * t)) * magnify
+        }
+    }
+
+    /// Décalage horizontal qui garde sous le curseur le point de la rangée qu'il visait au repos :
+    /// sans lui, la rangée s'élargit autour de son centre et l'icône agrandie glisse hors du curseur.
+    private func anchorShift(sizes: [CGFloat], capsuleX: CGFloat) -> CGFloat {
+        guard let cursor = smoothX, dockLook.magnification, magnify > 0, gapIndex == nil, !items.isEmpty else { return 0 }
+        let base = dockLook.iconSize
+        let pitch = base + iconGap
+        let rel = (cursor - restRowStart()) / pitch
+        guard rel >= 0, rel < CGFloat(items.count) else { return 0 }
+        let index = Int(rel)
+        let offset = (rel - CGFloat(index)) * pitch
+        let within = offset <= base ? offset / base * sizes[index] : sizes[index] + (offset - base)
+        let before = sizes[..<index].reduce(0, +) + CGFloat(index) * iconGap
+        let rowStart = capsuleX + sidePadding + leftGroupWidth + dividerGap * 2 + 1
+        return cursor - (rowStart + before + within)
+    }
+
+    // MARK: - Disposition
+
+    override func layout() {
+        super.layout()
+        layoutIcons(animated: false)
+    }
+
+    /// Replace tout en une fois. `shiftingBy` compense un déplacement de la fenêtre : les vues partent
+    /// de leur place à l'écran d'avant pour glisser vers la nouvelle, au lieu de sauter.
+    func relayout(shiftingBy dx: CGFloat = 0, animated: Bool) {
+        let animate = animated && hasLaidOut
+        if animate && dx != 0 {
+            for view in subviews where view.alphaValue > 0 { view.frame.origin.x += dx }
+        }
+        layoutIcons(animated: animate)
+    }
+
+    private func layoutIcons(animated: Bool) {
+        var sizes = iconSizes()
+        // Un glisser en cours : un emplacement vide s'ouvre là où l'appli va tomber.
+        let slot = gapIndex.map { min($0, sizes.count) }
+        if let slot { sizes.insert(dockLook.iconSize, at: slot) }
+        let width = contentWidth(sizes: sizes)
+        // Le dock et son dossier se centrent ensemble.
+        let total = width + folderExtra
+        var capsuleX = (bounds.width - total) / 2
+        capsuleX += anchorShift(sizes: sizes, capsuleX: capsuleX)
+        capsuleX = max(0, min(capsuleX, bounds.width - total))
+        // La capsule colle au bas de la fenêtre : au-dessus d'elle, la réserve d'agrandissement.
+        let capsule = NSRect(x: capsuleX, y: 0, width: width, height: capsuleHeight)
+        let midY = iconRowBottom + DockIconView.dotGap + dockLook.iconSize / 2
+
+        var frames: [(NSView, NSRect)] = [(backdrop, capsule)]
+        var x = capsule.minX + sidePadding
+        let widths = chipWidths()
+        for (index, workspace) in workspaces.enumerated() {
+            guard let chip = chips[workspace.id] else { continue }
+            frames.append((chip, NSRect(x: x, y: midY - buttonSize / 2, width: widths[index], height: buttonSize)))
+            x += widths[index] + leftGap
+        }
+        x += dividerGap - leftGap
+        frames.append((divider, NSRect(x: x, y: midY - 18 * k, width: 1, height: 36 * k)))
+        x += 1 + dividerGap
+        for index in sizes.indices {
+            let size = sizes[index]
+            defer { x += size + iconGap }
+            if index == slot { continue }
+            let itemIndex = (slot != nil && index > slot!) ? index - 1 : index
+            guard items.indices.contains(itemIndex), let view = iconViews[items[itemIndex].id] else { continue }
+            let frame = NSRect(x: x, y: iconRowBottom, width: size, height: size + DockIconView.dotGap)
+            // Une icône qui arrive monte légèrement de sa position finale en apparaissant.
+            if animated && view.alphaValue == 0 { view.frame = frame.offsetBy(dx: 0, dy: -12) }
+            frames.append((view, frame))
+        }
+        if !overflow.isEmpty {
+            let base = NSRect(x: capsule.maxX + folderGap, y: 0, width: folderCapsuleWidth, height: capsuleHeight)
+            let inner = NSRect(
+                x: base.minX + 10 * k, y: iconRowBottom + DockIconView.dotGap, width: dockLook.iconSize, height: dockLook.iconSize)
+            // Léger agrandissement au survol, autour du bas-centre de la capsule : il s'élève comme une icône.
+            let scale = 1 + 0.14 * folderMagnify
+            let anchor = NSPoint(x: base.midX, y: 0)
+            func scaled(_ rect: NSRect) -> NSRect {
+                NSRect(
+                    x: anchor.x + (rect.minX - anchor.x) * scale, y: anchor.y + (rect.minY - anchor.y) * scale,
+                    width: rect.width * scale, height: rect.height * scale)
+            }
+            frames.append((folderBackdrop, scaled(base)))
+            frames.append((folderView, scaled(inner)))
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = animated ? 0.28 : 0
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.allowsImplicitAnimation = animated
+            for (view, frame) in frames {
+                if animated {
+                    view.animator().frame = frame
+                    if view is DockIconView { view.animator().alphaValue = 1 }
+                } else {
+                    view.frame = frame
+                    if view is DockIconView && view.alphaValue == 0 && iconViews.values.contains(where: { $0 === view }) { view.alphaValue = 1 }
+                }
+            }
+        }
+        hasLaidOut = true
+        if !overflow.isEmpty { layoutPopover() }
+    }
+
+    // MARK: - Dépôt d'applis
+
+    /// L'indice d'insertion parmi les épinglées : le nombre d'icônes (au repos) dont le centre est à
+    /// gauche du curseur, sans dépasser la dernière épinglée — les applis seulement lancées restent après.
+    private func insertionIndex(for sender: NSDraggingInfo) -> Int {
+        let x = convert(sender.draggingLocation, from: nil).x
+        let first = restRowStart()
+        let pitch = dockLook.iconSize + iconGap
+        let pinnedCount = items.filter(\.isPinned).count
+        let before = items.indices.filter { first + CGFloat($0) * pitch + dockLook.iconSize / 2 < x }.count
+        return min(before, pinnedCount)
+    }
+
+    private func droppedApp(from pasteboard: NSPasteboard) -> DockPinnedApp? {
+        if let app = DockAppDrag.app(from: pasteboard) { return app }
+        // Une appli glissée depuis le Finder : un fichier `.app`.
+        guard let url = (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])?.first(where: { $0.pathExtension == "app" }),
+              let bundleID = Bundle(url: url)?.bundleIdentifier
+        else { return nil }
+        return DockPinnedApp(bundleID: bundleID, path: url.path)
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard droppedApp(from: sender.draggingPasteboard) != nil else { return [] }
+        let index = insertionIndex(for: sender)
+        if index != gapIndex {
+            gapIndex = index
+            layoutIcons(animated: true)
+        }
+        return sender.draggingSourceOperationMask.contains(.move) ? .move : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) { clearGap() }
+    override func draggingEnded(_ sender: NSDraggingInfo) { clearGap() }
+
+    private func clearGap() {
+        guard gapIndex != nil else { return }
+        gapIndex = nil
+        layoutIcons(animated: true)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let app = droppedApp(from: sender.draggingPasteboard) else { return false }
+        let index = insertionIndex(for: sender)
+        gapIndex = nil
+        onPlaceApp?(app, index)
+        return true
+    }
+}

@@ -17,6 +17,8 @@ final class NotchPanelController {
     // le dépôt (voir `handleCursor(at:)`).
     private let mouseMonitor = GlobalMouseMonitor(tracksDrags: true)
     private let storage: SettingsStorage
+    private let appLauncher = AppLauncher()
+    private var launchListCancellable: AnyCancellable?
 
     /// Indexés par `CGDirectDisplayID` et non par position dans `NSScreen.screens`, qui change
     /// dès qu'un écran est branché ou débranché.
@@ -95,6 +97,13 @@ final class NotchPanelController {
             .removeDuplicates()
             .sink { [weak self] enabled in
                 enabled ? self?.start() : self?.stop()
+            }
+
+        launchListCancellable = storage.$settings
+            .map(\.dock.launchApps)
+            .removeDuplicates()
+            .sink { [weak self] apps in
+                self?.windows.values.forEach { $0.canLaunchAll = !apps.isEmpty }
             }
 
         // La forme sur écran sans encoche se règle à chaud : les fenêtres existantes sont
@@ -389,6 +398,12 @@ final class NotchPanelController {
                 // l'app, donc le curseur a quitté le haut de l'écran et le suivi repliera le
                 // panneau de lui-même.
                 window.onOpenSettings = { SettingsWindowController.shared.show() }
+                // La liste est relue au clic : `$settings` publie avant l'écriture.
+                window.onLaunchAll = { [weak self] in
+                    guard let self else { return }
+                    self.appLauncher.launchAll(self.storage.settings.dock.launchApps)
+                }
+                window.canLaunchAll = !storage.settings.dock.launchApps.isEmpty
                 window.apply(usageState: usageState, animated: false)
                 window.apply(copilotUsageState: copilotUsageState)
                 window.onRefreshUsage = onRefreshUsage

@@ -151,6 +151,8 @@ struct AppSettings: Codable, Equatable, Sendable {
     var notchPanel = NotchPanelSettings()
     var knock = KnockSettings()
     var spotify = SpotifySettings()
+    var dock = DockSettings()
+    var radialMenu = RadialMenuSettings()
 
     static let `default` = AppSettings()
 }
