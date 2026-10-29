@@ -145,6 +145,8 @@ extension AppSettings {
         case notchPanel
         case knock
         case spotify
+        case dock
+        case radialMenu
     }
 
     init(from decoder: Decoder) throws {
@@ -156,7 +158,158 @@ extension AppSettings {
             edgeSlider: container.value(.edgeSlider, defaults.edgeSlider),
             notchPanel: container.value(.notchPanel, defaults.notchPanel),
             knock: container.value(.knock, defaults.knock),
-            spotify: container.value(.spotify, defaults.spotify)
+            spotify: container.value(.spotify, defaults.spotify),
+            dock: container.value(.dock, defaults.dock),
+            radialMenu: container.value(.radialMenu, defaults.radialMenu)
+        )
+    }
+}
+
+extension DockPinnedApp {
+    enum CodingKeys: String, CodingKey {
+        case bundleID
+        case path
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            bundleID: container.value(.bundleID, ""),
+            path: container.value(.path, "")
+        )
+    }
+}
+
+extension SavedSystemDock {
+    enum CodingKeys: String, CodingKey {
+        case autohide
+        case autohideDelay
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            autohide: container.value(.autohide, nil as Bool?),
+            autohideDelay: container.value(.autohideDelay, nil as Double?)
+        )
+    }
+}
+
+extension DockSettings {
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case hideSystemDock
+        case pinnedApps
+        case didSeedPinnedApps
+        case savedSystemDock
+        case toggleHotkey
+        case autoHide
+        case workspaces
+        case activeWorkspaceID
+        case launchExcluded
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = DockSettings()
+        self.init(
+            enabled: container.value(.enabled, defaults.enabled),
+            hideSystemDock: container.value(.hideSystemDock, defaults.hideSystemDock),
+            pinnedApps: container.value(.pinnedApps, defaults.pinnedApps),
+            didSeedPinnedApps: container.value(.didSeedPinnedApps, defaults.didSeedPinnedApps),
+            savedSystemDock: container.value(.savedSystemDock, defaults.savedSystemDock),
+            toggleHotkey: container.value(.toggleHotkey, defaults.toggleHotkey),
+            autoHide: container.value(.autoHide, defaults.autoHide),
+            workspaces: container.value(.workspaces, defaults.workspaces),
+            activeWorkspaceID: container.value(.activeWorkspaceID, defaults.activeWorkspaceID),
+            launchExcluded: container.value(.launchExcluded, defaults.launchExcluded)
+        )
+    }
+}
+
+extension DockWorkspace {
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case symbol
+        case colorHex
+        case apps
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = DockWorkspace()
+        self.init(
+            id: container.value(.id, defaults.id),
+            name: container.value(.name, defaults.name),
+            symbol: container.value(.symbol, defaults.symbol),
+            colorHex: container.value(.colorHex, defaults.colorHex),
+            apps: container.value(.apps, defaults.apps)
+        )
+    }
+}
+
+extension DockHotkey {
+    enum CodingKeys: String, CodingKey {
+        case keyCode
+        case keyLabel
+        case modifiers
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = DockHotkey()
+        self.init(
+            keyCode: container.value(.keyCode, defaults.keyCode),
+            keyLabel: container.value(.keyLabel, defaults.keyLabel),
+            modifiers: container.value(.modifiers, defaults.modifiers)
+        )
+    }
+}
+
+extension RadialMenuItem {
+    enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case name
+        case bundleID
+        case path
+    }
+
+    /// Un type inconnu (relu d'une version future) fait lever : l'élément est alors écarté par
+    /// `RadialMenuSettings`, sans perdre les autres.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: container.value(.id, UUID().uuidString),
+            kind: try container.decode(Kind.self, forKey: .kind),
+            name: container.value(.name, ""),
+            bundleID: container.value(.bundleID, ""),
+            path: container.value(.path, "")
+        )
+    }
+}
+
+extension RadialMenuSettings {
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case button
+        case items
+    }
+
+    private struct Lossy: Decodable {
+        let item: RadialMenuItem?
+        init(from decoder: Decoder) throws { item = try? RadialMenuItem(from: decoder) }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = RadialMenuSettings()
+        let items = ((try? container.decodeIfPresent([Lossy].self, forKey: .items)) ?? nil)?.compactMap(\.item)
+        self.init(
+            enabled: container.value(.enabled, defaults.enabled),
+            button: container.value(.button, defaults.button),
+            items: items ?? defaults.items
         )
     }
 }
