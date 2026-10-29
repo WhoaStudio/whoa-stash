@@ -62,6 +62,7 @@ final class NotchPanelContentView: NSView {
     private let calendarTab = NSView()
     private let calendarWidget = CalendarWidgetView()
     private let fileTray = FileTrayView()
+    private let transformView = ImageTransformView()
     /// L'onglet Clipboard : historique des copies, nourri par `apply(clipboardItems:)`.
     private let clipboardTab = ClipboardTabView()
 
@@ -86,6 +87,9 @@ final class NotchPanelContentView: NSView {
             provider: MockCameraMirrorProvider.fromLaunchArguments() ?? AVCameraMirrorService()))
 
     private var selectedTab: NotchTab = .global
+
+    /// Balayage d'onglet en cours (trackpad ou glisser à la souris).
+    private var swipe = TabSwipeTracker()
 
     /// Place de repos de la capsule, relevée à chaque mise en page : c'est de là qu'elle part
     /// en sortant, et c'est là qu'elle revient en entrant.
@@ -162,6 +166,9 @@ final class NotchPanelContentView: NSView {
         calendarTab.addSubview(calendarWidget)
         contentContainer.addSubview(calendarTab)
         contentContainer.addSubview(fileTray)
+        transformView.isHidden = true
+        transformView.onClose = { [weak self] in self?.closeTransform(animated: true) }
+        contentContainer.addSubview(transformView)
         contentContainer.addSubview(clipboardTab)
         gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
         contentContainer.addSubview(gearButton)
@@ -220,8 +227,8 @@ final class NotchPanelContentView: NSView {
         // Le cadre visé ne suffit pas pendant le glissement d'un onglet à l'autre : la capsule
         // est encore peinte à son ancienne place, et le curseur posé dessus ne doit pas
         // refermer le panneau.
-        NotchPanelGeometry.panelRect(in: bounds, tab: selectedTab)
-            .union(NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab))
+        NotchPanelGeometry.panelRect(in: bounds, tab: selectedTab, extraHeight: panelExtraHeight)
+            .union(NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab, extraHeight: panelExtraHeight))
             .union(capsuleOnScreenFrame)
     }
 
@@ -264,6 +271,7 @@ final class NotchPanelContentView: NSView {
 
     func select(_ tab: NotchTab, animated: Bool) {
         guard tab != selectedTab else { return }
+        closeTransform(animated: false)
         selectedTab = tab
         capsule.select(tab, animated: animated)
         applySelection(animated: animated)
@@ -335,10 +343,90 @@ final class NotchPanelContentView: NSView {
         return CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }
 
+    // MARK: - Balayage d'onglets
+
+    /// Balayage à deux doigts. Les vues qui défilent d'elles-mêmes (la semaine, le presse-papiers)
+    /// consomment leurs événements et ne les relaient pas ici ; ne reste que le fond du panneau
+    /// et ce que ces vues ne savent pas défiler. Les molettes sans phase (souris) sont ignorées :
+    /// à la souris, on glisse.
+    override func scrollWheel(with event: NSEvent) {
+        guard isExpanded, event.hasPreciseScrollingDeltas, !event.phase.isEmpty else {
+            super.scrollWheel(with: event)
+            return
+        }
+        if event.phase.contains(.began) { swipe.cancel() }
+        if event.phase.contains(.cancelled) {
+            swipe.cancel()
+            settleSwipe(direction: nil)
+            return
+        }
+
+        if swipe.move(dx: event.scrollingDeltaX, dy: event.scrollingDeltaY) {
+            followSwipe()
+        } else if !swipe.isSwiping {
+            super.scrollWheel(with: event)
+        }
+        if event.phase.contains(.ended) {
+            settleSwipe(direction: swipe.end())
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        swipe.cancel()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isExpanded else { return }
+        if swipe.move(dx: event.deltaX, dy: -event.deltaY) { followSwipe() }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard swipe.isSwiping else {
+            swipe.cancel()
+            return
+        }
+        settleSwipe(direction: swipe.end())
+    }
+
+    /// L'onglet affiché suit le doigt, atténué pour qu'on sente qu'il va partir. La résistance
+    /// croît aux deux bouts de la rangée, où il n'y a pas d'onglet voisin.
+    private func followSwipe() {
+        guard let layer = contentView(for: selectedTab).layer else { return }
+        let direction: TabSwipeTracker.Direction = swipe.offset < 0 ? .next : .previous
+        let resistance: CGFloat = selectedTab.neighbor(direction) == nil ? 0.25 : 1
+        let shift = swipe.offset * resistance
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = CATransform3DMakeTranslation(shift, 0, 0)
+        layer.opacity = Float(max(0.3, 1 - abs(shift) / 300))
+        CATransaction.commit()
+    }
+
+    /// Fin du geste : change d'onglet si un voisin existe, sinon ramène l'onglet à sa place.
+    private func settleSwipe(direction: TabSwipeTracker.Direction?) {
+        let current = contentView(for: selectedTab)
+        resetSwipeOffset(of: current, animated: true)
+        guard let direction, let target = selectedTab.neighbor(direction) else { return }
+        current.layer?.removeAllAnimations()
+        current.layer?.transform = CATransform3DIdentity
+        select(target, animated: true)
+    }
+
+    private func resetSwipeOffset(of view: NSView, animated: Bool) {
+        guard let layer = view.layer else { return }
+        let hadOffset = !CATransform3DIsIdentity(layer.transform)
+        layer.transform = CATransform3DIdentity
+        layer.opacity = 1
+        guard animated, hadOffset, OverlayAnimation.isEnabled else { return }
+        layer.springAnimate(keyPath: "transform.translation.x", to: 0, preset: .gentle)
+    }
+
     // MARK: - Dépôt
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         guard fileTray.canAccept(sender) else { return [] }
+        // Un nouveau glisser ferme la vue Transform : c'est de nouveau le bac qui reçoit.
+        closeTransform(animated: true)
         // Un glisser qui arrive sur le panneau vient pour le bac : il passe devant, quel que
         // soit l'onglet affiché jusque-là. C'est aussi ce qui garantit qu'il est bien là, et
         // visible, au moment où le fichier tombe.
@@ -354,24 +442,42 @@ final class NotchPanelContentView: NSView {
     /// Montre les zones du bac et allume celle sous le curseur.
     private func updateTrayDrag(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let target = fileTray.dropTarget(for: sender, in: self)
-        fileTray.setDragActive(true, fromTray: fileTray.isFromTray(sender), hovered: target)
+        fileTray.setDragActive(
+            true,
+            fromTray: fileTray.isFromTray(sender),
+            hovered: target,
+            imageFormat: fileTray.imageFormat(of: sender)
+        )
+        setConversionRowVisible(fileTray.hasConversionRow)
         return .copy
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
         fileTray.setDragActive(false)
+        setConversionRowVisible(false)
     }
 
     override func draggingEnded(_ sender: any NSDraggingInfo) {
         fileTray.setDragActive(false)
+        setConversionRowVisible(false)
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         let target = fileTray.dropTarget(for: sender, in: self)
         fileTray.setDragActive(false)
+        if target == .transform {
+            guard let url = fileTray.transformSource(sender) else {
+                setConversionRowVisible(false)
+                return false
+            }
+            showTransform(url)
+            return true
+        }
+        setConversionRowVisible(false)
         return switch target {
         case .keep: fileTray.accept(sender)
         case .airDrop: fileTray.airDrop(sender)
+        case .transform: false
         }
     }
 
@@ -388,7 +494,7 @@ final class NotchPanelContentView: NSView {
         let panel = panelRect
         contentContainer.frame = bounds
 
-        capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab)
+        capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab, extraHeight: panelExtraHeight)
         // La place de repos est relevée ici, une fois le cadre posé et avant que l'entrée ou la
         // sortie ne décale le calque : c'est le point d'arrivée de la course, et il ne peut pas
         // être lu plus tard, quand la capsule est justement ailleurs.
@@ -410,7 +516,60 @@ final class NotchPanelContentView: NSView {
 
     /// Le panneau de l'onglet affiché, dans le repère de cette vue.
     private var panelRect: CGRect {
-        NotchPanelGeometry.panelRect(in: bounds, tab: selectedTab)
+        NotchPanelGeometry.panelRect(in: bounds, tab: selectedTab, extraHeight: panelExtraHeight)
+    }
+
+    /// Vrai le temps qu'une image du bac est glissée : le panneau Tray grandit pour montrer la
+    /// rangée de conversion, et reprend sa hauteur quand le glisser finit ou s'annule.
+    private var isShowingConversionRow = false
+
+    /// L'image que la vue Transform est en train de traiter, `nil` quand elle est fermée. Elle
+    /// prend la place du bac, et le panneau grandit pour elle.
+    private var transformSourceURL: URL?
+
+    private var panelExtraHeight: CGFloat {
+        guard selectedTab == .tray else { return 0 }
+        if transformSourceURL != nil { return NotchPanelGeometry.transformExtraHeight }
+        return isShowingConversionRow ? NotchPanelGeometry.trayConversionExtraHeight : 0
+    }
+
+    /// Fait grandir ou rétrécir le panneau pour la rangée de conversion, avec la même animation
+    /// qu'un changement d'onglet.
+    private func setConversionRowVisible(_ visible: Bool) {
+        guard visible != isShowingConversionRow else { return }
+        isShowingConversionRow = visible
+        refreshPanelHeight(animated: true)
+    }
+
+    private func refreshPanelHeight(animated: Bool) {
+        layoutTabBodies()
+        moveCapsuleToSelectedTab(animated: animated)
+        if isExpanded { applyShape(expanded: true, animated: animated) }
+    }
+
+    /// Ouvre la vue Transform sur une image du bac : elle remplace le bac, et masque l'engrenage
+    /// et la capsule, qu'elle recouvrirait.
+    private func showTransform(_ url: URL) {
+        isShowingConversionRow = false
+        transformSourceURL = url
+        transformView.show(url: url)
+        applyTransformVisibility()
+        refreshPanelHeight(animated: true)
+    }
+
+    private func closeTransform(animated: Bool) {
+        guard transformSourceURL != nil else { return }
+        transformSourceURL = nil
+        applyTransformVisibility()
+        refreshPanelHeight(animated: animated)
+    }
+
+    private func applyTransformVisibility() {
+        let open = transformSourceURL != nil
+        transformView.isHidden = !open
+        fileTray.isHidden = open || selectedTab != .tray
+        gearButton.isHidden = open
+        capsule.isHidden = open
     }
 
     /// Corps des onglets : tout l'intérieur du panneau. Les onglets l'occupent en entier et se
@@ -430,6 +589,7 @@ final class NotchPanelContentView: NSView {
         for view in tabContentViews {
             view.frame = body
         }
+        transformView.frame = body
 
         // Dans le repère de `globalTab`, la semaine prend toute la largeur utile.
         let weekHeight = NotchPanelGeometry.weekStripHeight
@@ -469,7 +629,7 @@ final class NotchPanelContentView: NSView {
     private func moveCapsuleToSelectedTab(animated: Bool) {
         guard let layer = capsule.layer else { return }
         let previous = layer.position
-        capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab)
+        capsule.frame = NotchPanelGeometry.capsuleRect(in: bounds, tab: selectedTab, extraHeight: panelExtraHeight)
         let target = layer.position
         capsuleRestingPosition = target
         guard isExpanded else { return }
@@ -655,6 +815,7 @@ final class NotchPanelContentView: NSView {
     func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
+        if !expanded { closeTransform(animated: false) }
         if expanded {
             hideDeviceStatus(animated: animated)
             nowPlayingRow.refreshVolume()

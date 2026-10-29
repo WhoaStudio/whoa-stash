@@ -21,14 +21,13 @@ enum ClaudeUsageCredentialError: LocalizedError {
 /// Lit le jeton OAuth que Claude Code dépose dans le trousseau de l'utilisateur, sous un item
 /// générique dont le service commence par `Claude Code-credentials`.
 ///
-/// L'ACL de cet item appartient à Claude Code : à la première lecture, macOS affiche donc une
-/// autorisation à accorder. Il n'y a rien à faire pour l'éviter — c'est exactement la protection
-/// qui empêche n'importe quel process de lire le jeton — et l'app doit rester fonctionnelle si
-/// l'utilisateur refuse, d'où `ClaudeUsageState.unavailable`.
+/// L'ACL de cet item appartient à Claude Code et n'autorise que `/usr/bin/security`. Lu
+/// directement, il déclencherait une invite du trousseau après chaque rafraîchissement du jeton
+/// par Claude Code ; on passe donc par `/usr/bin/security`, comme Claude Code lui-même (détails
+/// sur `readPayload`). L'app doit rester fonctionnelle si la lecture échoue, d'où
+/// `ClaudeUsageState.unavailable`.
 ///
-/// Ce qu'on peut éviter, c'est de la *redemander*. L'autorisation accordée est attachée à l'item,
-/// pas au nom du service : quand Claude Code en dépose un nouveau, elle est perdue et la lecture
-/// suivante la redemande. Deux précautions en découlent :
+/// Deux précautions en plus :
 ///
 /// - une lecture par jeton, pas une par rafraîchissement (`TokenCache`) ;
 /// - l'item est repéré par préfixe de service et non par nom exact, pour suivre Claude Code quand
@@ -132,25 +131,39 @@ struct ClaudeUsageCredentialStore {
         return newest
     }
 
-    /// Lecture effective des données — c'est le seul appel qui peut demander une autorisation.
+    /// Lecture effective des données, déléguée à `/usr/bin/security` — comme le fait Claude Code.
+    ///
+    /// Un `SecItemCopyMatching` direct redemanderait l'autorisation après chaque rafraîchissement
+    /// du jeton : Claude Code réécrit l'item avec `security add-generic-password -U`, ce qui ramène
+    /// sa liste de partitions à `apple-tool:` et efface le `teamid:` ajouté par « Toujours
+    /// autoriser ». `/usr/bin/security` figure dans l'ACL de l'item et relève de `apple-tool:` :
+    /// il le lit sans invite.
     private func readPayload(from ref: ItemRef) throws -> Payload {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: ref.service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        var arguments = ["find-generic-password", "-s", ref.service]
         // Le compte lève l'ambiguïté si le même service existe pour plusieurs comptes.
         if let account = ref.account {
-            query[kSecAttrAccount as String] = account
+            arguments += ["-a", account]
         }
+        arguments.append("-w")
 
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            throw ClaudeUsageCredentialError.unreadable(errSecInternalComponent)
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
 
-        guard status != errSecItemNotFound else { throw ClaudeUsageCredentialError.notFound }
-        guard status == errSecSuccess, let data = item as? Data else {
-            throw ClaudeUsageCredentialError.unreadable(status)
+        // `security` sort avec le code 44 (`errSecItemNotFound` tronqué) quand l'item manque.
+        guard process.terminationStatus != 44 else { throw ClaudeUsageCredentialError.notFound }
+        guard process.terminationStatus == 0 else {
+            throw ClaudeUsageCredentialError.unreadable(OSStatus(process.terminationStatus))
         }
 
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {

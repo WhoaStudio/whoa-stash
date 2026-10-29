@@ -8,21 +8,17 @@ final class BrightnessSettingsViewController: SettingsSectionViewController {
     private let viewModel = BrightnessSettingsViewModel()
     private var cancellable: AnyCancellable?
 
-    private let enableOverlaySwitch = NSSwitch()
-    private let showPercentageSwitch = NSSwitch()
+    private lazy var enableOverlayCheckbox = NSButton.settingsCheckbox(
+        "Enable overlay", target: self, action: #selector(enableOverlayChanged))
+    private lazy var showPercentageCheckbox = NSButton.settingsCheckbox(
+        "Show brightness percentage", target: self, action: #selector(showPercentageChanged))
     private let autoHideDelaySlider = LabeledSliderView(minValue: 0, maxValue: 2, value: 0.2)
     private let scrollSensitivitySlider = LabeledSliderView(minValue: 0.5, maxValue: 2, value: 1)
     private let glowIntensitySlider = LabeledSliderView(minValue: 0, maxValue: 2, value: 1)
     private let widgetPositionPopUp = NSPopUpButton()
     private let widgetSizePopUp = NSPopUpButton()
 
-    override func makeCards() -> [SettingsCardView] {
-        enableOverlaySwitch.target = self
-        enableOverlaySwitch.action = #selector(enableOverlayChanged)
-
-        showPercentageSwitch.target = self
-        showPercentageSwitch.action = #selector(showPercentageChanged)
-
+    override func makeRows() -> [NSView] {
         autoHideDelaySlider.formatter = { String(format: "%.1fs", $0) }
         autoHideDelaySlider.onChange = { [weak self] in self?.viewModel.setAutoHideDelay($0) }
 
@@ -40,23 +36,18 @@ final class BrightnessSettingsViewController: SettingsSectionViewController {
         widgetSizePopUp.action = #selector(widgetSizeChanged)
         WidgetSize.allCases.forEach { widgetSizePopUp.addItem(withTitle: $0.displayName) }
 
-        let overlayCard = SettingsCardView(title: "Overlay", rows: [
-            SettingsRowView(title: "Enable overlay", accessory: enableOverlaySwitch),
-            SettingsRowView(title: "Show brightness percentage", accessory: showPercentageSwitch),
-            SettingsRowView(title: "Auto hide delay", accessory: autoHideDelaySlider),
-        ])
-
-        let interactionCard = SettingsCardView(title: "Interaction", rows: [
-            SettingsRowView(title: "Scroll sensitivity", accessory: scrollSensitivitySlider),
-            SettingsRowView(title: "Glow intensity", accessory: glowIntensitySlider),
-        ])
-
-        let widgetCard = SettingsCardView(title: "Widget", rows: [
-            SettingsRowView(title: "Widget position", accessory: widgetPositionPopUp),
-            SettingsRowView(title: "Widget size", accessory: widgetSizePopUp),
-        ])
-
-        return [overlayCard, interactionCard, widgetCard]
+        return [
+            SettingsFormRowView(
+                title: "Overlay",
+                control: makeSettingsControlStack([enableOverlayCheckbox, showPercentageCheckbox])),
+            SettingsFormRowView(title: "Auto hide delay", control: autoHideDelaySlider),
+            makeSettingsDivider(),
+            SettingsFormRowView(title: "Scroll sensitivity", control: scrollSensitivitySlider),
+            SettingsFormRowView(title: "Glow intensity", control: glowIntensitySlider),
+            makeSettingsDivider(),
+            SettingsFormRowView(title: "Widget position", control: widgetPositionPopUp),
+            SettingsFormRowView(title: "Widget size", control: widgetSizePopUp),
+        ]
     }
 
     override func viewDidLoad() {
@@ -65,8 +56,8 @@ final class BrightnessSettingsViewController: SettingsSectionViewController {
     }
 
     private func apply(_ settings: BrightnessSettings) {
-        enableOverlaySwitch.state = settings.enableOverlay ? .on : .off
-        showPercentageSwitch.state = settings.showPercentage ? .on : .off
+        enableOverlayCheckbox.state = settings.enableOverlay ? .on : .off
+        showPercentageCheckbox.state = settings.showPercentage ? .on : .off
         autoHideDelaySlider.setValue(settings.autoHideDelay)
         scrollSensitivitySlider.setValue(settings.scrollSensitivity)
         glowIntensitySlider.setValue(settings.glowIntensity)
@@ -75,11 +66,11 @@ final class BrightnessSettingsViewController: SettingsSectionViewController {
     }
 
     @objc private func enableOverlayChanged() {
-        viewModel.setEnableOverlay(enableOverlaySwitch.state == .on)
+        viewModel.setEnableOverlay(enableOverlayCheckbox.state == .on)
     }
 
     @objc private func showPercentageChanged() {
-        viewModel.setShowPercentage(showPercentageSwitch.state == .on)
+        viewModel.setShowPercentage(showPercentageCheckbox.state == .on)
     }
 
     @objc private func widgetPositionChanged() {

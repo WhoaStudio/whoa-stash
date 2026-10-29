@@ -77,6 +77,37 @@ struct KnockClassifierTests {
         #expect(Self.run(samples, recentInput: { true }).isEmpty)
     }
 
+    @Test("un échantillon isolé, même fort, n'est pas un coup")
+    func singleSpikeIsIgnored() {
+        var samples = KnockSignal.samples(knocksAt: [], duration: 3)
+        samples[1600].z += 0.8
+        #expect(Self.run(samples).isEmpty)
+    }
+
+    @Test("un échantillon nul du capteur n'est pas un coup")
+    func zeroReportIsIgnored() {
+        var samples = KnockSignal.samples(knocksAt: [], duration: 3)
+        samples[1600].z = 0
+        #expect(Self.run(samples).isEmpty)
+    }
+
+    @Test("un mouvement prolongé n'est pas un coup")
+    func sustainedMotionIsIgnored() {
+        let samples = (0..<2400).map { i -> AccelSample in
+            let t = Double(i) / 800
+            let bump = (1.5..<2.0).contains(t) ? 0.15 : 0
+            return AccelSample(x: 0, y: 0, z: -1 + bump, time: t)
+        }
+        #expect(Self.run(samples).isEmpty)
+    }
+
+    @Test("un trou dans le flux relance le filtre de gravité sans coup")
+    func gapRestartsFilter() {
+        let before = KnockSignal.samples(knocksAt: [], duration: 1.5)
+        let after = (0..<1600).map { AccelSample(x: 0.4, y: 0, z: -0.9, time: 2.5 + Double($0) / 800) }
+        #expect(Self.run(before + after).isEmpty)
+    }
+
     // MARK: - Enregistrement réel
 
     private static func run(recording: [AccelSample], hasDouble: Bool = false, flushAfter: TimeInterval = 2) -> [Knock] {

@@ -3,8 +3,8 @@
 ## Logs
 
 All logging goes through `Log` (`whoa-stash/Core/Log.swift`) into OSLog with subsystem
-`ugolin-olle.whoa-stash`. The categories are `brightness`, `settings`, `side-panel` and
-`calendar`.
+`ugolin-olle.whoa-stash`. The categories are `brightness`, `settings`, `side-panel`,
+`calendar`, `camera`, `now-playing`, `knock` and `clipboard`.
 
 ```bash
 log stream --predicate 'subsystem == "ugolin-olle.whoa-stash"'
@@ -22,7 +22,7 @@ are logged as `<private>`; that's on purpose.
 
 Use the launch flags listed in [the README](../README.md#development-launch-flags). Mock
 providers replace the network, Keychain and EventKit, so you can reach every state of the
-usage rings and the calendar card without changing system state. The `--show-*` flags open a
+usage rings, the calendar card, Now Playing, Playing Next, the Bluetooth pill and Knock without changing system state. The `--show-*` flags open a
 surface without hovering, which is how screenshots are taken.
 
 To develop the brightness band without driving a real display, swap

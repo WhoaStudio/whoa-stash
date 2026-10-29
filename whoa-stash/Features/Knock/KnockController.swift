@@ -26,6 +26,7 @@ final class KnockController {
             .sink { [weak self] _ in
                 guard let self, self.running else { return }
                 self.stopSensor()
+                self.classifier.reset()
                 self.startSensor()
             }
     }

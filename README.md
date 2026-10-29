@@ -9,13 +9,14 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Volume dial | Top-left corner | Scroll to set the default output device's volume. |
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
-| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (today's agenda), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). |
+| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
+| Knock | No surface (accelerometer) | Knocking on the Mac's chassis runs an action set in Preferences ▸ Knock. Defaults: one knock turns the display off, two knocks lock the screen. Other actions: none, screen saver, Mission Control, play/pause, next track. |
 
 ## Requirements
 
 - macOS 26.5 or later (the deployment target)
 - Xcode 26.6 (the version this README was checked with)
-- No third-party dependencies and no Swift packages
+- No Swift packages. The Now Playing source is a vendored copy of [mediaremote-adapter](Vendor/MediaRemoteAdapter/README.md), shipped as `MediaRemoteAdapter.bin` and a Perl script in `whoa-stash/Resources/MediaRemoteAdapter/`.
 
 ## Build and run
 
@@ -37,9 +38,12 @@ TODO: there is no release, archive or notarization process in the repo yet.
 
 - **Calendars** (full access). The notch panel requests it the first time it loads the agenda. If you deny it, the panel shows an access-denied card.
 - **Camera.** The Mirror tab asks the first time it is shown. The camera runs only while the panel is unfolded on that tab; the green LED goes off as soon as it folds or you switch tab. If you deny it, the tab shows a card that opens System Settings.
-- **Keychain items owned by other apps.** The usage rings read the OAuth tokens that Claude Code (`Claude Code-credentials*`) and GitHub (`github-copilot-app` or `gh:github.com`) store. macOS asks you to allow each one on the first read. If you refuse, that ring shows as unavailable. Tokens stay in memory only.
+- **Keychain items owned by other apps.** The usage rings read the OAuth tokens that Claude Code (`Claude Code-credentials*`) and GitHub (`github-copilot-app` or `gh:github.com`) store. macOS asks you to allow the GitHub one on the first read. The Claude Code item is read through `/usr/bin/security`, which it already allows, so it never prompts. If you refuse, that ring shows as unavailable. Tokens stay in memory only.
+- **Apple Events (Music).** Asked the first time the Playing Next column reads the Apple Music queue.
+- **Spotify account.** Optional. Playing Next for Spotify needs a Client ID pasted in Preferences ▸ General. Tokens are stored in the Keychain under `ugolin-olle.whoa-stash.spotify`. See [docs/external-interfaces.md](docs/external-interfaces.md).
+- **Accessibility.** Requested only when a knock action needs it (locking the screen sends a synthetic keystroke).
+- **Local files.** The Claude and Codex readers use `~/.claude/projects`, `~/.codex/sessions` and `~/.codex/auth.json` (`$CODEX_HOME` overrides `~/.codex`). TODO: the Codex usage and agent activity code exists, but `AppDelegate` does not create `CodexUsageViewModel` or `AgentActivityViewModel`, so the Codex ring and the activity metrics are not shown yet (and `--codex-usage=<five-hour>,<weekly>` and `--activity-sample` have no visible effect).
 - The app is not sandboxed (`ENABLE_APP_SANDBOX = NO`).
-- Info.plist declares an Accessibility usage string, but no code path requests Accessibility today (`AccessibilityPermissionService` is unused).
 
 For the Claude ring, log in to Claude Code on the machine. For the Copilot ring, sign in to the GitHub Copilot app or the GitHub CLI.
 
@@ -49,7 +53,7 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 
 | Flag | Effect |
 |---|---|
-| `--show-settings[=general\|brightness\|about]` | Opens Preferences on that pane (default `general`). |
+| `--show-settings[=general\|brightness\|knock\|about]` | Opens Preferences on that pane (default `general`). |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
 | `--notch-tab=global\|calendar\|tray\|clipboard\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
 | `--show-usage-panel` | Opens the side panel without hovering. |
@@ -57,6 +61,10 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 | `--clipboard-history=sample` | Fixed sample clips in the Clipboard tab, in a throwaway store. |
 | `--claude-usage=<session>,<weekly>` | Fixed Claude percentages, for example `73,7`. Skips the network and Keychain. |
 | `--copilot-usage=<percent>` | Fixed Copilot percentage. |
+| `--now-playing=playing\|paused` | Fake Now Playing source, with a simulated visualizer. |
+| `--playing-next=mock` | Fixed Playing Next queue instead of Apple Music and Spotify. |
+| `--knock=single\|double` | Simulates a knock about 2 s after launch, instead of reading the accelerometer. |
+| `--simulate-bluetooth-device=airpodsmax\|airpodspro[,<battery>]` | Shows the Bluetooth device pill without hardware, for example `airpodsmax,82`. |
 | `--camera-mirror=granted\|denied\|notDetermined` | Fake camera for the Mirror tab: a gradient instead of video, with the given access state. |
 | `--calendar-agenda=granted\|denied\|notDetermined` | A fixed sample day with the given access state. |
 
@@ -72,7 +80,7 @@ Run a single suite:
 xcodebuild -scheme whoa-stash -destination 'platform=macOS' -only-testing:whoa-stashTests/SettingsStorageTests test
 ```
 
-The suite has 61 tests: 59 in Swift Testing across 10 suites, and 2 in XCTest (`CopilotUsageTests`).
+The suite is in `whoa-stashTests/`: The suite has 146 tests: 144 in Swift Testing across 26 suites, and 2 in XCTest (`CopilotUsageTests`).
 
 TODO: there is no linter, formatter or CI configured.
 
@@ -83,9 +91,11 @@ whoa-stash/
   App/          entry point, AppDelegate (composition root), menu-bar item, Dock presence
   Core/         shared code: settings, logging, theme, geometry, animation, shortcuts
   Features/     one folder per surface: Brightness, EdgeSlider, Volume, SidePanel,
-                NotchPanel, PanelTabs (notch tab contents), Settings (Preferences window)
-  Resources/    asset catalog (app icon, menu-bar glyph)
+                NotchPanel, PanelTabs (notch tab contents), Clipboard, NowPlaying,
+                DeviceStatus, Knock, Settings (Preferences window)
+  Resources/    asset catalog (app icon, menu-bar glyph), MediaRemoteAdapter (binary + script)
 whoa-stashTests/  unit tests
+Vendor/           third-party sources (MediaRemoteAdapter), not built by the Xcode project
 Design/Icon/      icon source SVGs (see Design/Icon/README.md)
 AppIcons/         older generated icon pack, not used by the build
 docs/             architecture and debugging notes

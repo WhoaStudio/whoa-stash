@@ -3,28 +3,39 @@ import AppKit
 /// Constantes visuelles partagées par toutes les vues de Préférences — un seul endroit à
 /// ajuster pour garder la fenêtre cohérente.
 enum SettingsMetrics {
-    static let sidebarWidth: CGFloat = 200
-    /// Hauteur taillée sur l'écran le plus dense — « General », qui porte cinq cartes et dix
-    /// lignes. Le scroll view de `SettingsSectionViewController` reste le filet de sécurité,
-    /// mais aucun écran ne doit avoir besoin de défiler pour être lu en entier.
-    static let windowSize = NSSize(width: 760, height: 700)
+    /// Hauteur taillée sur l'écran le plus dense — « General ». Le scroll view de
+    /// `SettingsSectionViewController` reste le filet de sécurité.
+    static let windowSize = NSSize(width: 900, height: 760)
 
-    static let contentInset: CGFloat = 28
-    static let cardSpacing: CGFloat = 20
-    static let cardCornerRadius: CGFloat = 14
-    static let cardHeaderSpacing: CGFloat = 8
+    /// Zone de la barre de titre transparente, sous laquelle commence la barre d'onglets.
+    static let titleBarHeight: CGFloat = 28
+    static let titleLogoSize: CGFloat = 18
 
-    static let rowHorizontalPadding: CGFloat = 16
-    static let rowMinHeight: CGFloat = 44
-    static let rowControlWidth: CGFloat = 180
+    static let tabBarHeight: CGFloat = 84
+    static let tabItemSize = NSSize(width: 88, height: 62)
+    static let tabItemSpacing: CGFloat = 6
+    static let tabItemCornerRadius: CGFloat = 10
 
-    static let sidebarItemHeight: CGFloat = 32
-    static let sidebarItemSpacing: CGFloat = 4
-    static let sidebarItemCornerRadius: CGFloat = 7
-    static let sidebarPadding: CGFloat = 12
+    static let contentWidth: CGFloat = 680
+    static let contentTopInset: CGFloat = 28
+    static let contentBottomInset: CGFloat = 28
+    static let rowSpacing: CGFloat = 18
 
-    static let sidebarIconTileSize: CGFloat = 22
-    static let sidebarIconTileCornerRadius: CGFloat = 6
+    static let labelColumnWidth: CGFloat = 190
+    static let labelControlGap: CGFloat = 16
+    /// Hauteur d'une ligne de contrôle simple : le libellé et les contrôles courts s'y centrent.
+    static let firstLineHeight: CGFloat = 28
+    static let captionSpacing: CGFloat = 6
+    static let captionMaxWidth: CGFloat = 400
+
+    static let sliderWidth: CGFloat = 180
+    static let keyButtonSize = NSSize(width: 280, height: 34)
+    static let bannerWidth: CGFloat = 360
+    static let bannerCornerRadius: CGFloat = 14
+
+    static let choiceSpacing: CGFloat = 10
+    static let iconChoiceSize: CGFloat = 52
+    static let thumbnailSize = NSSize(width: 84, height: 56)
 
     /// Durée des micro-animations quand `enableAnimations` est actif.
     static let transitionDuration: TimeInterval = 0.18

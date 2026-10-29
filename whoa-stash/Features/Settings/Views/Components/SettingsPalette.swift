@@ -1,13 +1,11 @@
 import AppKit
 
 enum SettingsPalette {
-    /// Fond léger et distinct du fond de fenêtre — matérialise chaque carte comme dans Klack.
-    static let cardMaterial: NSVisualEffectView.Material = .contentBackground
+    /// Fond des pastilles, bannières et boutons : un voile clair sur le fond sombre de la fenêtre.
+    static let fill = NSColor.white.withAlphaComponent(0.08)
 
-    static let rowSeparator = NSColor.separatorColor.withAlphaComponent(0.5)
+    /// Fond de l'onglet ou de l'option sélectionnée, un cran au-dessus de `fill`.
+    static let selectedFill = NSColor.white.withAlphaComponent(0.14)
 
-    /// Fond de la ligne sélectionnée dans la sidebar : un gris clair opaque, non teinté par la
-    /// couleur d'accent — comme les Réglages Système, pas une simple teinte translucide (trop
-    /// discrète pour se détacher du matériau `.sidebar` déjà clair).
-    static let sidebarSelection = NSColor.controlBackgroundColor
+    static let rule = NSColor.separatorColor
 }
