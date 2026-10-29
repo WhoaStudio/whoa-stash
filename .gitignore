@@ -15,3 +15,13 @@ Build/
 *.swp
 *.swo
 *~
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+Config/Local.xcconfig
+
+# Claude Code (per-user)
+.claude/settings.local.json
+.claude/worktrees/
