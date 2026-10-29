@@ -10,6 +10,8 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
 | Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
+| Dock | Bottom centre | Custom dock: placeholder buttons and a "Building" pill (workspaces not built yet), then pinned and running apps (dot = running, globe = web app). Pinned apps are copied once from `com.apple.dock`, never written back. Clicking launches the app or brings its window forward and un-minimises it (needs Accessibility). Preferences ▸ Dock can hide the macOS Dock (auto-hide with a long delay) and restores your original values when turned off or on quit. |
+| Radial menu | Under the cursor, while a mouse button is held | Hold the middle (or back/forward) button, or rest three fingers on the trackpad: a round menu opens centred on the cursor and stays on screen near edges. Move toward an item and release to run it; a short press keeps it open so you can click an item instead. Esc or a click outside closes it. Items are apps (launched) and Shortcuts.app shortcuts (run), added and reordered in Preferences ▸ Radial Menu. Off by default; needs Accessibility, and the chosen button no longer reaches other apps while it is on. |
 | Knock | No surface (accelerometer) | Knocking on the Mac's chassis runs an action set in Preferences ▸ Knock. Defaults: one knock turns the display off, two knocks lock the screen. Other actions: none, screen saver, Mission Control, play/pause, next track. |
 
 ## Requirements
@@ -57,6 +59,8 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
 | `--notch-tab=global\|calendar\|tray\|clipboard\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
 | `--show-usage-panel` | Opens the side panel without hovering. |
+| `--dock=sample` | Dock with fixed running apps (Safari, Terminal, Finder) instead of the real ones. |
+| `--show-radial-menu` | Opens the radial menu under the cursor, left open, without the mouse button. |
 | `--show-volume-dial` | Opens the volume dial without hovering. |
 | `--clipboard-history=sample` | Fixed sample clips in the Clipboard tab, in a throwaway store. |
 | `--claude-usage=<session>,<weekly>` | Fixed Claude percentages, for example `73,7`. Skips the network and Keychain. |
