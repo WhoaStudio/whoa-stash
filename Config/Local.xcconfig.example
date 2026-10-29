@@ -1,0 +1,8 @@
+// Copy to Config/Local.xcconfig (git-ignored) to override signing on your machine.
+
+// Your own team (Xcode ▸ Settings ▸ Accounts):
+// DEVELOPMENT_TEAM = ABCDE12345
+
+// Or no team at all, signed to run locally:
+DEVELOPMENT_TEAM =
+CODE_SIGN_IDENTITY = -
