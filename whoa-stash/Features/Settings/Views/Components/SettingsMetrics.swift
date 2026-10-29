@@ -9,6 +9,7 @@ enum SettingsMetrics {
 
     /// Zone de la barre de titre transparente, sous laquelle commence la barre d'onglets.
     static let titleBarHeight: CGFloat = 28
+    static let titleLogoSize: CGFloat = 18
 
     static let tabBarHeight: CGFloat = 84
     static let tabItemSize = NSSize(width: 88, height: 62)

@@ -127,15 +127,26 @@ private final class SettingsRootViewController: NSViewController {
         let titleLabel = NSTextField(labelWithString: "Whoa Stash Settings")
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .secondaryLabelColor
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        view.addSubview(titleLabel)
+        let logoView = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
+        logoView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            logoView.widthAnchor.constraint(equalToConstant: SettingsMetrics.titleLogoSize),
+            logoView.heightAnchor.constraint(equalToConstant: SettingsMetrics.titleLogoSize),
+        ])
+
+        let titleStack = NSStackView(views: [logoView, titleLabel])
+        titleStack.orientation = .horizontal
+        titleStack.spacing = 6
+        titleStack.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(titleStack)
         view.addSubview(tabBar)
         view.addSubview(contentContainer)
 
         NSLayoutConstraint.activate([
-            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            titleLabel.centerYAnchor.constraint(equalTo: view.topAnchor, constant: SettingsMetrics.titleBarHeight / 2),
+            titleStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            titleStack.centerYAnchor.constraint(equalTo: view.topAnchor, constant: SettingsMetrics.titleBarHeight / 2),
 
             tabBar.topAnchor.constraint(equalTo: view.topAnchor, constant: SettingsMetrics.titleBarHeight),
             tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
