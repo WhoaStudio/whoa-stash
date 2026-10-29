@@ -1,0 +1,46 @@
+name: Bug report
+description: Something doesn't work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Brightness band
+        - Volume dial
+        - Edge slider
+        - Side panel (usage rings)
+        - Notch panel
+        - Knock
+        - Preferences
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      placeholder: macOS 26.5, MacBook Pro M3
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Optional. `log show --last 10m --predicate 'subsystem == "ugolin-olle.whoa-stash"' --style compact`.
+        Remove anything personal (track names, calendar events, file names) before pasting.
+      render: text
