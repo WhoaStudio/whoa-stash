@@ -81,6 +81,49 @@ final class FileShelfStore {
         return moved
     }
 
+    /// Convertit une image du bac dans un autre format et range le résultat dans le bac.
+    @discardableResult
+    func addConverted(from source: URL, to format: ImageFormat) -> URL? {
+        addTransformed(from: source, options: ImageTransformOptions(format: format), suffix: "")
+    }
+
+    /// Réécrit une image du bac avec `options` sous un nom libre — `suffix` s'ajoute au nom, et
+    /// l'extension suit le format de sortie. Le résultat est rangé dans le bac, à côté de
+    /// l'original, qui n'est jamais modifié ; avec `directory`, il est écrit là et reste hors du
+    /// bac. Renvoie le nouveau fichier, ou `nil` si l'écriture échoue (journalisée).
+    @discardableResult
+    func addTransformed(
+        from source: URL,
+        options: ImageTransformOptions,
+        suffix: String,
+        in directory: URL? = nil
+    ) -> URL? {
+        let source = source.standardizedFileURL
+        let target = directory ?? trayDirectory
+        let name = source.deletingPathExtension().lastPathComponent + suffix
+        let destination = uniqueDestination(
+            for: target.appendingPathComponent(name).appendingPathExtension(options.format.fileExtension),
+            in: target
+        )
+        do {
+            try fileManager.createDirectory(at: target, withIntermediateDirectories: true)
+            try ImageFormatConverter.write(source, options: options, at: destination)
+        } catch {
+            Log.sidePanel.error(
+                "Transformation d'image impossible : \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+        let written = destination.standardizedFileURL
+        guard directory == nil else { return written }
+        urls.append(written)
+        if urls.count > Self.capacity {
+            urls.removeFirst(urls.count - Self.capacity)
+        }
+        commit()
+        return written
+    }
+
     /// Retire un fichier du bac — appelé quand un glisser vers le Finder ou une autre app a
     /// abouti, jamais quand il a été annulé.
     func remove(_ url: URL) {
@@ -137,15 +180,16 @@ final class FileShelfStore {
         return sourcePath == trayPath || sourcePath.hasPrefix(trayPath + "/")
     }
 
-    private func uniqueDestination(for source: URL) -> URL {
+    private func uniqueDestination(for source: URL, in directory: URL? = nil) -> URL {
+        let directory = directory ?? trayDirectory
         let baseName = source.deletingPathExtension().lastPathComponent
         let ext = source.pathExtension
-        var candidate = trayDirectory.appendingPathComponent(source.lastPathComponent)
+        var candidate = directory.appendingPathComponent(source.lastPathComponent)
         var index = 2
 
         while fileManager.fileExists(atPath: candidate.path) {
             let name = ext.isEmpty ? "\(baseName) \(index)" : "\(baseName) \(index).\(ext)"
-            candidate = trayDirectory.appendingPathComponent(name)
+            candidate = directory.appendingPathComponent(name)
             index += 1
         }
         return candidate

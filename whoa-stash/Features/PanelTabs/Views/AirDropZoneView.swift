@@ -1,9 +1,11 @@
 import AppKit
 
-/// Cible de dépôt du bac pendant un glisser : garder le fichier, ou l'envoyer par AirDrop.
+/// Cible de dépôt du bac pendant un glisser : garder le fichier, l'envoyer par AirDrop, ou
+/// ouvrir l'image dans la vue Transform.
 enum FileTrayDropTarget: Equatable {
     case keep
     case airDrop
+    case transform
 
     /// Cible sous un point, en coordonnées de la vue du bac : moitié gauche = garder, moitié
     /// droite = AirDrop. Hors de la vue, on garde — c'est le comportement historique du panneau,

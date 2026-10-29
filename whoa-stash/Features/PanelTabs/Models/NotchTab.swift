@@ -13,6 +13,11 @@ enum NotchTab: Int, CaseIterable {
     case mirror
     case ai
 
+    /// L'onglet voisin dans le sens donné, ou `nil` au bout de la rangée — on ne reboucle pas.
+    func neighbor(_ direction: TabSwipeTracker.Direction) -> NotchTab? {
+        NotchTab(rawValue: rawValue + (direction == .next ? 1 : -1))
+    }
+
     var title: String {
         switch self {
         case .global: "Global"

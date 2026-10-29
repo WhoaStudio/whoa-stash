@@ -38,6 +38,15 @@ final class FileTrayView: NSView {
     private var isDragFromTray = false
     private let airDropZone = AirDropZoneView()
     private let keepIcon = NSImageView()
+    /// Bouton « Transform », présent tant que le glisser est une image venue du bac : la lâcher
+    /// dessus ouvre la vue Transform (voir `showsTransformTile`).
+    private let transformTile = TransformDropTileView()
+    private var showsTransformTile = false
+    /// Fichiers cochés dans le bac : un clic sur une vignette la coche ou la décoche, et le menu
+    /// contextuel (Copy, Open) porte sur toute la sélection.
+    private var selection: Set<URL> = []
+
+    private static let transformTileSize = NSSize(width: 96, height: 52)
 
     init(frame frameRect: NSRect = .zero, store: FileShelfStore = .shared) {
         self.store = store
@@ -81,6 +90,9 @@ final class FileTrayView: NSView {
 
         airDropZone.isHidden = true
         addSubview(airDropZone)
+
+        transformTile.isHidden = true
+        addSubview(transformTile)
 
         // Il y a une vue par écran, et elles vont et viennent avec les fenêtres : chacune suit
         // le bac partagé plutôt que d'être tenue par lui.
@@ -136,15 +148,30 @@ final class FileTrayView: NSView {
     /// Montre les deux zones et allume celle que le glisser survole (`nil` : le glisser est
     /// parti, le bac reprend son aspect de repos). La cible du système reste tout le panneau ;
     /// ce sont ces zones qui disent où le fichier va tomber.
-    func setDragActive(_ active: Bool, fromTray: Bool = false, hovered target: FileTrayDropTarget? = nil) {
-        guard active != isDragActive || fromTray != isDragFromTray || target != dropTarget else { return }
+    ///
+    /// `imageFormat` est le format de l'image glissée depuis le bac, `nil` pour tout le reste :
+    /// seule une image du bac montre la rangée de conversion.
+    func setDragActive(
+        _ active: Bool,
+        fromTray: Bool = false,
+        hovered target: FileTrayDropTarget? = nil,
+        imageFormat: ImageFormat? = nil
+    ) {
+        let showsTile = active && fromTray && imageFormat != nil
+        guard
+            active != isDragActive || fromTray != isDragFromTray || target != dropTarget
+                || showsTile != showsTransformTile
+        else { return }
         let appearing = active && !isDragActive
         isDragActive = active
         isDragFromTray = fromTray
         dropTarget = active ? target : nil
+        showsTransformTile = showsTile
+        transformTile.isHidden = !showsTile
         airDropZone.isHidden = !active
         keepIcon.isHidden = !active
         airDropZone.isHighlighted = dropTarget == .airDrop
+        transformTile.isHighlighted = dropTarget == .transform
         keepIcon.alphaValue = dropTarget == .keep ? 1 : 0.6
         items.forEach { $0.isHidden = active }
         emptyLabel.isHidden = active || !store.isEmpty
@@ -156,6 +183,39 @@ final class FileTrayView: NSView {
         }
     }
 
+    /// Y a-t-il une rangée de conversion à montrer ? Le panneau grandit alors de
+    /// `NotchPanelGeometry.trayConversionExtraHeight`.
+    var hasConversionRow: Bool { showsTransformTile }
+
+    /// Format de l'image que porte un glisser venu du bac, `nil` si le glisser vient d'ailleurs,
+    /// porte plusieurs fichiers ou autre chose qu'une image jpg, jpeg, png ou heic.
+    func imageFormat(of sender: any NSDraggingInfo) -> ImageFormat? {
+        guard
+            isFromTray(sender),
+            let urls = sender.draggingPasteboard.readObjects(
+                forClasses: [NSURL.self], options: readingOptions) as? [URL],
+            urls.count == 1
+        else { return nil }
+        return ImageFormat(url: urls[0])
+    }
+
+    /// Le fichier que porte un glisser venu du bac, pour l'ouvrir dans la vue Transform.
+    func transformSource(_ sender: any NSDraggingInfo) -> URL? {
+        guard
+            let urls = sender.draggingPasteboard.readObjects(
+                forClasses: [NSURL.self], options: readingOptions) as? [URL],
+            urls.count == 1, ImageFormat(url: urls[0]) != nil
+        else { return nil }
+        return urls[0]
+    }
+
+    /// Zone des deux grandes cibles : tout le bac, moins la rangée de conversion quand elle est là.
+    private var zonesBounds: NSRect {
+        guard hasConversionRow else { return bounds }
+        let extra = NotchPanelGeometry.trayConversionExtraHeight
+        return NSRect(x: bounds.minX, y: bounds.minY + extra, width: bounds.width, height: max(0, bounds.height - extra))
+    }
+
     /// Le glisser vient-il d'une vignette du bac ? Il ne peut alors que partir en AirDrop.
     func isFromTray(_ sender: any NSDraggingInfo) -> Bool {
         sender.draggingSource is FileTrayItemView
@@ -164,7 +224,8 @@ final class FileTrayView: NSView {
     /// Cible sous la position d'un glisser, donnée dans le repère de `view`.
     func dropTarget(for sender: any NSDraggingInfo, in view: NSView) -> FileTrayDropTarget {
         let point = convert(sender.draggingLocation, from: view)
-        return FileTrayDropTarget.target(at: point, in: bounds)
+        if showsTransformTile, transformTile.frame.contains(point) { return .transform }
+        return FileTrayDropTarget.target(at: point, in: zonesBounds)
     }
 
     /// Envoie par AirDrop ce que le panneau vient de recevoir, sans le ranger dans le bac.
@@ -192,9 +253,31 @@ final class FileTrayView: NSView {
         [.urlReadingFileURLsOnly: true]
     }
 
+    private func toggleSelection(of url: URL) {
+        if selection.contains(url) {
+            selection.remove(url)
+        } else {
+            selection.insert(url)
+        }
+        items.forEach { $0.isSelected = selection.contains($0.url) }
+    }
+
+    /// Cible du menu contextuel : la sélection si la vignette cliquée en fait partie, sinon cette
+    /// vignette seule — comme dans le Finder.
+    private func urlsForMenu(on url: URL) -> [URL] {
+        selection.contains(url) ? store.urls.filter(selection.contains) : [url]
+    }
+
     private func rebuildRows() {
         items.forEach { $0.removeFromSuperview() }
-        items = store.urls.map { FileTrayItemView(url: $0, store: store) }
+        selection.formIntersection(store.urls)
+        items = store.urls.map { url in
+            let item = FileTrayItemView(url: url, store: store)
+            item.isSelected = selection.contains(url)
+            item.onToggleSelection = { [weak self] in self?.toggleSelection(of: url) }
+            item.urlsForMenu = { [weak self] in self?.urlsForMenu(on: url) ?? [url] }
+            return item
+        }
         items.forEach(addSubview)
         emptyLabel.isHidden = isDragActive || !store.isEmpty
         items.forEach { $0.isHidden = isDragActive }
@@ -207,13 +290,19 @@ final class FileTrayView: NSView {
 
         // Pendant un glisser, la moitié gauche est « Keep in tray », la droite est AirDrop.
         let gap: CGFloat = 6
+        let zones = zonesBounds
         let keepFrame = isDragActive
-            ? NSRect(x: bounds.minX, y: bounds.minY, width: bounds.midX - gap / 2 - bounds.minX, height: bounds.height)
+            ? NSRect(x: zones.minX, y: zones.minY, width: zones.midX - gap / 2 - zones.minX, height: zones.height)
             : bounds
         airDropZone.frame = NSRect(
-            x: bounds.midX + gap / 2, y: bounds.minY,
-            width: bounds.maxX - bounds.midX - gap / 2, height: bounds.height
+            x: zones.midX + gap / 2, y: zones.minY,
+            width: zones.maxX - zones.midX - gap / 2, height: zones.height
         )
+
+        // Bouton Transform : sous les deux zones, centré.
+        let tileSize = Self.transformTileSize
+        transformTile.frame = NSRect(
+            x: bounds.midX - tileSize.width / 2, y: bounds.minY + 2, width: tileSize.width, height: tileSize.height)
         let iconSize = keepIcon.intrinsicContentSize
         keepIcon.frame = NSRect(
             x: keepFrame.midX - iconSize.width / 2, y: keepFrame.midY - iconSize.height / 2,
@@ -276,9 +365,24 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
 
     static let tileSize = NSSize(width: 104, height: 110)
 
-    private let url: URL
+    let url: URL
     private let store: FileShelfStore
     private let iconView = NSImageView()
+    private let selectionLayer = CAShapeLayer()
+    private let checkBadge = NSImageView()
+
+    /// Appelé au clic simple (sans glisser) : le bac coche ou décoche la vignette.
+    var onToggleSelection: (() -> Void)?
+    /// Fichiers visés par le menu contextuel, donnés par le bac.
+    var urlsForMenu: (() -> [URL])?
+
+    var isSelected = false {
+        didSet {
+            guard isSelected != oldValue else { return }
+            selectionLayer.isHidden = !isSelected
+            checkBadge.isHidden = !isSelected
+        }
+    }
     private let label = NSTextField(labelWithString: "")
     private var thumbnailTask: Task<Void, Never>?
 
@@ -301,6 +405,18 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
+
+        selectionLayer.fillColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        selectionLayer.strokeColor = NSColor.white.withAlphaComponent(0.55).cgColor
+        selectionLayer.lineWidth = 2
+        selectionLayer.isHidden = true
+        layer?.insertSublayer(selectionLayer, at: 0)
+
+        checkBadge.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Selected")?
+            .withSymbolConfiguration(.init(pointSize: 18, weight: .regular))
+        checkBadge.contentTintColor = .systemBlue
+        checkBadge.isHidden = true
+        addSubview(checkBadge)
 
         label.isBezeled = false
         label.drawsBackground = false
@@ -409,7 +525,44 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
+        // Sans glisser entre-temps, c'est un clic : il coche la vignette.
+        if mouseDownLocation != nil { onToggleSelection?() }
         mouseDownLocation = nil
+    }
+
+    // MARK: - Menu contextuel
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let urls = urlsForMenu?() ?? [url]
+        let menu = NSMenu()
+        // Le suivi du curseur du panneau se gèle tant qu'un menu est ouvert (voir
+        // `OverlayContextMenu.isPresenting`) : sans cela, il se replierait sous ce menu.
+        menu.delegate = OverlayContextMenu.shared
+
+        let copy = NSMenuItem(title: "Copy", action: #selector(copyFiles(_:)), keyEquivalent: "")
+        copy.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+        copy.target = self
+        copy.representedObject = urls
+        menu.addItem(copy)
+
+        let open = NSMenuItem(title: "Open", action: #selector(openFiles(_:)), keyEquivalent: "")
+        open.image = NSImage(systemSymbolName: "arrow.up.forward.app", accessibilityDescription: nil)
+        open.target = self
+        open.representedObject = urls
+        menu.addItem(open)
+        return menu
+    }
+
+    @objc private func copyFiles(_ sender: NSMenuItem) {
+        guard let urls = sender.representedObject as? [URL] else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects(urls as [NSURL])
+    }
+
+    @objc private func openFiles(_ sender: NSMenuItem) {
+        guard let urls = sender.representedObject as? [URL] else { return }
+        urls.forEach { NSWorkspace.shared.open($0) }
     }
 
     private func beginDrag(with event: NSEvent) {
@@ -459,10 +612,76 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
             height: previewSize
         )
 
+        selectionLayer.frame = bounds
+        selectionLayer.path = CGPath(
+            roundedRect: iconView.frame.insetBy(dx: -4, dy: -4), cornerWidth: 10, cornerHeight: 10, transform: nil)
+        let badge = checkBadge.intrinsicContentSize
+        checkBadge.frame = NSRect(
+            x: iconView.frame.maxX - badge.width / 2 - 6, y: iconView.frame.minY - badge.height / 2 + 6,
+            width: badge.width, height: badge.height)
+
         let labelTop = iconView.frame.minY - labelGap
         label.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, labelTop))
         // Le texte se cale en haut de la zone, juste sous l'aperçu, quelle que soit sa hauteur.
         let textHeight = min(label.sizeThatFits(NSSize(width: bounds.width, height: .greatestFiniteMagnitude)).height, labelTop)
         label.frame = NSRect(x: 0, y: labelTop - textHeight, width: bounds.width, height: textHeight)
+    }
+}
+
+// MARK: - Bouton Transform
+
+/// Le bouton « Transform » de la rangée de conversion : une icône de flèches circulaires et son
+/// libellé, qui s'allume quand le glisser le survole.
+private final class TransformDropTileView: NSView {
+
+    private let iconView = NSImageView()
+    private let label = NSTextField(labelWithString: "Transform")
+
+    var isHighlighted = false {
+        didSet {
+            guard isHighlighted != oldValue else { return }
+            updateAppearance()
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 12
+
+        iconView.image = NSImage(
+            systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Transform")?
+            .withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
+        iconView.imageScaling = .scaleNone
+        addSubview(iconView)
+
+        label.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .medium)
+        label.alignment = .center
+        label.isBezeled = false
+        label.drawsBackground = false
+        addSubview(label)
+        updateAppearance()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func updateAppearance() {
+        layer?.backgroundColor = (isHighlighted
+            ? NSColor.systemBlue.withAlphaComponent(0.4) : NSColor.white.withAlphaComponent(0.1)).cgColor
+        iconView.contentTintColor = isHighlighted ? .white : .lightGray
+        label.textColor = isHighlighted ? .white : .lightGray
+    }
+
+    override func layout() {
+        super.layout()
+        let icon = iconView.intrinsicContentSize
+        let textHeight = label.intrinsicContentSize.height
+        let total = icon.height + 2 + textHeight
+        let top = bounds.midY + total / 2
+        iconView.frame = NSRect(x: bounds.midX - icon.width / 2, y: top - icon.height, width: icon.width, height: icon.height)
+        label.frame = NSRect(x: 0, y: top - icon.height - 2 - textHeight, width: bounds.width, height: textHeight)
     }
 }

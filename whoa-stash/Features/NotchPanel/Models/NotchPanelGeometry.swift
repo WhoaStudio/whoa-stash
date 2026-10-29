@@ -145,6 +145,17 @@ enum NotchPanelGeometry {
     /// la marge basse est reprise, le cercle descendant jusqu'au bas de la silhouette.
     static var mirrorTabHeight: CGFloat { mirrorDiameter + mirrorRim - contentInsetBottom }
 
+    /// Hauteur dont le panneau grandit sur l'onglet Tray quand on en glisse une image : la rangée
+    /// de conversion (`FileTrayView.conversionRowHeight`) et l'écart qui la sépare des zones.
+    /// Elle tient dans le surplus laissé par l'onglet le plus haut, la fenêtre ne bouge donc pas.
+    static let trayConversionExtraHeight: CGFloat = 62
+
+    /// Hauteur de la vue Transform, qui prend la place de l'onglet Tray (voir `transformExtraHeight`).
+    static let transformViewHeight: CGFloat = 392
+
+    /// Hauteur dont le panneau grandit pour la vue Transform par rapport à l'onglet Tray.
+    static var transformExtraHeight: CGFloat { transformViewHeight - calendarTabHeight }
+
     /// Hauteur du contenu d'un onglet, sous la barre.
     static func contentHeight(for tab: NotchTab) -> CGFloat {
         switch tab {
@@ -157,7 +168,7 @@ enum NotchPanelGeometry {
     /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
     /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, aiTabHeight, mirrorTabHeight)
+        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight)
     }
 
     /// Largeur du contenu de l'onglet le plus large — AI.
@@ -230,18 +241,18 @@ enum NotchPanelGeometry {
     /// surplus des onglets plus courts restent vides ; c'est la capsule qui suit le bas du panneau
     /// (voir `capsuleRect`). C'est ce rectangle, et non le cadre entier, que la silhouette occupe
     /// et dans lequel le contenu se pose.
-    static func panelRect(in bounds: CGRect, tab: NotchTab) -> CGRect {
-        let slack = tabContentHeight - contentHeight(for: tab)
+    static func panelRect(in bounds: CGRect, tab: NotchTab, extraHeight: CGFloat = 0) -> CGRect {
+        let slack = tabContentHeight - contentHeight(for: tab) - extraHeight
         let height = max(0, bounds.height - capsuleBandHeight - slack)
         return CGRect(x: bounds.minX, y: bounds.maxY - height, width: bounds.width, height: height)
     }
 
     /// Cadre de la capsule : sous le panneau de l'onglet affiché, centrée.
-    static func capsuleRect(in bounds: CGRect, tab: NotchTab) -> CGRect {
+    static func capsuleRect(in bounds: CGRect, tab: NotchTab, extraHeight: CGFloat = 0) -> CGRect {
         let width = min(NotchTabCapsuleView.width, bounds.width)
         return CGRect(
             x: bounds.midX - width / 2,
-            y: panelRect(in: bounds, tab: tab).minY - capsuleBandHeight,
+            y: panelRect(in: bounds, tab: tab, extraHeight: extraHeight).minY - capsuleBandHeight,
             width: width,
             height: TabBarMetrics.capsuleHeight
         )
