@@ -152,11 +152,14 @@ final class CameraMirrorView: NSView {
         let showsVideo = state == .running
         if showsVideo {
             // `nil` : la fausse source n'a pas d'image, le dégradé tient la place de la vidéo.
-            previewLayer.session = viewModel.session
+            // Rattachée une seule fois : (re)brancher la couche modifie les connexions de la
+            // session, ce qui plante si `startRunning()` tourne en même temps sur sa file.
+            if previewLayer.session !== viewModel.session { previewLayer.session = viewModel.session }
+            previewLayer.isHidden = false
             placeholderLayer.isHidden = viewModel.session != nil
         } else {
-            // Session détachée à l'arrêt : la couche ne garde pas la dernière image figée.
-            previewLayer.session = nil
+            // Couche masquée à l'arrêt plutôt que détachée : elle ne garde pas la dernière image figée.
+            previewLayer.isHidden = true
             placeholderLayer.isHidden = true
         }
         // Les voiles ne règlent que la vidéo : sur l'écriteau, ils grisaient le texte.
