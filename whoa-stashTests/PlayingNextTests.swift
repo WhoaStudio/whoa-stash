@@ -92,6 +92,15 @@ struct PlayingNextViewModelTests {
 
     private let item = QueueItem(title: "Suivant", artist: "Z", artwork: nil)
 
+    /// Attend que `condition` soit vraie, sans dépasser `timeout` : un délai fixe échoue sur une
+    /// machine chargée (CI), alors que la file n'arrive qu'après le délai de stabilisation.
+    private func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while !condition(), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     @Test("un nouveau morceau relit la file, et en changer la vide d'abord")
     func fetchesOnTrackChange() async throws {
         let model = PlayingNextViewModel(
@@ -100,12 +109,12 @@ struct PlayingNextViewModelTests {
         model.onItemsChanged = { published.append($0) }
 
         model.update(for: state())
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitUntil { !published.isEmpty }
         #expect(published == [[item]])
 
         model.update(for: state(title: "Autre"))
         #expect(published.last == [])
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitUntil { published.last == [item] }
         #expect(published.last == [item])
     }
 
@@ -121,7 +130,7 @@ struct PlayingNextViewModelTests {
         #expect(model.items.isEmpty)
 
         model.update(for: state())
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitUntil { model.items == [item] }
         #expect(model.items == [item])
 
         model.update(for: nil)
