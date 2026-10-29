@@ -7,16 +7,15 @@ final class KnockSettingsViewController: SettingsSectionViewController {
     private let viewModel = KnockSettingsViewModel()
     private var cancellable: AnyCancellable?
 
-    private let enabledSwitch = NSSwitch()
+    private lazy var enabledCheckbox = NSButton.settingsCheckbox(
+        "Enable knock detection", target: self, action: #selector(enabledChanged))
+    private var dimmedRows: [SettingsFormRowView] = []
     private let sensitivitySlider = LabeledSliderView(minValue: 0, maxValue: 1, value: 0.7)
     private let accessibilityButton = NSButton(title: "", target: nil, action: nil)
     private let singlePopUp = NSPopUpButton()
     private let doublePopUp = NSPopUpButton()
 
-    override func makeCards() -> [SettingsCardView] {
-        enabledSwitch.target = self
-        enabledSwitch.action = #selector(enabledChanged)
-
+    override func makeRows() -> [NSView] {
         sensitivitySlider.formatter = { String(format: "%.0f%%", $0 * 100) }
         sensitivitySlider.onChange = { [weak self] in self?.viewModel.setSensitivity($0) }
 
@@ -30,16 +29,23 @@ final class KnockSettingsViewController: SettingsSectionViewController {
             popUp.action = #selector(actionChanged(_:))
         }
 
-        let generalCard = SettingsCardView(title: "Knock detection", rows: [
-            SettingsRowView(title: "Enable knock detection", subtitle: "Knock on the Mac's body, next to the keyboard", accessory: enabledSwitch),
-            SettingsRowView(title: "Sensitivity", subtitle: "Higher picks up lighter knocks", accessory: sensitivitySlider),
-            SettingsRowView(title: "Accessibility", subtitle: "Needed only by Lock screen", accessory: accessibilityButton),
-        ])
-        let actionsCard = SettingsCardView(title: "Actions", rows: [
-            SettingsRowView(title: "Single knock", accessory: singlePopUp),
-            SettingsRowView(title: "Double knock", accessory: doublePopUp),
-        ])
-        return [generalCard, actionsCard]
+        let sensitivityRow = SettingsFormRowView(
+            title: "Sensitivity", control: sensitivitySlider, caption: "Higher picks up lighter knocks")
+        let singleRow = SettingsFormRowView(title: "Single knock", control: singlePopUp)
+        let doubleRow = SettingsFormRowView(title: "Double knock", control: doublePopUp)
+        dimmedRows = [sensitivityRow, singleRow, doubleRow]
+
+        return [
+            SettingsFormRowView(
+                title: "Detection", control: enabledCheckbox,
+                caption: "Knock on the Mac's body, next to the keyboard"),
+            sensitivityRow,
+            SettingsFormRowView(
+                title: "Accessibility", control: accessibilityButton, caption: "Needed only by Lock screen"),
+            makeSettingsDivider(),
+            singleRow,
+            doubleRow,
+        ]
     }
 
     override func viewDidLoad() {
@@ -53,11 +59,12 @@ final class KnockSettingsViewController: SettingsSectionViewController {
     }
 
     private func apply(_ settings: KnockSettings) {
-        enabledSwitch.state = settings.enabled ? .on : .off
+        enabledCheckbox.state = settings.enabled ? .on : .off
         sensitivitySlider.setValue(settings.sensitivity)
         singlePopUp.selectItem(at: KnockAction.allCases.firstIndex(of: settings.single) ?? 0)
         doublePopUp.selectItem(at: KnockAction.allCases.firstIndex(of: settings.double) ?? 0)
         for control in [singlePopUp, doublePopUp] { control.isEnabled = settings.enabled }
+        dimmedRows.forEach { $0.isDimmed = !settings.enabled }
         refreshAccessibility()
     }
 
@@ -68,7 +75,7 @@ final class KnockSettingsViewController: SettingsSectionViewController {
     }
 
     @objc private func enabledChanged() {
-        viewModel.setEnabled(enabledSwitch.state == .on)
+        viewModel.setEnabled(enabledCheckbox.state == .on)
     }
 
     @objc private func actionChanged(_ sender: NSPopUpButton) {

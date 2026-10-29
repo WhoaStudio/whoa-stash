@@ -35,7 +35,7 @@ final class LabeledSliderView: NSView {
         NSLayoutConstraint.activate([
             slider.leadingAnchor.constraint(equalTo: leadingAnchor),
             slider.centerYAnchor.constraint(equalTo: centerYAnchor),
-            slider.widthAnchor.constraint(equalToConstant: 110),
+            slider.widthAnchor.constraint(equalToConstant: SettingsMetrics.sliderWidth),
 
             valueLabel.leadingAnchor.constraint(equalTo: slider.trailingAnchor, constant: 8),
             valueLabel.trailingAnchor.constraint(equalTo: trailingAnchor),

@@ -7,9 +7,9 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
-/// Base commune aux quatre écrans de Préférences : une pile verticale de `SettingsCardView`
-/// dans un scroll view sans chrome visible, avec une apparition en fondu/glissé légère à
-/// chaque affichage. Les sous-classes ne fournissent que leurs cartes.
+/// Base commune aux écrans de Préférences : une pile verticale de lignes de formulaire et de
+/// filets, centrée dans un scroll view sans chrome visible, avec une apparition en fondu/glissé légère à
+/// chaque affichage. Les sous-classes ne fournissent que leurs lignes.
 class SettingsSectionViewController: NSViewController {
 
     private let animationsEnabled: () -> Bool
@@ -44,7 +44,7 @@ class SettingsSectionViewController: NSViewController {
 
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = SettingsMetrics.cardSpacing
+        stack.spacing = SettingsMetrics.rowSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         documentView.addSubview(stack)
@@ -59,32 +59,31 @@ class SettingsSectionViewController: NSViewController {
 
             documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
-            stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: SettingsMetrics.contentInset),
-            stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: SettingsMetrics.contentInset),
-            stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -SettingsMetrics.contentInset),
-            stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -SettingsMetrics.contentInset),
+            stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: SettingsMetrics.contentTopInset),
+            stack.centerXAnchor.constraint(equalTo: documentView.centerXAnchor),
+            stack.widthAnchor.constraint(equalToConstant: SettingsMetrics.contentWidth),
+            stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -SettingsMetrics.contentBottomInset),
         ])
 
-        let cards = makeCards()
-        for card in cards {
-            stack.addArrangedSubview(card)
-            card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        for row in makeRows() {
+            stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
     }
 
     override func viewWillAppear() {
         super.viewWillAppear()
-        animateCardsIn()
+        animateRowsIn()
     }
 
-    /// Point d'extension : chaque écran fournit ses cartes, déjà remplies de lignes.
-    func makeCards() -> [SettingsCardView] { [] }
+    /// Point d'extension : chaque écran fournit ses lignes de formulaire et ses filets.
+    func makeRows() -> [NSView] { [] }
 
-    private func animateCardsIn() {
+    private func animateRowsIn() {
         guard animationsEnabled() else { return }
-        for (index, card) in stack.arrangedSubviews.enumerated() {
-            card.wantsLayer = true
-            guard let layer = card.layer else { continue }
+        for (index, row) in stack.arrangedSubviews.enumerated() {
+            row.wantsLayer = true
+            guard let layer = row.layer else { continue }
             layer.opacity = 0
             layer.transform = CATransform3DMakeTranslation(0, 8, 0)
 

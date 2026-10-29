@@ -3,7 +3,7 @@ import Combine
 import OSLog
 
 /// Gère la fenêtre de Préférences : instance unique, ramenée au premier plan à chaque
-/// ouverture. Compose la sidebar et l'écran courant ; ne contient aucune logique métier —
+/// ouverture. Compose la barre d'onglets et l'écran courant ; ne contient aucune logique métier —
 /// tout passe par `SettingsViewModel` et les view models de section.
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
@@ -18,7 +18,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Settings"
+        window.title = "Whoa Stash Settings"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -90,7 +90,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
-/// Assemble la sidebar (fixe, à gauche) et l'écran courant (à droite), et anime le
+/// Assemble la barre d'onglets (en haut) et l'écran courant (dessous), et anime le
 /// changement d'onglet par un fondu croisé — jamais un simple `switch` instantané.
 private final class SettingsRootViewController: NSViewController {
 
@@ -120,21 +120,30 @@ private final class SettingsRootViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let sidebar = SidebarView(viewModel: viewModel, animationsEnabled: animationsEnabled)
+        let tabBar = SettingsTabBarView(viewModel: viewModel, animationsEnabled: animationsEnabled)
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        view.addSubview(sidebar)
+        // Titre centré dessiné ici : celui de la fenêtre se cale à gauche à côté des boutons.
+        let titleLabel = NSTextField(labelWithString: "Whoa Stash Settings")
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(titleLabel)
+        view.addSubview(tabBar)
         view.addSubview(contentContainer)
 
         NSLayoutConstraint.activate([
-            sidebar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            sidebar.topAnchor.constraint(equalTo: view.topAnchor),
-            sidebar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            sidebar.widthAnchor.constraint(equalToConstant: SettingsMetrics.sidebarWidth),
+            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            titleLabel.centerYAnchor.constraint(equalTo: view.topAnchor, constant: SettingsMetrics.titleBarHeight / 2),
 
-            contentContainer.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
+            tabBar.topAnchor.constraint(equalTo: view.topAnchor, constant: SettingsMetrics.titleBarHeight),
+            tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            contentContainer.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            contentContainer.topAnchor.constraint(equalTo: view.topAnchor),
             contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 

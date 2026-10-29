@@ -1,8 +1,8 @@
 import AppKit
 import Combine
 
-/// Écran "General" : lancement au démarrage, couleur d'accent, translucidité des
-/// panneaux, raccourci global, animations, retour haptique et sonore, et remise à zéro. Ne
+/// Écran "General" : lancement au démarrage, raccourci global, panneau de l'encoche, couleur
+/// d'accent, translucidité des panneaux, animations, retour haptique et sonore, et remise à zéro. Ne
 /// contient aucune logique — tout transite par `GeneralSettingsViewModel`.
 final class GeneralSettingsViewController: SettingsSectionViewController {
 
@@ -12,76 +12,42 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     private var spotifyCancellable: AnyCancellable?
     private var spotifyStatusCancellable: AnyCancellable?
 
-    private let launchAtLoginSwitch = NSSwitch()
-    private let accentColorPopUp = NSPopUpButton()
-    private let animationsSwitch = NSSwitch()
-    private let hapticSwitch = NSSwitch()
-    private let soundSwitch = NSSwitch()
-    private let notchPanelSwitch = NSSwitch()
+    private lazy var launchAtLoginCheckbox = NSButton.settingsCheckbox(
+        "Launch at login", target: self, action: #selector(launchAtLoginChanged))
+    private lazy var notchPanelCheckbox = NSButton.settingsCheckbox(
+        "Show notch panel", target: self, action: #selector(notchPanelChanged))
+    private lazy var animationsCheckbox = NSButton.settingsCheckbox(
+        "Enable animations", target: self, action: #selector(animationsChanged))
+    private lazy var hapticCheckbox = NSButton.settingsCheckbox(
+        "Enable haptic feedback", target: self, action: #selector(hapticChanged))
+    private lazy var soundCheckbox = NSButton.settingsCheckbox(
+        "Enable sound feedback", target: self, action: #selector(soundChanged))
+
+    private let shortcutPopUp = SettingsKeyPopUp()
+    private let accentChoice = SettingsChoiceView(
+        items: AccentColor.allCases.map { (title: $0.displayName, visual: SettingsChoiceView.swatch(color: $0.color)) },
+        ringsOnSelect: true)
+    private let notchlessStyleChoice = SettingsChoiceView(
+        items: NotchPanelStyle.allCases.map { (title: $0.displayName, visual: SettingsChoiceView.thumbnail(style: $0)) },
+        ringsOnSelect: false)
+    private var notchlessStyleRow: SettingsFormRowView?
     private let panelOpacitySlider = LabeledSliderView(minValue: 0.35, maxValue: 1, value: 1)
-    private let shortcutPopUp = NSPopUpButton()
-    private let notchlessStylePopUp = NSPopUpButton()
-    private let resetButton = NSButton(title: "Reset…", target: nil, action: nil)
     private let spotifyClientIDField = NSTextField()
     private let spotifyStatusLabel = NSTextField(labelWithString: "")
     private let spotifyButton = NSButton(title: "Connect", target: nil, action: nil)
 
-    override func makeCards() -> [SettingsCardView] {
-        launchAtLoginSwitch.target = self
-        launchAtLoginSwitch.action = #selector(launchAtLoginChanged)
-
-        accentColorPopUp.target = self
-        accentColorPopUp.action = #selector(accentColorChanged)
-        AccentColor.allCases.forEach { accentColorPopUp.addItem(withTitle: $0.displayName) }
-
-        animationsSwitch.target = self
-        animationsSwitch.action = #selector(animationsChanged)
-
-        hapticSwitch.target = self
-        hapticSwitch.action = #selector(hapticChanged)
-
-        soundSwitch.target = self
-        soundSwitch.action = #selector(soundChanged)
-
-        let startupCard = SettingsCardView(title: "Startup", rows: [
-            SettingsRowView(title: "Launch at login", accessory: launchAtLoginSwitch),
-        ])
-
-        panelOpacitySlider.formatter = { String(format: "%.0f%%", $0 * 100) }
-        panelOpacitySlider.onChange = { [weak self] in self?.viewModel.setPanelOpacity($0) }
-
-        let appearanceCard = SettingsCardView(title: "Appearance", rows: [
-            SettingsRowView(title: "Accent color", accessory: accentColorPopUp),
-            SettingsRowView(title: "Panel opacity", accessory: panelOpacitySlider),
-        ])
-
-        notchPanelSwitch.target = self
-        notchPanelSwitch.action = #selector(notchPanelChanged)
-
+    override func makeRows() -> [NSView] {
         shortcutPopUp.target = self
         shortcutPopUp.action = #selector(shortcutChanged)
         GlobalShortcut.allCases.forEach { shortcutPopUp.addItem(withTitle: $0.displayName) }
 
-        notchlessStylePopUp.target = self
-        notchlessStylePopUp.action = #selector(notchlessStyleChanged)
-        NotchPanelStyle.allCases.forEach { notchlessStylePopUp.addItem(withTitle: $0.displayName) }
+        accentChoice.onChange = { [weak self] in self?.viewModel.setAccentColor(AccentColor.allCases[$0]) }
+        notchlessStyleChoice.onChange = { [weak self] in
+            self?.viewModel.setNotchlessStyle(NotchPanelStyle.allCases[$0])
+        }
 
-        resetButton.target = self
-        resetButton.action = #selector(resetTapped)
-        resetButton.bezelStyle = .rounded
-        resetButton.translatesAutoresizingMaskIntoConstraints = false
-
-        let feedbackCard = SettingsCardView(title: "Feedback", rows: [
-            SettingsRowView(title: "Enable animations", accessory: animationsSwitch),
-            SettingsRowView(title: "Enable haptic feedback", accessory: hapticSwitch),
-            SettingsRowView(title: "Enable sound feedback", accessory: soundSwitch),
-        ])
-
-        let notchPanelCard = SettingsCardView(title: "Notch Panel", rows: [
-            SettingsRowView(title: "Show notch panel", accessory: notchPanelSwitch),
-            SettingsRowView(title: "Style without notch", accessory: notchlessStylePopUp),
-            SettingsRowView(title: "Toggle shortcut", accessory: shortcutPopUp),
-        ])
+        panelOpacitySlider.formatter = { String(format: "%.0f%%", $0 * 100) }
+        panelOpacitySlider.onChange = { [weak self] in self?.viewModel.setPanelOpacity($0) }
 
         spotifyClientIDField.placeholderString = "Client ID"
         spotifyClientIDField.delegate = self
@@ -98,21 +64,36 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         let spotifyAccessory = NSStackView(views: [spotifyStatusLabel, spotifyButton])
         spotifyAccessory.orientation = .horizontal
         spotifyAccessory.spacing = 10
-        spotifyAccessory.translatesAutoresizingMaskIntoConstraints = false
 
-        let spotifyCard = SettingsCardView(title: "Spotify", rows: [
-            SettingsRowView(
-                title: "Client ID",
-                subtitle: "For the Playing Next list. Create an app on developer.spotify.com and add the redirect URI \(SpotifyAuthorizer.redirectURI).",
-                accessory: spotifyClientIDField),
-            SettingsRowView(title: "Account", accessory: spotifyAccessory),
-        ])
+        let resetBanner = SettingsBannerView(
+            pill: "Reset", pillColor: .systemRed,
+            title: "Restore default settings",
+            subtitle: "Every setting goes back to its original value.")
+        resetBanner.onClick = { [weak self] in self?.resetTapped() }
 
-        let resetCard = SettingsCardView(title: "Reset", rows: [
-            SettingsRowView(title: "Restore all settings to their defaults", accessory: resetButton),
-        ])
+        let styleRow = SettingsFormRowView(title: "Style without notch", control: notchlessStyleChoice, alignsTop: true)
+        notchlessStyleRow = styleRow
 
-        return [startupCard, appearanceCard, notchPanelCard, feedbackCard, spotifyCard, resetCard]
+        return [
+            SettingsFormRowView(title: "Startup", control: launchAtLoginCheckbox),
+            SettingsFormRowView(title: "Toggle shortcut", control: shortcutPopUp),
+            SettingsFormRowView(title: "Notch panel", control: notchPanelCheckbox),
+            makeSettingsDivider(),
+            SettingsFormRowView(title: "Accent color", control: accentChoice, alignsTop: true),
+            SettingsFormRowView(title: "Panel opacity", control: panelOpacitySlider),
+            styleRow,
+            makeSettingsDivider(),
+            SettingsFormRowView(
+                title: "Feedback",
+                control: makeSettingsControlStack([animationsCheckbox, hapticCheckbox, soundCheckbox])),
+            makeSettingsDivider(),
+            SettingsFormRowView(
+                title: "Client ID", control: spotifyClientIDField,
+                caption: "For the Playing Next list. Create an app on developer.spotify.com and add the redirect URI \(SpotifyAuthorizer.redirectURI)."),
+            SettingsFormRowView(title: "Spotify account", control: spotifyAccessory),
+            makeSettingsDivider(),
+            SettingsFormRowView(control: resetBanner, alignsTop: true),
+        ]
     }
 
     override func viewDidLoad() {
@@ -126,8 +107,9 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             self?.apply(spotifyStatus: $0)
         }
         notchPanelCancellable = viewModel.$notchPanel.sink { [weak self] in
-            self?.notchPanelSwitch.state = $0.enabled ? .on : .off
-            self?.notchlessStylePopUp.selectItem(at: NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
+            self?.notchPanelCheckbox.state = $0.enabled ? .on : .off
+            self?.notchlessStyleChoice.select(NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
+            self?.notchlessStyleRow?.isDimmed = !$0.enabled
         }
     }
 
@@ -153,33 +135,29 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     }
 
     private func apply(_ settings: GeneralSettings) {
-        launchAtLoginSwitch.state = settings.launchAtLogin ? .on : .off
-        accentColorPopUp.selectItem(at: AccentColor.allCases.firstIndex(of: settings.accentColor) ?? 0)
-        animationsSwitch.state = settings.enableAnimations ? .on : .off
-        hapticSwitch.state = settings.enableHapticFeedback ? .on : .off
-        soundSwitch.state = settings.enableSoundFeedback ? .on : .off
+        launchAtLoginCheckbox.state = settings.launchAtLogin ? .on : .off
+        accentChoice.select(AccentColor.allCases.firstIndex(of: settings.accentColor) ?? 0)
+        animationsCheckbox.state = settings.enableAnimations ? .on : .off
+        hapticCheckbox.state = settings.enableHapticFeedback ? .on : .off
+        soundCheckbox.state = settings.enableSoundFeedback ? .on : .off
         panelOpacitySlider.setValue(settings.panelOpacity)
         shortcutPopUp.selectItem(at: GlobalShortcut.allCases.firstIndex(of: settings.togglePanelShortcut) ?? 0)
     }
 
     @objc private func launchAtLoginChanged() {
-        viewModel.setLaunchAtLogin(launchAtLoginSwitch.state == .on)
-    }
-
-    @objc private func accentColorChanged() {
-        viewModel.setAccentColor(AccentColor.allCases[accentColorPopUp.indexOfSelectedItem])
+        viewModel.setLaunchAtLogin(launchAtLoginCheckbox.state == .on)
     }
 
     @objc private func animationsChanged() {
-        viewModel.setEnableAnimations(animationsSwitch.state == .on)
+        viewModel.setEnableAnimations(animationsCheckbox.state == .on)
     }
 
     @objc private func hapticChanged() {
-        viewModel.setEnableHapticFeedback(hapticSwitch.state == .on)
+        viewModel.setEnableHapticFeedback(hapticCheckbox.state == .on)
     }
 
     @objc private func soundChanged() {
-        viewModel.setEnableSoundFeedback(soundSwitch.state == .on)
+        viewModel.setEnableSoundFeedback(soundCheckbox.state == .on)
     }
 
     @objc private func spotifyClientIDChanged() {
@@ -197,11 +175,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     }
 
     @objc private func notchPanelChanged() {
-        viewModel.setNotchPanelEnabled(notchPanelSwitch.state == .on)
-    }
-
-    @objc private func notchlessStyleChanged() {
-        viewModel.setNotchlessStyle(NotchPanelStyle.allCases[notchlessStylePopUp.indexOfSelectedItem])
+        viewModel.setNotchPanelEnabled(notchPanelCheckbox.state == .on)
     }
 
     @objc private func shortcutChanged() {

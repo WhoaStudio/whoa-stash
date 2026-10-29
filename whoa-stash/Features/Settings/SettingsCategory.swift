@@ -26,15 +26,4 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .about: return "info.circle"
         }
     }
-
-    /// Couleur de la tuile derrière l'icône dans la sidebar — une teinte par catégorie, comme
-    /// dans les Réglages Système, pour distinguer les entrées au premier coup d'œil.
-    var tintColor: NSColor {
-        switch self {
-        case .general: return .systemBlue
-        case .brightness: return .systemOrange
-        case .knock: return .systemPurple
-        case .about: return .systemGreen
-        }
-    }
 }
