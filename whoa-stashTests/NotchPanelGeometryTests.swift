@@ -181,4 +181,19 @@ struct NotchPanelGeometryTests {
         #expect(NotchPanelGeometry.collapsedTopGap(on: screen, style: .notch) == 0)
         #expect(NotchPanelGeometry.collapsedTopGap(on: screen, style: .island) == NotchPanelGeometry.islandTopGap)
     }
+
+    @Test("l'île dépliée est une pastille détachée du bord, sans raccords concaves")
+    func expandedIslandIsAFloatingPill() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let gap = NotchPanelGeometry.islandTopGap
+        let path = PanelGeometry.islandSilhouette(
+            in: rect, size: rect.size, topGap: gap, cornerRadius: NotchPanelGeometry.expandedBottomRadius)
+        let bounds = path.boundingBoxOfPath
+
+        #expect(abs(bounds.maxY - (rect.maxY - gap)) < 0.01)
+        #expect(abs(bounds.width - rect.width) < 0.01)
+        #expect(!path.contains(CGPoint(x: bounds.minX + 1, y: bounds.maxY - 1)), "le coin haut est arrondi")
+        #expect(NotchPanelGeometry.islandPillSize.width < NotchPanelGeometry.pillSize.width)
+        #expect(NotchPanelGeometry.islandPillSize.height > NotchPanelGeometry.pillSize.height)
+    }
 }
