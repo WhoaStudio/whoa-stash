@@ -53,6 +53,16 @@ final class NotchPanelWindow {
         set { contentView.onOpenSettings = newValue }
     }
 
+    var onLaunchAll: (() -> Void)? {
+        get { contentView.onLaunchAll }
+        set { contentView.onLaunchAll = newValue }
+    }
+
+    var canLaunchAll: Bool {
+        get { contentView.canLaunchAll }
+        set { contentView.canLaunchAll = newValue }
+    }
+
     func apply(clipboardItems: [ClipboardItem]) {
         contentView.apply(clipboardItems: clipboardItems)
     }
