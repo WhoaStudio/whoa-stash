@@ -15,19 +15,22 @@ cd whoa-stash
 
 ### Building without the maintainer's signing team
 
-The project signs with the maintainer's team (`2MPVX5W6KB`). Without that account, Xcode stops
-with "No Account for Team". Clear the team and sign to run locally:
+The project signs with the maintainer's team (`2MPVX5W6KB`, set in `Config/Base.xcconfig`).
+Without that account, Xcode stops with "No Account for Team". Copy the example local config,
+which clears the team and signs to run locally (or set your own team in it):
 
 ```bash
-xcodebuild -scheme whoa-stash -destination 'platform=macOS' DEVELOPMENT_TEAM= CODE_SIGN_IDENTITY=- build
+cp Config/Local.xcconfig.example Config/Local.xcconfig
 ```
+
+`Config/Local.xcconfig` is git-ignored and applies to both Xcode and `xcodebuild`. For a one-off
+command-line build, you can pass the same settings instead:
 
 ```bash
 xcodebuild -scheme whoa-stash -destination 'platform=macOS' DEVELOPMENT_TEAM= CODE_SIGN_IDENTITY=- test
 ```
 
-In the Xcode app, pick your own team under *Signing & Capabilities* instead, and don't commit that
-change.
+Don't change the team under *Signing & Capabilities*: that edits the shared project file.
 
 Ad-hoc signed builds get a new code signature on every build, so macOS may ask again for Keychain,
 Calendar, Camera or Accessibility access. Most surfaces can be checked without any of them through

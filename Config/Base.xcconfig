@@ -1,0 +1,7 @@
+// Shared build settings for every target. Signing defaults to the maintainer's team.
+// To build with your own team, or without one, copy Local.xcconfig.example to
+// Local.xcconfig (git-ignored) and override the settings there.
+
+DEVELOPMENT_TEAM = 2MPVX5W6KB
+
+#include? "Local.xcconfig"
