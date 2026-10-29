@@ -36,6 +36,9 @@ enum NotchPanelGeometry {
     /// fonds commun, posée ici sur le bord du haut.
     static let pillSize = PanelGeometry.collapsedHandleSize
 
+    /// Pastille du mode île : un peu plus étroite et plus haute que la poignée commune.
+    static let islandPillSize = CGSize(width: 140, height: 26)
+
     // MARK: - État déplié
 
     /// Marges intérieures du contenu. Celles de la bande du bord droit, mais prises dans le bon
@@ -190,8 +193,8 @@ enum NotchPanelGeometry {
         )
     }
 
-    static func expandedSize(on screen: NSScreen) -> NSSize {
-        expandedSize(collapsedHeight: collapsedSize(on: screen).height)
+    static func expandedSize(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSSize {
+        expandedSize(collapsedHeight: collapsedSize(on: screen, style: style).height)
     }
 
     // MARK: - Encoche
@@ -260,8 +263,8 @@ enum NotchPanelGeometry {
 
     /// Cadre de la fenêtre, identique replié comme déplié : c'est la silhouette qui s'anime à
     /// l'intérieur, jamais la fenêtre, qui redimensionnée à chaque image hacherait le dépliage.
-    static func windowFrame(on screen: NSScreen) -> NSRect {
-        let size = expandedSize(on: screen)
+    static func windowFrame(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSRect {
+        let size = expandedSize(on: screen, style: style)
         return NSRect(
             x: screen.frame.midX - size.width / 2,
             y: topAnchor(on: screen) - size.height,
@@ -272,8 +275,9 @@ enum NotchPanelGeometry {
 
     /// Taille de la silhouette repliée : celle de l'encoche quand il y en a une, la pastille
     /// sinon.
-    static func collapsedSize(on screen: NSScreen) -> NSSize {
-        notchRect(on: screen).map { NSSize(width: $0.width, height: $0.height) } ?? pillSize
+    static func collapsedSize(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSSize {
+        notchRect(on: screen).map { NSSize(width: $0.width, height: $0.height) }
+            ?? (style == .island ? islandPillSize : pillSize)
     }
 
     /// Écart entre le bord du haut et la silhouette repliée : nul sauf en mode île, qui ne vaut
@@ -289,7 +293,7 @@ enum NotchPanelGeometry {
     static let hotZonePadding: CGFloat = 18
 
     static func hotZone(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSRect {
-        let size = collapsedSize(on: screen)
+        let size = collapsedSize(on: screen, style: style)
         let gap = collapsedTopGap(on: screen, style: style)
         let top = topAnchor(on: screen)
         return NSRect(

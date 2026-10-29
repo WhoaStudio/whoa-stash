@@ -169,10 +169,10 @@ final class NotchPanelWindow {
     /// Pose la fenêtre sur son écran et l'affiche repliée. Appelé à la construction et à chaque
     /// changement de configuration d'écrans.
     func place(on screen: NSScreen, style: NotchPanelStyle) {
-        let frame = NotchPanelGeometry.windowFrame(on: screen)
+        let frame = NotchPanelGeometry.windowFrame(on: screen, style: style)
         panel.setFrame(frame, display: true)
         contentView.frame = NSRect(origin: .zero, size: frame.size)
-        contentView.collapsedSize = NotchPanelGeometry.collapsedSize(on: screen)
+        contentView.collapsedSize = NotchPanelGeometry.collapsedSize(on: screen, style: style)
         contentView.collapsedTopGap = NotchPanelGeometry.collapsedTopGap(on: screen, style: style)
         contentView.layoutSubtreeIfNeeded()
         panel.orderFrontRegardless()

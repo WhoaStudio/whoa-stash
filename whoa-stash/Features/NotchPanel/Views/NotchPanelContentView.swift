@@ -788,6 +788,19 @@ final class NotchPanelContentView: NSView {
     }
 
     private func expandedPath() -> CGPath {
+        // Mode île : une pastille détachée du bord, arrondie sur ses quatre coins, qui garde
+        // la même suite de segments que la pastille repliée.
+        if collapsedTopGap > 0 {
+            // Mirror : sans raccords concaves, le corps épouse le cercle de l'aperçu.
+            let isMirror = selectedTab == .mirror
+            let width = isMirror ? NotchPanelGeometry.mirrorBodyWidth : panelRect.width
+            return PanelGeometry.islandSilhouette(
+                in: panelRect,
+                size: CGSize(width: width, height: panelRect.height),
+                topGap: collapsedTopGap,
+                cornerRadius: NotchPanelGeometry.expandedBottomRadius,
+                bottomCornerRadius: isMirror ? width / 2 : NotchPanelGeometry.expandedBottomRadius)
+        }
         // Mirror : un U plus étroit que les autres onglets, dont le fond est le cercle de l'aperçu.
         // Un rayon de la moitié du corps joint les deux coins du bas en demi-cercle, sans changer
         // le nombre de segments : le passage d'un onglet à l'autre reste animable.
