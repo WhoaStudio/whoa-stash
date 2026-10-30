@@ -123,6 +123,14 @@ final class NotchPanelWindow {
         contentView.hideDeviceStatus()
     }
 
+    func showAgentEvent(_ event: AgentEvent) {
+        contentView.showAgentEvent(event)
+    }
+
+    func hideAgentEvent() {
+        contentView.hideAgentEvent()
+    }
+
     func showNowPlaying(_ state: NowPlayingState?) {
         contentView.showNowPlaying(state)
     }
@@ -185,7 +193,21 @@ final class NotchPanelWindow {
         contentView.collapsedSize = NotchPanelGeometry.collapsedSize(on: screen, style: style)
         contentView.collapsedTopGap = NotchPanelGeometry.collapsedTopGap(on: screen, style: style)
         contentView.layoutSubtreeIfNeeded()
-        panel.orderFrontRegardless()
+        if !isSuppressed { panel.orderFrontRegardless() }
+    }
+
+    /// Vrai tant qu'une app est en plein écran sur cet écran : la fenêtre est retirée de l'écran.
+    private(set) var isSuppressed = false
+
+    /// Retire la fenêtre (ou la remet) sans toucher à son contenu, pour ne pas couvrir un plein écran.
+    func setSuppressed(_ suppressed: Bool) {
+        guard suppressed != isSuppressed else { return }
+        isSuppressed = suppressed
+        if suppressed {
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
     }
 
     /// Choisit l'onglet affiché, hors clic — `--notch-tab=`.

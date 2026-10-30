@@ -12,17 +12,17 @@ final class NowPlayingRowView: NSView {
     var onCommand: ((NowPlayingCommand) -> Void)?
 
     private let artworkView = ArtworkView()
-    private let titleLabel = NowPlayingRowView.label(size: 17, weight: .semibold, color: .white)
-    private let artistLabel = NowPlayingRowView.label(size: 14, weight: .regular, color: .white.withAlphaComponent(0.5))
+    private let titleLabel = NowPlayingRowView.label(size: 14, weight: .semibold, color: .white)
+    private let artistLabel = NowPlayingRowView.label(size: 12, weight: .regular, color: .white.withAlphaComponent(0.5))
     private let visualizer = AudioVisualizerView()
-    private let elapsedLabel = NowPlayingRowView.label(size: 12, weight: .regular, color: .white.withAlphaComponent(0.5))
-    private let remainingLabel = NowPlayingRowView.label(size: 12, weight: .regular, color: .white.withAlphaComponent(0.5))
+    private let elapsedLabel = NowPlayingRowView.label(size: 11, weight: .regular, color: .white.withAlphaComponent(0.5))
+    private let remainingLabel = NowPlayingRowView.label(size: 11, weight: .regular, color: .white.withAlphaComponent(0.5))
     private let progress = NowPlayingSliderView(isInteractive: false)
     private let volumeSlider = NowPlayingSliderView(isInteractive: true)
     private let volumeIcon = NSImageView()
-    private let previousButton = NowPlayingControlButton(symbol: "backward.fill", size: 18)
-    private let playPauseButton = NowPlayingControlButton(symbol: "pause.fill", size: 24)
-    private let nextButton = NowPlayingControlButton(symbol: "forward.fill", size: 18)
+    private let previousButton = NowPlayingControlButton(symbol: "backward.fill", size: 14)
+    private let playPauseButton = NowPlayingControlButton(symbol: "pause.fill", size: 18)
+    private let nextButton = NowPlayingControlButton(symbol: "forward.fill", size: 14)
 
     private let queueHeader = NowPlayingRowView.label(size: 13, weight: .semibold, color: .white.withAlphaComponent(0.5))
     private let queueDivider = NSBox()
@@ -36,12 +36,12 @@ final class NowPlayingRowView: NSView {
     private let playerShare: CGFloat = 0.58
     private let queueGap: CGFloat = 20
 
-    private let controlsHeight: CGFloat = 32
-    private let progressHeight: CGFloat = 14
+    private let controlsHeight: CGFloat = 26
+    private let progressHeight: CGFloat = 12
     private let rowGap: CGFloat = 4
-    private let buttonPitch: CGFloat = 52
-    private let volumeWidth: CGFloat = 150
-    private let timeWidth: CGFloat = 40
+    private let buttonPitch: CGFloat = 40
+    private let volumeWidth: CGFloat = 120
+    private let timeWidth: CGFloat = 34
     /// Marge interne d'un `NSTextField` de chaque côté : sans elle compensée, le texte ne tombe
     /// pas sur les bords de la pochette et du curseur de volume.
     private let labelPadding: CGFloat = 2
@@ -172,57 +172,61 @@ final class NowPlayingRowView: NSView {
 
     override func layout() {
         super.layout()
-        // De bas en haut : commandes, progression, puis la pochette avec titre et artiste.
-        let controlsY: CGFloat = 0
-        let progressY = controlsHeight + rowGap
-        let headerY = progressY + progressHeight + rowGap
-        let artSize = max(0, bounds.height - headerY)
-        artworkView.frame = NSRect(x: 0, y: headerY, width: artSize, height: artSize)
+        // Pochette pleine hauteur à gauche. À droite, de haut en bas : titre et artiste, progression,
+        // puis commandes à gauche et volume à droite, tous alignés sur le bord de la pochette.
+        let artSize = bounds.height
+        artworkView.frame = NSRect(x: 0, y: 0, width: artSize, height: artSize)
 
         // Le lecteur tient dans `playerWidth` ; la colonne de droite prend le reste.
         let hasQueue = !queue.isEmpty
         let playerWidth = hasQueue ? (bounds.width * playerShare).rounded() : bounds.width
-        layoutQueueColumn(playerWidth: playerWidth, headerY: headerY, artSize: artSize)
+        layoutQueueColumn(playerWidth: playerWidth, headerY: 0, artSize: artSize)
 
-        // Titre et artiste forment un bloc centré sur la pochette ; sans artiste, le titre seul
-        // prend le milieu.
         let textX = artSize + 14
         let titleHeight: CGFloat = 22
         let artistHeight: CGFloat = 20
         let hasArtist = !artistLabel.stringValue.isEmpty
-        let blockHeight = hasArtist ? titleHeight + artistHeight : titleHeight
-        let blockBottom = headerY + (artSize - blockHeight) / 2
-        let titleY = hasArtist ? blockBottom + artistHeight : blockBottom
 
+        // Titre et artiste sont collés au haut de la colonne ; le visualiseur reste sur la ligne du titre.
+        let titleY = bounds.height - titleHeight
+        let artistY = titleY - artistHeight
         let vizSize = visualizer.intrinsicContentSize
-        // Le visualiseur est centré sur la ligne du titre et colle au bord droit.
         visualizer.frame = NSRect(
             x: playerWidth - vizSize.width, y: titleY + (titleHeight - vizSize.height) / 2,
             width: vizSize.width, height: vizSize.height)
         let textWidth = max(0, visualizer.frame.minX - 10 - textX)
         titleLabel.frame = NSRect(x: textX - labelPadding, y: titleY, width: textWidth, height: titleHeight)
         artistLabel.frame = NSRect(
-            x: textX - labelPadding, y: blockBottom, width: playerWidth - textX, height: artistHeight)
+            x: textX - labelPadding, y: artistY, width: max(0, playerWidth - textX), height: artistHeight)
 
-        // Temps écoulé et restant sont calés sur les bords de la pochette et du volume.
+        // Les commandes occupent le bas ; la progression se centre dans l'espace restant au-dessus.
+        let controlsY: CGFloat = 0
+        let gapBottom = controlsY + controlsHeight
+        let gapTop = hasArtist ? artistY : titleY
+        let progressY = max(
+            gapBottom + rowGap, gapBottom + (gapTop - gapBottom - progressHeight) / 2)
+
+        // Temps écoulé et restant sont calés sur les bords de la colonne et du volume.
         elapsedLabel.frame = NSRect(
-            x: -labelPadding, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
+            x: textX - labelPadding, y: progressY - 1, width: timeWidth, height: progressHeight + 2)
         remainingLabel.frame = NSRect(
             x: playerWidth - timeWidth + labelPadding, y: progressY - 1, width: timeWidth,
             height: progressHeight + 2)
         progress.frame = NSRect(
-            x: timeWidth + 6 - labelPadding, y: progressY,
-            width: max(0, playerWidth - 2 * (timeWidth + 6 - labelPadding)), height: progressHeight)
+            x: textX + timeWidth + 6 - labelPadding, y: progressY,
+            width: max(0, playerWidth - textX - 2 * (timeWidth + 6 - labelPadding)), height: progressHeight)
 
-        // Le volume colle au bord droit ; les trois commandes se centrent dans la place restante.
+        // Les trois commandes commencent sous le titre ; le volume colle au bord droit et se réduit
+        // si la colonne est trop étroite pour tout afficher.
+        let buttons = [previousButton, playPauseButton, nextButton]
+        let groupWidth = buttonPitch * CGFloat(buttons.count)
+        let groupX = textX - labelPadding - (buttonPitch - 20) / 2
+        let groupEnd = groupX + groupWidth
         let controlsMidY = controlsY + (controlsHeight - 16) / 2
-        let volume = hasQueue ? volumeWidth * 0.6 : volumeWidth
+        let volume = min(hasQueue ? volumeWidth * 0.6 : volumeWidth, max(0, playerWidth - groupEnd - 38))
         volumeSlider.frame = NSRect(x: playerWidth - volume, y: controlsMidY, width: volume, height: 16)
         volumeIcon.frame = NSRect(x: volumeSlider.frame.minX - 26, y: controlsMidY, width: 18, height: 16)
 
-        let buttons = [previousButton, playPauseButton, nextButton]
-        let groupWidth = buttonPitch * CGFloat(buttons.count)
-        let groupX = max(0, (volumeIcon.frame.minX - 12 - groupWidth) / 2)
         for (index, button) in buttons.enumerated() {
             button.frame = NSRect(
                 x: groupX + CGFloat(index) * buttonPitch, y: controlsY, width: buttonPitch, height: controlsHeight)

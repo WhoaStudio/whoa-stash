@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 
 /// Gère, par écran connecté, le panneau suspendu au haut de l'écran. Replié il épouse l'encoche
 /// matérielle — ou prend la forme d'une pastille sur les Macs qui n'en ont pas — et il se déplie
@@ -34,6 +35,14 @@ final class NotchPanelController {
     private var enabledCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
+
+    /// Écrans où une app est en plein écran : leur île est retirée. Mis à jour sur les signaux du
+    /// système (changement de Space, app au premier plan, écrans), jamais par sondage.
+    private var fullScreenDisplays: Set<CGDirectDisplayID> = []
+    /// Écrans en plein écran où une demande d'agent réaffiche l'île le temps de sa pastille.
+    private var revealedDisplays: Set<CGDirectDisplayID> = []
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var fullScreenSettleTask: Task<Void, Never>?
 
     private var usageState: ClaudeUsageState = .loading
     private var copilotUsageState: CopilotUsageState = .loading
@@ -77,6 +86,11 @@ final class NotchPanelController {
     private let deviceStatusDuration: Duration = .seconds(3)
     private var deviceStatusTask: Task<Void, Never>?
     private var deviceStatusDisplay: CGDirectDisplayID?
+
+    /// Notification d'agent IA : visible `agentEventDuration`, puis elle se retire.
+    private let agentEventDuration: Duration = .seconds(4)
+    private var agentEventTask: Task<Void, Never>?
+    private var agentEventDisplay: CGDirectDisplayID?
 
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est
     /// téléporté, ou qu'il quitte la zone pendant un changement de Space, plus aucun événement
@@ -144,6 +158,14 @@ final class NotchPanelController {
             Task { @MainActor in self?.rebuildWindows() }
         }
 
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            workspaceObservers.append(workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.fullScreenSignalReceived() }
+            })
+        }
+        refreshFullScreen()
+
         // Aucune permission d'accessibilité requise : seuls les événements clavier et
         // synthétiques en demandent, pas le suivi des déplacements de souris.
         mouseMonitor.onMove = { [weak self] location in
@@ -162,9 +184,18 @@ final class NotchPanelController {
             self.screenObserver = nil
         }
         stopPolling()
+        workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+        workspaceObservers.removeAll()
+        fullScreenSettleTask?.cancel()
+        fullScreenSettleTask = nil
+        fullScreenDisplays = []
+        revealedDisplays = []
         deviceStatusTask?.cancel()
         deviceStatusTask = nil
         deviceStatusDisplay = nil
+        agentEventTask?.cancel()
+        agentEventTask = nil
+        agentEventDisplay = nil
 
         windows.values.forEach { $0.close() }
         windows.removeAll()
@@ -224,7 +255,8 @@ final class NotchPanelController {
         guard
             isActive,
             let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
-            let window = windows[displayID]
+            let window = windows[displayID],
+            !isHiddenByFullScreen(displayID)
         else { return }
 
         deviceStatusTask?.cancel()
@@ -239,6 +271,81 @@ final class NotchPanelController {
             guard !Task.isCancelled else { return }
             window.hideDeviceStatus()
             self?.deviceStatusDisplay = nil
+        }
+    }
+
+    /// Montre la notification d'un agent IA sur l'écran principal, avec le son de clic. Une nouvelle
+    /// notification remplace la précédente et relance le délai.
+    func showAgentEvent(_ event: AgentEvent) {
+        guard
+            isActive,
+            let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
+            let window = windows[displayID]
+        else { return }
+
+        // Île retirée par un plein écran : seule une demande en attente (`needsInput`) la
+        // réaffiche, le temps de sa pastille ; une fin de session peut attendre.
+        if isHiddenByFullScreen(displayID) {
+            guard event.kind == .needsInput else { return }
+            revealedDisplays.insert(displayID)
+            applyFullScreen()
+        }
+
+        ButtonSound.shared.playClick()
+        agentEventTask?.cancel()
+        if let previous = agentEventDisplay, previous != displayID {
+            windows[previous]?.hideAgentEvent()
+        }
+        agentEventDisplay = displayID
+        window.showAgentEvent(event)
+
+        agentEventTask = Task { [weak self, duration = agentEventDuration] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            window.hideAgentEvent()
+            self?.agentEventDisplay = nil
+            self?.revealedDisplays.remove(displayID)
+            self?.applyFullScreen()
+        }
+    }
+
+    // MARK: - Plein écran
+
+    private func isHiddenByFullScreen(_ displayID: CGDirectDisplayID) -> Bool {
+        fullScreenDisplays.contains(displayID) && !revealedDisplays.contains(displayID)
+    }
+
+    /// Le plein écran s'installe après la notification de changement de Space : on relit tout de
+    /// suite, puis une fois l'animation passée.
+    private func fullScreenSignalReceived() {
+        refreshFullScreen()
+        fullScreenSettleTask?.cancel()
+        fullScreenSettleTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            self?.refreshFullScreen()
+        }
+    }
+
+    private func refreshFullScreen() {
+        var insets: [CGDirectDisplayID: CGFloat] = [:]
+        for screen in NSScreen.screens {
+            if let id = screen.displayID { insets[id] = screen.safeAreaInsets.top }
+        }
+        let updated = FullScreenDetector.fullScreenDisplays(topInsets: insets)
+        guard updated != fullScreenDisplays else { return }
+        fullScreenDisplays = updated
+        revealedDisplays.formIntersection(updated)
+        Log.notchPanel.debug("Plein écran sur \(updated.count, privacy: .public) écran(s)")
+        applyFullScreen()
+    }
+
+    /// Retire ou remet chaque fenêtre selon l'état courant ; replie le panneau d'un écran retiré.
+    private func applyFullScreen() {
+        for (displayID, window) in windows {
+            let hidden = isHiddenByFullScreen(displayID)
+            if hidden, expandedDisplay == displayID { collapseActive() }
+            window.setSuppressed(hidden)
         }
     }
 
@@ -313,6 +420,12 @@ final class NotchPanelController {
             let displayID = screen.displayID,
             let window = windows[displayID]
         else {
+            collapseActive()
+            return
+        }
+
+        // Plein écran sur cet écran : pas de zone sensible, l'île n'est pas là.
+        guard !window.isSuppressed else {
             collapseActive()
             return
         }
@@ -424,6 +537,8 @@ final class NotchPanelController {
             // panneau est visible en permanence, donc tous sont recadrés, pas seulement l'actif.
             window.place(on: screen, style: notchlessStyle)
         }
+        refreshFullScreen()
+        applyFullScreen()
 
         for (displayID, window) in windows where !connected.contains(displayID) {
             window.close()

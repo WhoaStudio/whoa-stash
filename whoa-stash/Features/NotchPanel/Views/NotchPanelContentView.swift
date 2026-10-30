@@ -58,6 +58,10 @@ final class NotchPanelContentView: NSView {
     private let deviceStatusPill = DeviceStatusPillView()
     private var isShowingDeviceStatus = false
 
+    /// Notification d'un agent IA (session Claude Code terminée ou en attente) : mêmes ailes, plus larges.
+    private let agentEventPill = AgentEventPillView()
+    private var isShowingAgentEvent = false
+
     /// Lecture en cours : mêmes ailes que la pastille Bluetooth, mais tenues tant que ça joue. La
     /// pastille Bluetooth passe devant le temps de son affichage.
     private let nowPlayingWings = NowPlayingWingsView()
@@ -195,6 +199,8 @@ final class NotchPanelContentView: NSView {
         addSubview(nowPlayingWings)
         deviceStatusPill.layer?.opacity = 0
         addSubview(deviceStatusPill)
+        agentEventPill.layer?.opacity = 0
+        addSubview(agentEventPill)
         applySelection(animated: false)
 
         // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -518,6 +524,9 @@ final class NotchPanelContentView: NSView {
         let deviceWidth = collapsedSize.width + 2 * DeviceStatusPillView.wingWidth
         deviceStatusPill.frame = NSRect(
             x: bounds.midX - deviceWidth / 2, y: wingsY, width: deviceWidth, height: collapsedSize.height)
+        let agentWidth = collapsedSize.width + 2 * AgentEventPillView.wingWidth
+        agentEventPill.frame = NSRect(
+            x: bounds.midX - agentWidth / 2, y: wingsY, width: agentWidth, height: collapsedSize.height)
         let media = nowPlayingSize
         let mediaExtra = media.height - collapsedSize.height
         nowPlayingWings.lift = collapsedTopGap > 0 ? 0 : NowPlayingWingsView.extraHeight / 2
@@ -615,8 +624,10 @@ final class NotchPanelContentView: NSView {
             width: panel.width,
             height: max(0, bodyTop - bodyBottom)
         ).insetBy(dx: inset, dy: 0)
+        // Le bac déborde un peu sur les marges latérales : ses vignettes gagnent de la place.
+        let trayBleed: CGFloat = 4
         for view in tabContentViews {
-            view.frame = body
+            view.frame = view === fileTray ? body.insetBy(dx: -trayBleed, dy: 0) : body
         }
         transformView.frame = body
 
@@ -728,6 +739,29 @@ final class NotchPanelContentView: NSView {
         updateNowPlayingWingsOpacity(animated: animated)
     }
 
+    // MARK: - Notification d'agent
+
+    func showAgentEvent(_ event: AgentEvent) {
+        guard !isExpanded else { return }
+        hideDeviceStatus(animated: false)
+        agentEventPill.apply(event, notchWidth: collapsedSize.width)
+        agentEventPill.layoutSubtreeIfNeeded()
+        isShowingAgentEvent = true
+        applyShape(expanded: false, animated: true)
+        PanelFold.fade(agentEventPill.layer!, to: 1)
+        updateNowPlayingWingsOpacity(animated: true)
+    }
+
+    func hideAgentEvent(animated: Bool = true) {
+        guard isShowingAgentEvent else { return }
+        isShowingAgentEvent = false
+        applyShape(expanded: isExpanded, animated: animated)
+        if let layer = agentEventPill.layer {
+            if animated { PanelFold.fade(layer, to: 0) } else { layer.opacity = 0 }
+        }
+        updateNowPlayingWingsOpacity(animated: animated)
+    }
+
     // MARK: - Lecture en cours
 
     /// Appelé par la ligne de pilotage : précédent, lecture/pause, suivant.
@@ -766,7 +800,7 @@ final class NotchPanelContentView: NSView {
     /// Les ailes de lecture ne se voient que repliées et sans pastille Bluetooth par-dessus.
     private func updateNowPlayingWingsOpacity(animated: Bool) {
         guard let layer = nowPlayingWings.layer else { return }
-        let visible = isShowingNowPlaying && !isShowingDeviceStatus && !isExpanded
+        let visible = isShowingNowPlaying && !isShowingDeviceStatus && !isShowingAgentEvent && !isExpanded
         if animated { PanelFold.fade(layer, to: visible ? 1 : 0) } else { layer.opacity = visible ? 1 : 0 }
     }
 
@@ -796,7 +830,11 @@ final class NotchPanelContentView: NSView {
     private func wingedPath() -> CGPath {
         // La pastille Bluetooth impose sa largeur et garde la hauteur de l'encoche ; sinon la
         // lecture donne sa taille (`nowPlayingSize`).
-        let size = isShowingDeviceStatus
+        let size = isShowingAgentEvent
+            ? NSSize(
+                width: collapsedSize.width + 2 * AgentEventPillView.wingWidth,
+                height: collapsedSize.height)
+            : isShowingDeviceStatus
             ? NSSize(
                 width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
                 height: collapsedSize.height)
@@ -868,7 +906,7 @@ final class NotchPanelContentView: NSView {
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let path = expanded ? expandedPath() : (isShowingDeviceStatus || isShowingNowPlaying ? wingedPath() : collapsedPath())
+        let path = expanded ? expandedPath() : (isShowingDeviceStatus || isShowingAgentEvent || isShowingNowPlaying ? wingedPath() : collapsedPath())
         // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
         // le panneau déplié qu'on vient cliquer ou déposer.
         silhouette = path
