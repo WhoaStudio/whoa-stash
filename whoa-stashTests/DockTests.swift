@@ -53,6 +53,13 @@ private func makeStorage() -> SettingsStorage {
         #expect(storage.settings.dock.savedSystemDock == nil)
     }
 
+    @Test func unMasquageAlorsQueLeDockEstDejaMasqueNEnregistrePasNosValeurs() {
+        let defaults = FakeDockDefaults(["autohide": true, "autohide-delay": SystemDockService.hiddenDelay])
+        let storage = makeStorage()
+        SystemDockService(storage: storage, defaults: defaults).sync(hidden: true)
+        #expect(storage.settings.dock.savedSystemDock == SavedSystemDock(autohide: nil, autohideDelay: nil))
+    }
+
     @Test func restaurerSansSauvegardeNeToucheRien() {
         let defaults = FakeDockDefaults(["autohide": true])
         SystemDockService(storage: makeStorage(), defaults: defaults).restore()
@@ -74,6 +81,18 @@ private func makeStorage() -> SettingsStorage {
         #expect(model.state.items.map(\.isRunning) == [false, true])
         // « c » tourne sans être dans la liste : il va dans le dossier.
         #expect(model.state.overflow.map(\.bundleID) == ["c"])
+    }
+
+    @Test func leFinderNEstDansLeDossierQueSiOnLAjoute() {
+        let finder = DockRunningApp(
+            bundleID: DockModel.finderBundleID, path: "/System/Library/CoreServices/Finder.app", name: "Finder")
+        let model = DockModel()
+        model.setRunning([finder])
+        #expect(model.state.items.isEmpty)
+        #expect(model.state.overflow.isEmpty)
+
+        model.setPinned([DockPinnedApp(bundleID: DockModel.finderBundleID, path: finder.path)])
+        #expect(model.state.items.map(\.bundleID) == [DockModel.finderBundleID])
     }
 
     @Test func reconnaitLesWebApps() {

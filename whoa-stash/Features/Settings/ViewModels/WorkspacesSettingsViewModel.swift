@@ -63,6 +63,10 @@ final class WorkspacesSettingsViewModel: ObservableObject {
         update { $0.apps.place(app, at: index) }
     }
 
+    func addWidget(kind: String) { update { $0.addWidget(kind: kind) } }
+
+    func removeWidget(id: String) { update { $0.removeWidget(id: id) } }
+
     func setActive(_ active: Bool) {
         guard let id = selectedID else { return }
         storage.settings.dock.activeWorkspaceID = active ? id : (storage.settings.dock.activeWorkspaceID == id ? nil : storage.settings.dock.activeWorkspaceID)
