@@ -35,7 +35,7 @@ import Testing
         let root = try readRoot(installer)
         #expect(root["model"] as? String == "opus")
         let hooks = try #require(root["hooks"] as? [String: Any])
-        #expect((hooks["PostToolUse"] as? [Any])?.count == 1)
+        #expect((hooks["PostToolUse"] as? [Any])?.count == 2)
         #expect((hooks["Stop"] as? [Any])?.count == 2)
         #expect((hooks["Notification"] as? [Any])?.count == 1)
         #expect(installer.status() == .installed)
@@ -96,7 +96,7 @@ import Testing
     @Test func decodeLeNomDuProjetDepuisLeCwd() throws {
         let line = #"{"kind":"stop","payload":{"cwd":"/Users/x/Dev/mon-projet","session_id":"1"}}"#
         let event = try #require(AgentEvent.decode(Data(line.utf8)))
-        #expect(event == AgentEvent(kind: .finished, project: "mon-projet"))
+        #expect(event == AgentEvent(kind: .finished, project: "mon-projet", sessionID: "1"))
         #expect(AgentEvent.decode(Data(#"{"kind":"autre"}"#.utf8)) == nil)
     }
 }
