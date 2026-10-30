@@ -131,6 +131,24 @@ final class NotchPanelWindow {
         contentView.hideAgentEvent()
     }
 
+    var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)? {
+        get { contentView.onAgentDecision }
+        set { contentView.onAgentDecision = newValue }
+    }
+
+    /// La demande que la carte de l'onglet AI affiche ; `nil` la retire.
+    func apply(agentPrompt: AgentEvent?) {
+        contentView.apply(agentPrompt: agentPrompt)
+    }
+
+    func showMailMessage(_ message: MailMessage) {
+        contentView.showMailMessage(message)
+    }
+
+    func hideMailMessage() {
+        contentView.hideMailMessage()
+    }
+
     func showNowPlaying(_ state: NowPlayingState?) {
         contentView.showNowPlaying(state)
     }

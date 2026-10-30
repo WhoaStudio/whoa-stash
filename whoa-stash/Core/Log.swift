@@ -55,6 +55,9 @@ enum Log {
     nonisolated static let radialMenu = Logger(subsystem: subsystem, category: "radial-menu")
     /// Notifications d'agents IA : hooks Claude Code (socket local) et veille de Claude Desktop.
     nonisolated static let agents = Logger(subsystem: subsystem, category: "agents")
+
+    /// Courrier entrant (IMAP). Expéditeurs, objets et serveurs sont privés.
+    nonisolated static let mail = Logger(subsystem: subsystem, category: "mail")
     /// Panneau de l'encoche : masquage de l'île quand une app est en plein écran.
     nonisolated static let notchPanel = Logger(subsystem: subsystem, category: "notch-panel")
 }

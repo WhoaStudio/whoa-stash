@@ -62,6 +62,10 @@ final class NotchPanelContentView: NSView {
     private let agentEventPill = AgentEventPillView()
     private var isShowingAgentEvent = false
 
+    /// Courrier arrivé : mêmes ailes, les plus larges, avec l'objet et le début du texte.
+    private let mailMessagePill = MailMessagePillView()
+    private var isShowingMailMessage = false
+
     /// Lecture en cours : mêmes ailes que la pastille Bluetooth, mais tenues tant que ça joue. La
     /// pastille Bluetooth passe devant le temps de son affichage.
     private let nowPlayingWings = NowPlayingWingsView()
@@ -201,6 +205,8 @@ final class NotchPanelContentView: NSView {
         addSubview(deviceStatusPill)
         agentEventPill.layer?.opacity = 0
         addSubview(agentEventPill)
+        mailMessagePill.layer?.opacity = 0
+        addSubview(mailMessagePill)
         applySelection(animated: false)
 
         // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -527,6 +533,9 @@ final class NotchPanelContentView: NSView {
         let agentWidth = collapsedSize.width + 2 * AgentEventPillView.wingWidth
         agentEventPill.frame = NSRect(
             x: bounds.midX - agentWidth / 2, y: wingsY, width: agentWidth, height: collapsedSize.height)
+        let mailWidth = collapsedSize.width + 2 * MailMessagePillView.wingWidth
+        mailMessagePill.frame = NSRect(
+            x: bounds.midX - mailWidth / 2, y: wingsY, width: mailWidth, height: collapsedSize.height)
         let media = nowPlayingSize
         let mediaExtra = media.height - collapsedSize.height
         nowPlayingWings.lift = collapsedTopGap > 0 ? 0 : NowPlayingWingsView.extraHeight / 2
@@ -741,9 +750,19 @@ final class NotchPanelContentView: NSView {
 
     // MARK: - Notification d'agent
 
+    var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)? {
+        get { usageTab.onAgentDecision }
+        set { usageTab.onAgentDecision = newValue }
+    }
+
+    func apply(agentPrompt: AgentEvent?) {
+        usageTab.apply(agentPrompt: agentPrompt)
+    }
+
     func showAgentEvent(_ event: AgentEvent) {
         guard !isExpanded else { return }
         hideDeviceStatus(animated: false)
+        hideMailMessage(animated: false)
         agentEventPill.apply(event, notchWidth: collapsedSize.width)
         agentEventPill.layoutSubtreeIfNeeded()
         isShowingAgentEvent = true
@@ -757,6 +776,30 @@ final class NotchPanelContentView: NSView {
         isShowingAgentEvent = false
         applyShape(expanded: isExpanded, animated: animated)
         if let layer = agentEventPill.layer {
+            if animated { PanelFold.fade(layer, to: 0) } else { layer.opacity = 0 }
+        }
+        updateNowPlayingWingsOpacity(animated: animated)
+    }
+
+    // MARK: - Courrier
+
+    func showMailMessage(_ message: MailMessage) {
+        guard !isExpanded else { return }
+        hideDeviceStatus(animated: false)
+        hideAgentEvent(animated: false)
+        mailMessagePill.apply(message, notchWidth: collapsedSize.width)
+        mailMessagePill.layoutSubtreeIfNeeded()
+        isShowingMailMessage = true
+        applyShape(expanded: false, animated: true)
+        PanelFold.fade(mailMessagePill.layer!, to: 1)
+        updateNowPlayingWingsOpacity(animated: true)
+    }
+
+    func hideMailMessage(animated: Bool = true) {
+        guard isShowingMailMessage else { return }
+        isShowingMailMessage = false
+        applyShape(expanded: isExpanded, animated: animated)
+        if let layer = mailMessagePill.layer {
             if animated { PanelFold.fade(layer, to: 0) } else { layer.opacity = 0 }
         }
         updateNowPlayingWingsOpacity(animated: animated)
@@ -800,7 +843,7 @@ final class NotchPanelContentView: NSView {
     /// Les ailes de lecture ne se voient que repliées et sans pastille Bluetooth par-dessus.
     private func updateNowPlayingWingsOpacity(animated: Bool) {
         guard let layer = nowPlayingWings.layer else { return }
-        let visible = isShowingNowPlaying && !isShowingDeviceStatus && !isShowingAgentEvent && !isExpanded
+        let visible = isShowingNowPlaying && !isShowingDeviceStatus && !isShowingAgentEvent && !isShowingMailMessage && !isExpanded
         if animated { PanelFold.fade(layer, to: visible ? 1 : 0) } else { layer.opacity = visible ? 1 : 0 }
     }
 
@@ -830,7 +873,11 @@ final class NotchPanelContentView: NSView {
     private func wingedPath() -> CGPath {
         // La pastille Bluetooth impose sa largeur et garde la hauteur de l'encoche ; sinon la
         // lecture donne sa taille (`nowPlayingSize`).
-        let size = isShowingAgentEvent
+        let size = isShowingMailMessage
+            ? NSSize(
+                width: collapsedSize.width + 2 * MailMessagePillView.wingWidth,
+                height: collapsedSize.height)
+            : isShowingAgentEvent
             ? NSSize(
                 width: collapsedSize.width + 2 * AgentEventPillView.wingWidth,
                 height: collapsedSize.height)
@@ -895,6 +942,8 @@ final class NotchPanelContentView: NSView {
         if !expanded { closeTransform(animated: false) }
         if expanded {
             hideDeviceStatus(animated: animated)
+            hideMailMessage(animated: animated)
+            hideAgentEvent(animated: animated)
             nowPlayingRow.refreshVolume()
             onExpanded?()
         }
@@ -906,7 +955,7 @@ final class NotchPanelContentView: NSView {
     private func applyShape(expanded: Bool, animated: Bool) {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let path = expanded ? expandedPath() : (isShowingDeviceStatus || isShowingAgentEvent || isShowingNowPlaying ? wingedPath() : collapsedPath())
+        let path = expanded ? expandedPath() : (isShowingDeviceStatus || isShowingAgentEvent || isShowingMailMessage || isShowingNowPlaying ? wingedPath() : collapsedPath())
         // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
         // le panneau déplié qu'on vient cliquer ou déposer.
         silhouette = path

@@ -91,6 +91,19 @@ final class NotchPanelController {
     private let agentEventDuration: Duration = .seconds(4)
     private var agentEventTask: Task<Void, Never>?
     private var agentEventDisplay: CGDirectDisplayID?
+    /// Réponse donnée depuis l'encoche (Allow, Deny, un choix) : à rendre au hook qui l'attend.
+    var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)?
+
+    /// Demandes de Claude sans réponse : l'encoche montre la plus récente, et le survol ouvre l'onglet AI.
+    private var agentPrompts = AgentPromptStore()
+    /// Une demande dont la session a disparu sans prévenir (processus tué) expire après ce délai.
+    private let agentPromptLifetime: Duration = .seconds(600)
+    private var agentPromptExpiryTask: Task<Void, Never>?
+
+    /// Courrier arrivé : visible `mailMessageDuration`, puis il se retire.
+    private let mailMessageDuration: Duration = .seconds(6)
+    private var mailMessageTask: Task<Void, Never>?
+    private var mailMessageDisplay: CGDirectDisplayID?
 
     /// Les moniteurs d'événements ne se déclenchent qu'au mouvement : si le curseur est
     /// téléporté, ou qu'il quitte la zone pendant un changement de Space, plus aucun événement
@@ -196,6 +209,12 @@ final class NotchPanelController {
         agentEventTask?.cancel()
         agentEventTask = nil
         agentEventDisplay = nil
+        agentPrompts = AgentPromptStore()
+        agentPromptExpiryTask?.cancel()
+        agentPromptExpiryTask = nil
+        mailMessageTask?.cancel()
+        mailMessageTask = nil
+        mailMessageDisplay = nil
 
         windows.values.forEach { $0.close() }
         windows.removeAll()
@@ -276,12 +295,37 @@ final class NotchPanelController {
 
     /// Montre la notification d'un agent IA sur l'écran principal, avec le son de clic. Une nouvelle
     /// notification remplace la précédente et relance le délai.
+    ///
+    /// Une demande (permission, question) ne se retire pas d'elle-même : elle reste dans
+    /// `agentPrompts` jusqu'à ce que sa session signale autre chose, et la pastille revient après
+    /// toute autre notification ou tout repli du panneau.
     func showAgentEvent(_ event: AgentEvent) {
         guard
             isActive,
             let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
             let window = windows[displayID]
         else { return }
+
+        let previous = agentPrompts.current
+        let changed = agentPrompts.apply(event)
+        if changed {
+            windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current) }
+            scheduleAgentPromptExpiry()
+        }
+
+        if event.kind == .clear {
+            // Rien à montrer pour un « clear » ; si la demande affichée vient de partir, on la retire
+            // ou on laisse place à la précédente.
+            guard changed, previous != agentPrompts.current else { return }
+            if let remaining = agentPrompts.current {
+                presentAgentEvent(remaining, on: displayID, window: window, sound: false)
+            } else {
+                dismissAgentEvent(on: displayID, window: window)
+            }
+            return
+        }
+        // Une notification de permission qui double la demande détaillée : rien de neuf à montrer.
+        if event.prompt != nil, !changed { return }
 
         // Île retirée par un plein écran : seule une demande en attente (`needsInput`) la
         // réaffiche, le temps de sa pastille ; une fin de session peut attendre.
@@ -290,8 +334,13 @@ final class NotchPanelController {
             revealedDisplays.insert(displayID)
             applyFullScreen()
         }
+        presentAgentEvent(event, on: displayID, window: window, sound: true)
+    }
 
-        ButtonSound.shared.playClick()
+    private func presentAgentEvent(
+        _ event: AgentEvent, on displayID: CGDirectDisplayID, window: NotchPanelWindow, sound: Bool
+    ) {
+        if sound { ButtonSound.shared.playClick() }
         agentEventTask?.cancel()
         if let previous = agentEventDisplay, previous != displayID {
             windows[previous]?.hideAgentEvent()
@@ -299,13 +348,87 @@ final class NotchPanelController {
         agentEventDisplay = displayID
         window.showAgentEvent(event)
 
+        // Une demande reste affichée ; les autres se retirent, puis la demande en attente revient.
+        guard event.prompt == nil else { return }
         agentEventTask = Task { [weak self, duration = agentEventDuration] in
             try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, let self else { return }
+            if let pending = self.agentPrompts.current {
+                self.presentAgentEvent(pending, on: displayID, window: window, sound: false)
+            } else {
+                self.dismissAgentEvent(on: displayID, window: window)
+            }
+        }
+    }
+
+    /// La demande n'attend plus : elle a reçu sa réponse, ou son hook a été annulé. La pastille
+    /// disparaît ou laisse place à la demande précédente.
+    func agentPromptEnded(replyID: String) {
+        guard agentPrompts.remove(replyID: replyID) else { return }
+        windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current) }
+        scheduleAgentPromptExpiry()
+        guard let displayID = agentEventDisplay, let window = windows[displayID] else { return }
+        if let remaining = agentPrompts.current {
+            presentAgentEvent(remaining, on: displayID, window: window, sound: false)
+        } else {
+            dismissAgentEvent(on: displayID, window: window)
+        }
+    }
+
+    private func scheduleAgentPromptExpiry() {
+        agentPromptExpiryTask?.cancel()
+        agentPromptExpiryTask = nil
+        guard agentPrompts.current != nil else { return }
+        agentPromptExpiryTask = Task { [weak self, lifetime = agentPromptLifetime] in
+            try? await Task.sleep(for: lifetime)
+            guard !Task.isCancelled, let self else { return }
+            let cutoff = Date().addingTimeInterval(-Double(lifetime.components.seconds) + 1)
+            guard self.agentPrompts.expire(before: cutoff) else { return self.scheduleAgentPromptExpiry() }
+            self.windows.values.forEach { $0.apply(agentPrompt: self.agentPrompts.current) }
+            if let displayID = self.agentEventDisplay, let window = self.windows[displayID] {
+                if let remaining = self.agentPrompts.current {
+                    self.presentAgentEvent(remaining, on: displayID, window: window, sound: false)
+                } else {
+                    self.dismissAgentEvent(on: displayID, window: window)
+                }
+            }
+            self.scheduleAgentPromptExpiry()
+        }
+    }
+
+    private func dismissAgentEvent(on displayID: CGDirectDisplayID, window: NotchPanelWindow) {
+        agentEventTask?.cancel()
+        agentEventTask = nil
+        window.hideAgentEvent()
+        agentEventDisplay = nil
+        revealedDisplays.remove(displayID)
+        applyFullScreen()
+    }
+
+    /// Montre un courrier arrivé sur l'écran principal, avec le son de clic. Un nouveau courrier
+    /// remplace le précédent et relance le délai ; une demande d'agent passe devant (voir
+    /// `showAgentEvent`). Sur un écran occupé par une app en plein écran, l'île reste retirée.
+    func showMailMessage(_ message: MailMessage) {
+        guard
+            isActive,
+            let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
+            let window = windows[displayID],
+            !isHiddenByFullScreen(displayID)
+        else { return }
+
+        ButtonSound.shared.playClick()
+        mailMessageTask?.cancel()
+        if let previous = mailMessageDisplay, previous != displayID {
+            windows[previous]?.hideMailMessage()
+        }
+        mailMessageDisplay = displayID
+        window.showMailMessage(message)
+
+        mailMessageTask = Task { [weak self, duration = mailMessageDuration] in
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
-            window.hideAgentEvent()
-            self?.agentEventDisplay = nil
-            self?.revealedDisplays.remove(displayID)
-            self?.applyFullScreen()
+            window.hideMailMessage()
+            self?.mailMessageDisplay = nil
         }
     }
 
@@ -460,6 +583,9 @@ final class NotchPanelController {
         window.apply(usageState: usageState, animated: false)
         window.apply(copilotUsageState: copilotUsageState)
         window.apply(agendaState: agendaState)
+        // Une demande attend : le panneau s'ouvre sur l'onglet AI, où elle est lisible. Seulement à
+        // l'ouverture, pour ne pas ramener l'onglet à chaque mouvement du curseur.
+        if !window.isExpanded, agentPrompts.current != nil { window.select(.ai) }
         window.setExpanded(true)
         startPolling()
 
@@ -489,6 +615,10 @@ final class NotchPanelController {
         isPinned = false
         guard let expandedDisplay else { return }
         windows[expandedDisplay]?.setExpanded(false)
+        // La demande en attente reprend sa pastille, sans le son.
+        if let pending = agentPrompts.current, let window = windows[expandedDisplay] {
+            presentAgentEvent(pending, on: expandedDisplay, window: window, sound: false)
+        }
         self.expandedDisplay = nil
         stopPolling()
     }
@@ -529,6 +659,11 @@ final class NotchPanelController {
                 window.showNowPlaying(nowPlayingState)
                 window.updateNowPlayingPlayer(nowPlayingPlayer)
                 window.apply(playingNext: playingNext)
+                window.apply(agentPrompt: agentPrompts.current)
+                window.onAgentDecision = { [weak self] event, decision in
+                    self?.onAgentDecision?(event, decision)
+                    if let id = event.replyID { self?.agentPromptEnded(replyID: id) }
+                }
                 window.onExpanded = { [weak self] in self?.onPanelExpanded?() }
                 windows[displayID] = window
             }

@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dockCancellables: Set<AnyCancellable> = []
     private let agentHookServer = AgentHookServer()
     private var claudeDesktopWatcher: ClaudeDesktopWatcher?
+    private var mailCoordinator: MailNotificationCoordinator?
+    private var mailCancellable: AnyCancellable?
 
     /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
     /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
@@ -171,6 +173,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.notchPanelController?.showAgentEvent($0)
         }
         agentHookServer.onEvent = showAgentEvent
+        agentHookServer.onCancel = { [weak self] in self?.notchPanelController?.agentPromptEnded(replyID: $0) }
+        notchPanelController?.onAgentDecision = { [weak self] event, decision in
+            guard let id = event.replyID, let json = event.replyJSON(for: decision) else { return }
+            self?.agentHookServer.reply(to: id, json: json)
+        }
         agentHookServer.start()
         let desktopWatcher = ClaudeDesktopWatcher()
         desktopWatcher.onEvent = showAgentEvent
@@ -182,6 +189,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 showAgentEvent(simulated)
             }
         }
+
+        // Courrier entrant dans l'encoche : compte IMAP des Préférences ▸ Mail, derrière `MailSource`.
+        // `--mail=sample` substitue un message fixe.
+        let mail = MailNotificationCoordinator()
+        mail.onMessage = { [weak self] in self?.notchPanelController?.showMailMessage($0) }
+        if let mock = MockMailSource.fromLaunchArguments() { mail.start(mock, name: "mock") }
+        mailCoordinator = mail
+        mailCancellable = settings.$settings
+            .map(\.mail)
+            .removeDuplicates()
+            .sink { [weak mail] in mail?.apply(settings: $0) }
 
         // Menu radial : un bouton de souris maintenu l'ouvre sous le curseur ; les éléments choisis
         // dans les Préférences s'appliquent à chaud.

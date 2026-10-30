@@ -22,6 +22,21 @@ The parsers are `ClaudeUsageService.parse(_:)`, `CopilotUsageService.parse(_:)` 
 `CopilotUsageTests` covers the Copilot parser. When an endpoint changes shape, add the new
 key to the fallback list first.
 
+## IMAP (new mail in the notch)
+
+`IMAPMailSource` opens a TLS connection (`Network.framework`, default certificate checks) straight
+from the Mac to the server set in Preferences ▸ Mail, usually port 993. It signs in with `LOGIN`,
+opens the inbox read-only (`EXAMINE`), waits with `IDLE`, and on `* n EXISTS` runs
+`UID FETCH <last+1>:*` for `FROM`, `SUBJECT`, `MESSAGE-ID`, the content headers and the first 6 KiB of
+`BODY.PEEK[TEXT]`. Nothing is marked as read and nothing is stored: only sender, subject and a
+one-line preview are kept in memory while the notch shows them. `IDLE` is restarted every 10 minutes
+(and the connection is closed if the server does not answer `DONE` within 30 s). A lost connection is
+retried after 5 s, doubling up to 5 min, and the messages missed meanwhile (at most 5) are shown after
+reconnecting. Sender, subject and server name are logged as private.
+
+Sign-in is a password or app-specific password (iCloud, Gmail with 2-step verification). OAuth
+(`XOAUTH2`, needed for Outlook.com and for Gmail without an app password) is not implemented.
+
 ## Keychain
 
 All reads are generic-password reads. Tokens are cached in memory only, and are never written
@@ -29,6 +44,7 @@ to disk or logged.
 
 | Store | Item service | Notes |
 |---|---|---|
+| `IMAPCredentialStore` | `ugolin-olle.whoa-stash.imap`, account `<user>@<host>` | The IMAP password, as UTF-8. Written from Preferences ▸ Mail, read when connecting. |
 | `ClaudeUsageCredentialStore` | `Claude Code-credentials` or `Claude Code-credentials-<hash>` | Finds the item by attributes first (no prompt), takes the most recently modified one, then reads its data through `/usr/bin/security find-generic-password -w` (no prompt). The JSON is `claudeAiOauth.accessToken` plus `expiresAt` in **milliseconds**. The token is cached until 30 s before expiry, or for 5 min when there is no expiry. An expired token raises "relance `claude`". |
 | `CopilotUsageCredentialStore` | `github-copilot-app`, then `gh:github.com` | The value may be `go-keyring-base64:`-prefixed (GitHub CLI). It must start with `gho_`, `ghp_` or `github_pat_`. Cached for 5 min. |
 
@@ -52,6 +68,9 @@ in the item's ACL and matches `apple-tool:`, so it never prompts.
 Apple silicon only; when it is missing the code degrades instead of failing.
 
 ## Permissions
+
+New mail needs none: the app is not sandboxed, so outgoing connections are allowed, and no
+entitlement was added.
 
 | Permission | Requested by | Fallback |
 |---|---|---|

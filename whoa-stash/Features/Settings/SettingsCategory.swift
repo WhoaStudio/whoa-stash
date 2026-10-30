@@ -9,6 +9,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case dock
     case workspaces
     case ai
+    case mail
     case about
 
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .dock: return "Dock"
         case .workspaces: return "Workspaces"
         case .ai: return "AI"
+        case .mail: return "Mail"
         case .about: return "About"
         }
     }
@@ -35,6 +37,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .dock: return "dock.rectangle"
         case .workspaces: return "square.grid.2x2"
         case .ai: return "sparkles"
+        case .mail: return "envelope"
         case .about: return "info.circle"
         }
     }
