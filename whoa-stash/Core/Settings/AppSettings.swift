@@ -156,6 +156,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var dock = DockSettings()
     var radialMenu = RadialMenuSettings()
     var ai = AISettings()
+    var mail = MailSettings()
 
     static let `default` = AppSettings()
 }

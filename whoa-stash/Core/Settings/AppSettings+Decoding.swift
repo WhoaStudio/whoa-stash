@@ -151,6 +151,28 @@ extension SpotifySettings {
     }
 }
 
+extension MailSettings {
+    enum CodingKeys: String, CodingKey {
+        case imapEnabled
+        case host
+        case port
+        case username
+        case provider
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = MailSettings()
+        self.init(
+            imapEnabled: container.value(.imapEnabled, defaults.imapEnabled),
+            host: container.value(.host, defaults.host),
+            port: container.value(.port, defaults.port),
+            username: container.value(.username, defaults.username),
+            provider: container.value(.provider, defaults.provider)
+        )
+    }
+}
+
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case general
@@ -162,6 +184,7 @@ extension AppSettings {
         case dock
         case radialMenu
         case ai
+        case mail
     }
 
     init(from decoder: Decoder) throws {
@@ -176,7 +199,8 @@ extension AppSettings {
             spotify: container.value(.spotify, defaults.spotify),
             dock: container.value(.dock, defaults.dock),
             radialMenu: container.value(.radialMenu, defaults.radialMenu),
-            ai: container.value(.ai, defaults.ai)
+            ai: container.value(.ai, defaults.ai),
+            mail: container.value(.mail, defaults.mail)
         )
     }
 }

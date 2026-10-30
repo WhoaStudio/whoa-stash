@@ -18,10 +18,18 @@ final class NotchUsageTabView: NSView {
         set { header.onOpenSettings = newValue }
     }
 
+    var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)? {
+        get { promptCard.onDecision }
+        set { promptCard.onDecision = newValue }
+    }
+
     private let header = NotchUsageHeaderView()
     private let card = NotchUsageCardView()
     private let pills: [NotchUsageFilterPillView]
     private let activity = NotchUsageActivityView()
+    /// Demande de Claude en attente : remplace la carte, les pastilles et l'activité, le temps qu'elle attend.
+    private let promptCard = AgentPromptCardView()
+    private var isShowingPrompt = false
 
     private var selectedProvider: NotchUsageProvider = .claude
     private var readings: [NotchUsageProvider: NotchUsageReading] = [
@@ -43,6 +51,8 @@ final class NotchUsageTabView: NSView {
         wantsLayer = true
         [header, card, activity].forEach(addSubview)
         pills.forEach(addSubview)
+        promptCard.isHidden = true
+        addSubview(promptCard)
 
         header.onSelect = { [weak self] provider in self?.select(provider, animated: true) }
         for provider in NotchUsageProvider.allCases { refresh(provider) }
@@ -62,6 +72,16 @@ final class NotchUsageTabView: NSView {
 
     func apply(copilot state: CopilotUsageState) {
         update(.copilot, NotchUsageReading.copilot(state))
+    }
+
+    func apply(agentPrompt event: AgentEvent?) {
+        if let event { promptCard.apply(event) }
+        isShowingPrompt = event != nil
+        promptCard.isHidden = event == nil
+        card.isHidden = event != nil
+        pills.forEach { $0.isHidden = event != nil }
+        activity.isHidden = event != nil
+        needsLayout = true
     }
 
     /// Remet le mois à jour — appelé à chaque dépliage.
@@ -121,6 +141,11 @@ final class NotchUsageTabView: NSView {
             x += width + pillGap
         }
         top -= NotchUsageFilterPillView.height + sectionGap
+
+        if isShowingPrompt {
+            let cardTop = header.frame.minY - sectionGap
+            promptCard.frame = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: max(0, cardTop - bounds.minY))
+        }
 
         activity.frame = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: max(0, top - bounds.minY))
     }

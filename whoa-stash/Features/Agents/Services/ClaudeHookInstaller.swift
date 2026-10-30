@@ -1,6 +1,6 @@
 import Foundation
 
-/// Installe et retire les hooks `Stop` et `Notification` de Claude Code dans `~/.claude/settings.json`.
+/// Installe et retire les hooks de Claude Code (`Stop`, `Notification`, `PermissionRequest`, `PreToolUse` sur `AskUserQuestion`, et ceux qui lèvent une demande) dans `~/.claude/settings.json`.
 ///
 /// La fusion ne touche qu'aux entrées dont la commande désigne notre script : les autres clés et les
 /// autres hooks restent tels quels. Avant toute écriture, le fichier d'origine est copié dans
@@ -34,6 +34,13 @@ nonisolated struct ClaudeHookInstaller {
     private static let events: [(name: String, argument: String, matcher: String?)] = [
         ("Stop", "stop", nil),
         ("Notification", "notify", "permission_prompt|idle_prompt|elicitation_dialog"),
+        ("PermissionRequest", "permission", nil),
+        ("PreToolUse", "question", "AskUserQuestion"),
+        // La demande se lève au premier événement suivant de la session : aucun hook ne signale la réponse.
+        ("PostToolUse", "clear", nil),
+        ("PostToolUseFailure", "clear", nil),
+        ("UserPromptSubmit", "clear", nil),
+        ("SessionEnd", "clear", nil),
     ]
 
     let settingsURL: URL
@@ -160,14 +167,39 @@ nonisolated struct ClaudeHookInstaller {
     }
 
     /// Le script ne bloque jamais Claude Code : il sort toujours en 0, et sans l'app il ne fait rien.
-    /// `tr` met le JSON sur une ligne, que le serveur lit jusqu'au `\n`.
-    static let scriptContents = """
+    /// Il met le JSON du hook sur une ligne, que le serveur lit jusqu'au `\n`.
+    ///
+    /// Pour `permission`, il reste connecté et attend la réponse de l'encoche, qu'il rend telle quelle
+    /// sur sa sortie : Claude Code l'applique et ferme sa boîte de dialogue. La boîte s'ouvre sans
+    /// attendre le hook ; si on y répond dans le terminal, Claude Code tue le script et le serveur voit
+    /// la connexion se fermer. Perl plutôt que `nc`, qui se ferme dès la fin de son entrée.
+    static let scriptContents = #"""
         #!/bin/sh
-        # Installé par Whoa Stash : prévient l'encoche qu'une session Claude Code se termine ou attend.
+        # Installé par Whoa Stash : prévient l'encoche qu'une session Claude Code se termine, demande ou reprend.
         SOCK="$HOME/Library/Application Support/whoa-stash/agent.sock"
         [ -S "$SOCK" ] || exit 0
-        { printf '{"kind":"%s","payload":' "$1"; tr -d '\\n'; printf '}\\n'; } | /usr/bin/nc -U -w 1 "$SOCK" >/dev/null 2>&1
+        WAIT=0
+        [ "$1" = permission ] && WAIT=590
+        exec /usr/bin/perl -MSocket -e '
+        my ($kind, $path, $wait) = @ARGV;
+        local $/;
+        my $in = <STDIN>;
+        $in = "{}" unless defined $in && length $in;
+        $in =~ s/\n//g;
+        socket(my $s, PF_UNIX, SOCK_STREAM, 0) or exit 0;
+        connect($s, pack_sockaddr_un($path)) or exit 0;
+        syswrite($s, "{\"kind\":\"$kind\",\"payload\":$in}\n");
+        exit 0 unless $wait;
+        my $rin = "";
+        vec($rin, fileno($s), 1) = 1;
+        if (select(my $rout = $rin, undef, undef, $wait)) {
+            $/ = "\n";
+            my $line = <$s>;
+            print $line if defined $line;
+        }
+        exit 0;
+        ' "$1" "$SOCK" "$WAIT" 2>/dev/null
         exit 0
 
-        """
+        """#
 }
