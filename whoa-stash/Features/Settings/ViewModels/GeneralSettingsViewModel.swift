@@ -71,6 +71,10 @@ final class GeneralSettingsViewModel: ObservableObject {
         storage.settings.general.enableSoundFeedback = enabled
     }
 
+    func setEnableButtonSound(_ enabled: Bool) {
+        storage.settings.general.enableButtonSound = enabled
+    }
+
     func setNotchPanelEnabled(_ enabled: Bool) {
         storage.settings.notchPanel.enabled = enabled
     }
