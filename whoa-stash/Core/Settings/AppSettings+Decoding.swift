@@ -26,6 +26,7 @@ extension GeneralSettings {
         case enableAnimations
         case enableHapticFeedback
         case enableSoundFeedback
+        case enableButtonSound
         case panelOpacity
         case togglePanelShortcut
     }
@@ -39,6 +40,7 @@ extension GeneralSettings {
             enableAnimations: container.value(.enableAnimations, defaults.enableAnimations),
             enableHapticFeedback: container.value(.enableHapticFeedback, defaults.enableHapticFeedback),
             enableSoundFeedback: container.value(.enableSoundFeedback, defaults.enableSoundFeedback),
+            enableButtonSound: container.value(.enableButtonSound, defaults.enableButtonSound),
             panelOpacity: container.value(.panelOpacity, defaults.panelOpacity),
             togglePanelShortcut: container.value(.togglePanelShortcut, defaults.togglePanelShortcut)
         )
@@ -125,6 +127,18 @@ extension KnockSettings {
     }
 }
 
+extension AISettings {
+    enum CodingKeys: String, CodingKey {
+        case desktopWatcherEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AISettings()
+        self.init(desktopWatcherEnabled: container.value(.desktopWatcherEnabled, defaults.desktopWatcherEnabled))
+    }
+}
+
 extension SpotifySettings {
     enum CodingKeys: String, CodingKey {
         case clientID
@@ -147,6 +161,7 @@ extension AppSettings {
         case spotify
         case dock
         case radialMenu
+        case ai
     }
 
     init(from decoder: Decoder) throws {
@@ -160,7 +175,8 @@ extension AppSettings {
             knock: container.value(.knock, defaults.knock),
             spotify: container.value(.spotify, defaults.spotify),
             dock: container.value(.dock, defaults.dock),
-            radialMenu: container.value(.radialMenu, defaults.radialMenu)
+            radialMenu: container.value(.radialMenu, defaults.radialMenu),
+            ai: container.value(.ai, defaults.ai)
         )
     }
 }
@@ -207,6 +223,7 @@ extension DockSettings {
         case workspaces
         case activeWorkspaceID
         case launchExcluded
+        case widgets
     }
 
     init(from decoder: Decoder) throws {
@@ -222,7 +239,8 @@ extension DockSettings {
             autoHide: container.value(.autoHide, defaults.autoHide),
             workspaces: container.value(.workspaces, defaults.workspaces),
             activeWorkspaceID: container.value(.activeWorkspaceID, defaults.activeWorkspaceID),
-            launchExcluded: container.value(.launchExcluded, defaults.launchExcluded)
+            launchExcluded: container.value(.launchExcluded, defaults.launchExcluded),
+            widgets: container.value(.widgets, defaults.widgets)
         )
     }
 }
@@ -234,6 +252,7 @@ extension DockWorkspace {
         case symbol
         case colorHex
         case apps
+        case widgets
     }
 
     init(from decoder: Decoder) throws {
@@ -244,7 +263,8 @@ extension DockWorkspace {
             name: container.value(.name, defaults.name),
             symbol: container.value(.symbol, defaults.symbol),
             colorHex: container.value(.colorHex, defaults.colorHex),
-            apps: container.value(.apps, defaults.apps)
+            apps: container.value(.apps, defaults.apps),
+            widgets: container.value(.widgets, defaults.widgets)
         )
     }
 }

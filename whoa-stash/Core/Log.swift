@@ -46,8 +46,15 @@ enum Log {
     nonisolated static let knock = Logger(subsystem: subsystem, category: "knock")
     nonisolated static let clipboard = Logger(subsystem: subsystem, category: "clipboard")
 
+    /// Son joué au clic sur un bouton : chargement du fichier et lecture.
+    nonisolated static let sound = Logger(subsystem: subsystem, category: "sound")
+
     /// Dock personnalisé : applis suivies, Dock macOS masqué/restauré, fenêtres via Accessibilité.
     nonisolated static let dock = Logger(subsystem: subsystem, category: "dock")
     /// Menu radial : bouton de souris maintenu, ouverture sous le curseur, exécution des éléments.
     nonisolated static let radialMenu = Logger(subsystem: subsystem, category: "radial-menu")
+    /// Notifications d'agents IA : hooks Claude Code (socket local) et veille de Claude Desktop.
+    nonisolated static let agents = Logger(subsystem: subsystem, category: "agents")
+    /// Panneau de l'encoche : masquage de l'île quand une app est en plein écran.
+    nonisolated static let notchPanel = Logger(subsystem: subsystem, category: "notch-panel")
 }
