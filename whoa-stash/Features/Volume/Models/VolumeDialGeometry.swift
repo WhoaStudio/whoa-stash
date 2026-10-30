@@ -27,7 +27,7 @@ enum VolumeDialGeometry {
     /// Côté de la zone sensible, carrée et posée pile dans le coin supérieur gauche de la zone
     /// **visible** : la barre de menus occupe déjà le haut de l'écran, et une zone qui la
     /// recouvrirait n'aurait jamais le curseur pour elle.
-    static let hotZoneSide: CGFloat = 100
+    static let hotZoneSide: CGFloat = 24
 
     /// Cadre de la fenêtre du cadran, en coordonnées globales AppKit.
     static func panelFrame(on screen: NSScreen) -> NSRect {

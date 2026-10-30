@@ -100,6 +100,7 @@ final class NotchGearButtonView: NSView {
     override func mouseUp(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         guard isEnabled, bounds.contains(location) else { return }
+        ButtonSound.shared.playClick()
         onClick?()
     }
 }

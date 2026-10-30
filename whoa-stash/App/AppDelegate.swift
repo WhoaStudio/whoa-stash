@@ -34,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runningAppsProvider: RunningAppsProviding?
     private var systemDockService: SystemDockService?
     private var dockCancellables: Set<AnyCancellable> = []
+    private let agentHookServer = AgentHookServer()
+    private var claudeDesktopWatcher: ClaudeDesktopWatcher?
 
     /// Vrai quand le processus est l'hôte d'un bundle de tests unitaires. Les tests sont
     /// *hosted* (`TEST_HOST`), donc l'app démarre pour de bon avant qu'ils ne tournent : sans
@@ -59,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // construction, donc accent, translucidité et interrupteur d'animation doivent déjà
         // porter les valeurs de l'utilisateur.
         overlayPaletteSettings = OverlayPaletteSettings(storage: settings)
+
+        // Son « pop » sur tous les boutons de l'app
+        ButtonSound.shared.startClickMonitoring()
 
         // Icône dans la menu bar (en haut à droite de l'écran)
         statusBarController = StatusBarController()
@@ -160,6 +165,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .sink { [weak knock] in knock?.apply(settings: $0) }
 
+        // Notifications d'agents IA dans l'encoche : hooks Claude Code reçus sur un socket local, et
+        // veille optionnelle de Claude Desktop. `--agent-event=stop|notify[,projet]` en simule une.
+        let showAgentEvent: @MainActor (AgentEvent) -> Void = { [weak self] in
+            self?.notchPanelController?.showAgentEvent($0)
+        }
+        agentHookServer.onEvent = showAgentEvent
+        agentHookServer.start()
+        let desktopWatcher = ClaudeDesktopWatcher()
+        desktopWatcher.onEvent = showAgentEvent
+        desktopWatcher.bind(to: settings)
+        claudeDesktopWatcher = desktopWatcher
+        if let simulated = AgentEvent.fromLaunchArguments() {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                showAgentEvent(simulated)
+            }
+        }
+
         // Menu radial : un bouton de souris maintenu l'ouvre sous le curseur ; les éléments choisis
         // dans les Préférences s'appliquent à chaud.
         let radialMenu = RadialMenuController()
@@ -186,7 +209,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onSelectWorkspace: { [settings] in settings.settings.dock.activeWorkspaceID = $0 },
             onPlaceApp: { [settings] app, index in settings.settings.dock.placeApp(app, at: index) },
-            onRemoveApp: { [settings] item in settings.settings.dock.unpinApp(bundleID: item.bundleID) })
+            onRemoveApp: { [settings] item in settings.settings.dock.unpinApp(bundleID: item.bundleID) },
+            onWidgetsChanged: { [settings] in settings.settings.dock.setVisibleWidgets($0) })
         dockModel.onStateChanged = { [weak dock] in dock?.apply(state: $0) }
         let runningProvider: RunningAppsProviding =
             MockRunningAppsProvider.fromLaunchArguments() ?? WorkspaceRunningAppsProvider()
@@ -194,6 +218,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dock.activate()
         dockModel.setPinned(settings.settings.dock.visibleApps)
         dock.apply(workspaces: settings.settings.dock.workspaces, activeID: settings.settings.dock.activeWorkspaceID)
+        dock.apply(widgets: settings.settings.dock.visibleWidgets)
+        settings.$settings.map(\.dock.visibleWidgets).removeDuplicates()
+            .sink { [weak dock] in dock?.apply(widgets: $0) }.store(in: &dockCancellables)
         runningProvider.activate()
         settings.$settings.map(\.dock.visibleApps).removeDuplicates()
             .sink { [weak dockModel] in dockModel?.setPinned($0) }.store(in: &dockCancellables)
@@ -312,5 +339,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Le Dock macOS doit revenir tel que l'utilisateur l'avait, même si le réglage reste actif :
         // au prochain lancement il sera masqué de nouveau.
         systemDockService?.restore()
+        agentHookServer.stop()
     }
 }

@@ -33,6 +33,24 @@ struct DockWorkspace: Codable, Equatable, Identifiable, Sendable {
     var symbol: String = "square.grid.2x2.fill"
     var colorHex: String = "#2E70D1"
     var apps: [DockPinnedApp] = []
+    var widgets: [DockWidgetPlacement] = []
+
+    /// Pose un widget au bout de la rangée de l'espace.
+    mutating func addWidget(kind: String) {
+        widgets.append(DockWidgetPlacement(kind: kind, index: apps.count + widgets.count))
+    }
+
+    mutating func removeWidget(id: String) {
+        widgets.removeAll { $0.id == id }
+    }
+}
+
+/// Un widget posé dans le dock : son type (clé du registre) et sa place dans la rangée d'icônes.
+struct DockWidgetPlacement: Codable, Equatable, Identifiable, Sendable {
+    var id: String = UUID().uuidString
+    var kind: String
+    /// Position dans la rangée d'icônes (applis et widgets mêlés), à partir de 0.
+    var index: Int
 }
 
 /// Raccourci libre du dock : une touche et des modificateurs au format Carbon (`cmdKey`…).
@@ -81,6 +99,8 @@ struct DockSettings: Codable, Equatable, Sendable {
     var activeWorkspaceID: String?
     /// Identifiants des applis gardées dans la liste mais ignorées par « Launch all ».
     var launchExcluded: [String] = []
+    /// Les widgets du dock quand aucun espace n'est actif (« All Apps »). Chaque espace a les siens.
+    var widgets: [DockWidgetPlacement] = []
 
     /// Les applis que « Launch all » ouvre : la liste moins les exclues.
     var launchApps: [DockPinnedApp] { pinnedApps.filter { !launchExcluded.contains($0.bundleID) } }
@@ -91,6 +111,18 @@ struct DockSettings: Codable, Equatable, Sendable {
 
     /// Les applis épinglées affichées : celles de l'espace actif, sinon les épingles globales.
     var visibleApps: [DockPinnedApp] { activeWorkspace?.apps ?? pinnedApps }
+
+    /// Les widgets affichés : ceux de l'espace actif, sinon les globaux.
+    var visibleWidgets: [DockWidgetPlacement] { activeWorkspace?.widgets ?? widgets }
+
+    /// Remplace les widgets de la liste affichée (l'espace actif, sinon les globaux).
+    mutating func setVisibleWidgets(_ placements: [DockWidgetPlacement]) {
+        if let id = activeWorkspaceID, let position = workspaces.firstIndex(where: { $0.id == id }) {
+            workspaces[position].widgets = placements
+        } else {
+            widgets = placements
+        }
+    }
 
     /// Place une appli dans la liste affichée (l'espace actif, sinon les épingles globales).
     mutating func placeApp(_ app: DockPinnedApp, at index: Int) {

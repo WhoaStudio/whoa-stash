@@ -22,6 +22,8 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         "Enable haptic feedback", target: self, action: #selector(hapticChanged))
     private lazy var soundCheckbox = NSButton.settingsCheckbox(
         "Enable sound feedback", target: self, action: #selector(soundChanged))
+    private lazy var buttonSoundCheckbox = NSButton.settingsCheckbox(
+        "Enable button sound", target: self, action: #selector(buttonSoundChanged))
 
     private let shortcutPopUp = SettingsKeyPopUp()
     private let accentChoice = SettingsChoiceView(
@@ -85,7 +87,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             makeSettingsDivider(),
             SettingsFormRowView(
                 title: "Feedback",
-                control: makeSettingsControlStack([animationsCheckbox, hapticCheckbox, soundCheckbox])),
+                control: makeSettingsControlStack([animationsCheckbox, hapticCheckbox, soundCheckbox, buttonSoundCheckbox])),
             makeSettingsDivider(),
             SettingsFormRowView(
                 title: "Client ID", control: spotifyClientIDField,
@@ -140,6 +142,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         animationsCheckbox.state = settings.enableAnimations ? .on : .off
         hapticCheckbox.state = settings.enableHapticFeedback ? .on : .off
         soundCheckbox.state = settings.enableSoundFeedback ? .on : .off
+        buttonSoundCheckbox.state = settings.enableButtonSound ? .on : .off
         panelOpacitySlider.setValue(settings.panelOpacity)
         shortcutPopUp.selectItem(at: GlobalShortcut.allCases.firstIndex(of: settings.togglePanelShortcut) ?? 0)
     }
@@ -158,6 +161,10 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func soundChanged() {
         viewModel.setEnableSoundFeedback(soundCheckbox.state == .on)
+    }
+
+    @objc private func buttonSoundChanged() {
+        viewModel.setEnableButtonSound(buttonSoundCheckbox.state == .on)
     }
 
     @objc private func spotifyClientIDChanged() {

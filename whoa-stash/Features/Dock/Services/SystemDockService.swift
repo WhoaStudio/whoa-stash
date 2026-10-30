@@ -124,16 +124,24 @@ final class SystemDockService {
         // Une sauvegarde existante vient d'un lancement précédent : la garder, elle seule
         // contient les vraies valeurs de l'utilisateur.
         if storage.settings.dock.savedSystemDock == nil {
+            // Déjà masqué par nous (une autre instance ou une sortie sans restauration) : ces valeurs
+            // ne sont pas celles de l'utilisateur. On garde des clés absentes plutôt que de les figer.
+            let alreadyHidden = isHiddenByUs()
             storage.settings.dock.savedSystemDock = SavedSystemDock(
-                autohide: defaults.bool(Self.autohideKey), autohideDelay: defaults.double(Self.delayKey))
+                autohide: alreadyHidden ? nil : defaults.bool(Self.autohideKey),
+                autohideDelay: alreadyHidden ? nil : defaults.double(Self.delayKey))
         }
         // Armé avant le garde : après un plantage le Dock est déjà masqué, et ce lancement doit quand même le surveiller.
         if let saved = storage.settings.dock.savedSystemDock { defaults.armRestoreWatcher(saved: saved) }
-        guard defaults.bool(Self.autohideKey) != true || defaults.double(Self.delayKey) != Self.hiddenDelay else { return }
+        guard !isHiddenByUs() else { return }
         defaults.set(Self.autohideKey, bool: true)
         defaults.set(Self.delayKey, double: Self.hiddenDelay)
         defaults.restartDock()
         Log.dock.info("Dock macOS masqué")
+    }
+
+    private func isHiddenByUs() -> Bool {
+        defaults.bool(Self.autohideKey) == true && defaults.double(Self.delayKey) == Self.hiddenDelay
     }
 
     func restore() {

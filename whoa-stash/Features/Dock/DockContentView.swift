@@ -108,7 +108,10 @@ final class DockIconView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if !didDrag, bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
+        if !didDrag, bounds.contains(convert(event.locationInWindow, from: nil)) {
+            ButtonSound.shared.playClick()
+            onClick?()
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) { onContextMenu?(event) }
@@ -142,7 +145,10 @@ class DockButtonView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseUp(with event: NSEvent) {
-        if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
+        if bounds.contains(convert(event.locationInWindow, from: nil)) {
+            ButtonSound.shared.playClick()
+            onClick?()
+        }
     }
 }
 
@@ -293,6 +299,8 @@ final class DockContentView: NSView {
     var onPlaceApp: ((DockPinnedApp, Int) -> Void)?
     /// Une icône épinglée lâchée hors du dock : elle en sort.
     var onRemoveApp: ((DockItem, NSPoint) -> Void)?
+    /// Les widgets du dock après un dépôt ou un retrait, chacun avec sa position dans la rangée.
+    var onWidgetsChanged: (([DockWidgetPlacement]) -> Void)?
 
     private(set) var dockLook = DockAppearance()
     private let backdrop = NSView()
@@ -305,6 +313,10 @@ final class DockContentView: NSView {
     private var iconViews: [String: DockIconView] = [:]
     private var items: [DockItem] = []
     private var overflow: [DockItem] = []
+    private var widgets: [DockWidgetPlacement] = []
+    private var widgetViews: [String: DockWidgetHostView] = [:]
+    /// La rangée d'icônes : applis et widgets, dans l'ordre d'affichage.
+    private var row: [DockRowEntry] = []
     private let folderView = DockFolderView()
     private let popover = NSView()
     private var popoverCells: [String: DockPopoverCellView] = [:]
@@ -355,7 +367,7 @@ final class DockContentView: NSView {
         popover.isHidden = true
         addSubview(popover)
         applyScaledStyle()
-        registerForDraggedTypes([.dockApp, .fileURL])
+        registerForDraggedTypes([.dockApp, .dockWidget, .fileURL])
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -487,8 +499,48 @@ final class DockContentView: NSView {
             if isNew && hasLaidOut { view.alphaValue = 0 }
         }
         items = newItems
+        rebuildRow()
         syncBouncing()
         applyOverflow(newOverflow)
+    }
+
+    /// Nombre de cases de la rangée (applis et widgets) : ce qui dimensionne la fenêtre.
+    var rowCount: Int { row.count }
+
+    private func rebuildRow() {
+        row = DockRow.entries(items: items, widgets: widgets)
+    }
+
+    /// Pose les widgets du dock. Un type que le registre ne connaît plus est ignoré.
+    func apply(widgets newWidgets: [DockWidgetPlacement]) {
+        let known = newWidgets.filter { DockWidgetRegistry.kind(for: $0.kind) != nil }
+        let ids = Set(known.map(\.id))
+        for (id, host) in widgetViews where !ids.contains(id) {
+            host.tearDown()
+            widgetViews[id] = nil
+        }
+        for placement in known where widgetViews[placement.id] == nil {
+            guard let kind = DockWidgetRegistry.kind(for: placement.kind) else { continue }
+            let host = DockWidgetHostView(placement: placement, widget: kind.make())
+            host.onDragEnded = { [weak self] point, operation in
+                self?.widgetDragEnded(id: placement.id, at: point, operation: operation)
+            }
+            if hasLaidOut { host.alphaValue = 0 }
+            addSubview(host)
+            widgetViews[placement.id] = host
+        }
+        widgets = known
+        rebuildRow()
+        needsLayout = true
+    }
+
+    /// Un widget lâché sans qu'un dépôt l'accepte sort du dock s'il est tombé hors de la capsule ;
+    /// refusé au-dessus du dock (les espaces de travail), il reste où il était.
+    private func widgetDragEnded(id: String, at screenPoint: NSPoint, operation: NSDragOperation) {
+        guard operation.isEmpty, let window else { return }
+        let local = convert(window.convertPoint(fromScreen: screenPoint), from: nil)
+        guard !capsuleRect.contains(local) else { return }
+        onWidgetsChanged?(DockRow.placements(removing: id, from: row))
     }
 
     private func applyOverflow(_ newOverflow: [DockItem]) {
@@ -691,7 +743,7 @@ final class DockContentView: NSView {
 
     /// Début de la rangée d'icônes quand tout est au repos.
     private func restRowStart() -> CGFloat {
-        let restWidth = contentWidth(sizes: Array(repeating: dockLook.iconSize, count: items.count)) + folderExtra
+        let restWidth = contentWidth(sizes: Array(repeating: dockLook.iconSize, count: row.count)) + folderExtra
         let restOrigin = (bounds.width - restWidth) / 2
         return restOrigin + sidePadding + leftGroupWidth + dividerGap * 2 + 1
     }
@@ -700,11 +752,11 @@ final class DockContentView: NSView {
     /// au repos pour que le résultat ne dépende pas de l'agrandissement déjà appliqué.
     private func iconSizes() -> [CGFloat] {
         let base = dockLook.iconSize
-        guard dockLook.magnification, magnify > 0, gapIndex == nil, let cursor = smoothX else { return Array(repeating: base, count: items.count) }
+        guard dockLook.magnification, magnify > 0, gapIndex == nil, let cursor = smoothX else { return Array(repeating: base, count: row.count) }
         let first = restRowStart()
         let pitch = base + iconGap
         let radius = pitch * 2.5
-        return items.indices.map { index in
+        return row.indices.map { index in
             let center = first + CGFloat(index) * pitch + base / 2
             let t = min(1, abs(center - cursor) / radius)
             return base + (dockLook.magnifiedSize - base) * 0.5 * (1 + cos(.pi * t)) * magnify
@@ -714,11 +766,11 @@ final class DockContentView: NSView {
     /// Décalage horizontal qui garde sous le curseur le point de la rangée qu'il visait au repos :
     /// sans lui, la rangée s'élargit autour de son centre et l'icône agrandie glisse hors du curseur.
     private func anchorShift(sizes: [CGFloat], capsuleX: CGFloat) -> CGFloat {
-        guard let cursor = smoothX, dockLook.magnification, magnify > 0, gapIndex == nil, !items.isEmpty else { return 0 }
+        guard let cursor = smoothX, dockLook.magnification, magnify > 0, gapIndex == nil, !row.isEmpty else { return 0 }
         let base = dockLook.iconSize
         let pitch = base + iconGap
         let rel = (cursor - restRowStart()) / pitch
-        guard rel >= 0, rel < CGFloat(items.count) else { return 0 }
+        guard rel >= 0, rel < CGFloat(row.count) else { return 0 }
         let index = Int(rel)
         let offset = (rel - CGFloat(index)) * pitch
         let within = offset <= base ? offset / base * sizes[index] : sizes[index] + (offset - base)
@@ -775,7 +827,7 @@ final class DockContentView: NSView {
             defer { x += size + iconGap }
             if index == slot { continue }
             let itemIndex = (slot != nil && index > slot!) ? index - 1 : index
-            guard items.indices.contains(itemIndex), let view = iconViews[items[itemIndex].id] else { continue }
+            guard row.indices.contains(itemIndex), let view = rowView(for: row[itemIndex]) else { continue }
             let frame = NSRect(x: x, y: iconRowBottom, width: size, height: size + DockIconView.dotGap)
             // Une icône qui arrive monte légèrement de sa position finale en apparaissant.
             if animated && view.alphaValue == 0 { view.frame = frame.offsetBy(dx: 0, dy: -12) }
@@ -804,10 +856,11 @@ final class DockContentView: NSView {
             for (view, frame) in frames {
                 if animated {
                     view.animator().frame = frame
-                    if view is DockIconView { view.animator().alphaValue = 1 }
+                    if view is DockIconView || view is DockWidgetHostView { view.animator().alphaValue = 1 }
                 } else {
                     view.frame = frame
                     if view is DockIconView && view.alphaValue == 0 && iconViews.values.contains(where: { $0 === view }) { view.alphaValue = 1 }
+                    if view is DockWidgetHostView && view.alphaValue == 0 { view.alphaValue = 1 }
                 }
             }
         }
@@ -815,17 +868,44 @@ final class DockContentView: NSView {
         if !overflow.isEmpty { layoutPopover() }
     }
 
-    // MARK: - Dépôt d'applis
+    private func rowView(for entry: DockRowEntry) -> NSView? {
+        switch entry {
+        case .app(let item): iconViews[item.id]
+        case .widget(let placement): widgetViews[placement.id]
+        }
+    }
 
-    /// L'indice d'insertion parmi les épinglées : le nombre d'icônes (au repos) dont le centre est à
-    /// gauche du curseur, sans dépasser la dernière épinglée — les applis seulement lancées restent après.
-    private func insertionIndex(for sender: NSDraggingInfo) -> Int {
+    // MARK: - Dépôt d'applis et de widgets
+
+    /// L'indice d'insertion dans la rangée sous l'abscisse `x` ; `nil` sur le groupe des espaces de travail.
+    private func rowIndex(atX x: CGFloat) -> Int? {
+        let first = restRowStart()
+        return DockDropZone.rowIndex(
+            x: x, workspaceEnd: first - dividerGap, rowStart: first, iconSize: dockLook.iconSize,
+            pitch: dockLook.iconSize + iconGap, count: row.count)
+    }
+
+    /// Où un widget lâché à `x` irait : l'indice dans la rangée, ou `nil` sur les espaces de travail.
+    func widgetDropIndex(atX x: CGFloat) -> Int? { rowIndex(atX: x) }
+
+    /// Lâche un widget à l'abscisse `x` (repère de la vue). Faux, sans rien changer, sur les espaces de travail.
+    @discardableResult
+    func dropWidget(_ payload: DockWidgetDragPayload, atX x: CGFloat) -> Bool {
+        guard DockWidgetRegistry.kind(for: payload.kind) != nil, let index = widgetDropIndex(atX: x) else { return false }
+        let moved = payload.placementID.flatMap { id in widgets.first { $0.id == id } }
+            ?? DockWidgetPlacement(kind: payload.kind, index: index)
+        onWidgetsChanged?(DockRow.placements(placing: moved, at: index, in: row))
+        return true
+    }
+
+    /// L'indice d'insertion d'une appli dans la rangée, sans dépasser la dernière épinglée — les
+    /// applis seulement lancées restent après.
+    private func appSlot(for sender: NSDraggingInfo) -> Int {
         let x = convert(sender.draggingLocation, from: nil).x
         let first = restRowStart()
         let pitch = dockLook.iconSize + iconGap
-        let pinnedCount = items.filter(\.isPinned).count
-        let before = items.indices.filter { first + CGFloat($0) * pitch + dockLook.iconSize / 2 < x }.count
-        return min(before, pinnedCount)
+        let before = row.indices.filter { first + CGFloat($0) * pitch + dockLook.iconSize / 2 < x }.count
+        return min(before, DockRow.lastAppDropPosition(in: row))
     }
 
     private func droppedApp(from pasteboard: NSPasteboard) -> DockPinnedApp? {
@@ -842,13 +922,26 @@ final class DockContentView: NSView {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard droppedApp(from: sender.draggingPasteboard) != nil else { return [] }
-        let index = insertionIndex(for: sender)
-        if index != gapIndex {
-            gapIndex = index
-            layoutIcons(animated: true)
+        let operation: NSDragOperation = sender.draggingSourceOperationMask.contains(.move) ? .move : .copy
+        if let widget = DockWidgetDrag.payload(from: sender.draggingPasteboard) {
+            guard DockWidgetRegistry.kind(for: widget.kind) != nil,
+                  let index = widgetDropIndex(atX: convert(sender.draggingLocation, from: nil).x)
+            else {
+                clearGap()
+                return []
+            }
+            setGap(index)
+            return operation
         }
-        return sender.draggingSourceOperationMask.contains(.move) ? .move : .copy
+        guard droppedApp(from: sender.draggingPasteboard) != nil else { return [] }
+        setGap(appSlot(for: sender))
+        return operation
+    }
+
+    private func setGap(_ index: Int) {
+        guard index != gapIndex else { return }
+        gapIndex = index
+        layoutIcons(animated: true)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) { clearGap() }
@@ -861,10 +954,15 @@ final class DockContentView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let app = droppedApp(from: sender.draggingPasteboard) else { return false }
-        let index = insertionIndex(for: sender)
         gapIndex = nil
-        onPlaceApp?(app, index)
+        if let widget = DockWidgetDrag.payload(from: sender.draggingPasteboard) {
+            let dropped = dropWidget(widget, atX: convert(sender.draggingLocation, from: nil).x)
+            layoutIcons(animated: true)
+            return dropped
+        }
+        guard let app = droppedApp(from: sender.draggingPasteboard) else { return false }
+        let slot = appSlot(for: sender)
+        onPlaceApp?(app, DockRow.pinnedIndex(beforeRowIndex: slot, in: row))
         return true
     }
 }

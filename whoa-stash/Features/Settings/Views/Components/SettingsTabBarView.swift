@@ -136,6 +136,7 @@ private final class SettingsTabItemView: NSView {
     }
 
     @objc private func handleClick() {
+        ButtonSound.shared.playClick()
         onClick?(category)
     }
 }

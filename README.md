@@ -72,6 +72,10 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 | `--camera-mirror=granted\|denied\|notDetermined` | Fake camera for the Mirror tab: a gradient instead of video, with the given access state. |
 | `--calendar-agenda=granted\|denied\|notDetermined` | A fixed sample day with the given access state. |
 
+## Credits
+
+Sound Effect by <a href="https://pixabay.com/users/universfield-28281460/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=293341">Official Profile</a> from <a href="https://pixabay.com//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=293341">Pixabay</a>
+
 ## Tests
 
 ```bash

@@ -215,6 +215,7 @@ private final class SettingsRootViewController: NSViewController {
         case .radialMenu: return RadialMenuSettingsViewController(animationsEnabled: animationsEnabled)
         case .dock: return DockSettingsViewController(animationsEnabled: animationsEnabled)
         case .workspaces: return WorkspacesSettingsViewController(animationsEnabled: animationsEnabled)
+        case .ai: return AISettingsViewController(animationsEnabled: animationsEnabled)
         case .about: return AboutSettingsViewController(animationsEnabled: animationsEnabled)
         }
     }

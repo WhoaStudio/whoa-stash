@@ -117,7 +117,7 @@ enum NotchPanelGeometry {
     ///
     /// C'est cet onglet qui est désormais le plus haut, et donc lui qui dimensionne le panneau
     /// (voir `tabContentHeight`).
-    static let calendarTabHeight: CGFloat = 172
+    static let calendarTabHeight: CGFloat = 150
 
     /// Écart de chaque côté du filet qui sépare les deux colonnes du widget Calendar.
     static let columnGap: CGFloat = 18
@@ -125,15 +125,24 @@ enum NotchPanelGeometry {
 
     /// Onglet AI : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus
     /// haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir `panelRect`).
-    static let aiTabHeight: CGFloat = 290
+    static let aiTabHeight: CGFloat = 240
 
     /// Largeur du contenu de l'onglet AI, et donc du panneau : le plus large des onglets.
-    static let aiTabWidth: CGFloat = 540
+    static let aiTabWidth: CGFloat = 440
+
+    /// Onglet Clipboard : plus haut et plus large que les autres, pour que les cartes de
+    /// l'historique aient la place de respirer. Seul cet onglet s'élargit ; les autres gardent
+    /// la largeur de `aiTabWidth` (voir `contentWidth(for:)`).
+    static let clipboardTabHeight: CGFloat = 160
+    static let clipboardTabWidth: CGFloat = 560
+
+    /// Onglet Tray : seul onglet à s'élargir pour ses vignettes de fichiers.
+    static let trayTabWidth: CGFloat = 520
 
     /// Onglet Mirror : le panneau prend la forme d'un U — en-tête rectangulaire, flancs droits,
     /// et pour fond le cercle de l'aperçu lui-même. Le cercle est donc aussi large que le corps
     /// du panneau, à un liseré près.
-    static let mirrorDiameter: CGFloat = 296
+    static let mirrorDiameter: CGFloat = 240
 
     /// Liseré sombre entre l'aperçu et le bord de la silhouette.
     static let mirrorRim: CGFloat = 4
@@ -154,7 +163,7 @@ enum NotchPanelGeometry {
     static let trayConversionExtraHeight: CGFloat = 62
 
     /// Hauteur de la vue Transform, qui prend la place de l'onglet Tray (voir `transformExtraHeight`).
-    static let transformViewHeight: CGFloat = 392
+    static let transformViewHeight: CGFloat = 320
 
     /// Hauteur dont le panneau grandit pour la vue Transform par rapport à l'onglet Tray.
     static var transformExtraHeight: CGFloat { transformViewHeight - calendarTabHeight }
@@ -164,18 +173,28 @@ enum NotchPanelGeometry {
         switch tab {
         case .ai: aiTabHeight
         case .mirror: mirrorTabHeight
-        case .global, .calendar, .tray, .clipboard: calendarTabHeight
+        case .clipboard: clipboardTabHeight
+        case .global, .calendar, .tray: calendarTabHeight
+        }
+    }
+
+    /// Largeur du contenu d'un onglet, hors marges. Seul le Clipboard s'écarte de `aiTabWidth`.
+    static func contentWidth(for tab: NotchTab) -> CGFloat {
+        switch tab {
+        case .clipboard: clipboardTabWidth
+        case .tray: trayTabWidth
+        default: aiTabWidth
         }
     }
 
     /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
     /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight)
+        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight, clipboardTabHeight)
     }
 
-    /// Largeur du contenu de l'onglet le plus large — AI.
-    static var tabContentWidth: CGFloat { aiTabWidth }
+    /// Largeur de l'onglet le plus large — AI ou Clipboard. C'est elle qui dimensionne la fenêtre.
+    static var tabContentWidth: CGFloat { max(aiTabWidth, clipboardTabWidth, trayTabWidth) }
 
     /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
     /// est donc celle du panneau **plus** la bande basse où flotte la capsule.
@@ -247,7 +266,9 @@ enum NotchPanelGeometry {
     static func panelRect(in bounds: CGRect, tab: NotchTab, extraHeight: CGFloat = 0) -> CGRect {
         let slack = tabContentHeight - contentHeight(for: tab) - extraHeight
         let height = max(0, bounds.height - capsuleBandHeight - slack)
-        return CGRect(x: bounds.minX, y: bounds.maxY - height, width: bounds.width, height: height)
+        // Centré dans la fenêtre : un onglet plus étroit que la fenêtre garde son axe.
+        let width = min(bounds.width, contentWidth(for: tab) + 2 * contentInsetX)
+        return CGRect(x: bounds.midX - width / 2, y: bounds.maxY - height, width: width, height: height)
     }
 
     /// Cadre de la capsule : sous le panneau de l'onglet affiché, centrée.

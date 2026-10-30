@@ -8,7 +8,6 @@ final class DockPanel {
 
     private let panel: NSPanel
     let content = DockContentView()
-    private var itemCount = 0
     private var presented = false
     private(set) var isRevealed = true
 
@@ -30,8 +29,12 @@ final class DockPanel {
     }
 
     func apply(items: [DockItem], overflow: [DockItem]) {
-        itemCount = items.count
         content.apply(items: items, overflow: overflow)
+        relayout(animated: true)
+    }
+
+    func apply(widgets: [DockWidgetPlacement]) {
+        content.apply(widgets: widgets)
         relayout(animated: true)
     }
 
@@ -53,10 +56,35 @@ final class DockPanel {
         content.relayout(shiftingBy: before - panel.frame.minX, animated: animated)
     }
 
-    /// Cadre de la fenêtre déployée : centré en bas de l'écran principal.
+    /// L'écran où le dock s'affiche : celui du curseur. On retient son identifiant matériel, pas l'objet —
+    /// il survit à un branchement ou débranchement d'écran ; s'il a disparu, retour à l'écran du curseur.
+    private var targetDisplayID: CGDirectDisplayID?
+
+    var targetScreen: NSScreen? {
+        NSScreen.screens.first { $0.displayID == targetDisplayID } ?? NSScreen.underCursor ?? NSScreen.screens.first
+    }
+
+    var displayID: CGDirectDisplayID? { targetDisplayID }
+
+    /// Passe sur un autre écran. `reveal` dit s'il y arrive déployé (glissant depuis le bord) ou replié.
+    func moveTo(_ screen: NSScreen, reveal: Bool) {
+        targetDisplayID = screen.displayID
+        content.setHover(nil)
+        isRevealed = reveal
+        guard presented else { return }
+        if reveal {
+            slideIn()
+        } else {
+            panel.orderOut(nil)
+            panel.alphaValue = 0
+            panel.setFrame(hiddenFrame, display: false)
+        }
+    }
+
+    /// Cadre de la fenêtre déployée : centré en bas de l'écran cible.
     var shownFrame: NSRect {
-        guard let screen = NSScreen.screens.first else { return panel.frame }
-        let width = min(content.panelWidth(forIconCount: itemCount), screen.frame.width - 16)
+        guard let screen = targetScreen else { return panel.frame }
+        let width = min(content.panelWidth(forIconCount: content.rowCount), screen.frame.width - 16)
         return NSRect(x: screen.frame.midX - width / 2, y: screen.frame.minY + 8, width: width, height: content.panelHeight)
     }
 
@@ -69,7 +97,7 @@ final class DockPanel {
 
     private var hiddenFrame: NSRect {
         var frame = shownFrame
-        frame.origin.y = (NSScreen.screens.first?.frame.minY ?? 0) - frame.height - 20
+        frame.origin.y = (targetScreen?.frame.minY ?? 0) - frame.height - 20
         return frame
     }
 
@@ -160,6 +188,7 @@ final class DockController {
     private let onSelectWorkspace: (String?) -> Void
     private let onPlaceApp: (DockPinnedApp, Int) -> Void
     private let onRemoveApp: (DockItem) -> Void
+    private let onWidgetsChanged: ([DockWidgetPlacement]) -> Void
     private var appearance = DockAppearance()
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
@@ -176,7 +205,8 @@ final class DockController {
         onTogglePin: @escaping (DockItem) -> Void,
         onSelectWorkspace: @escaping (String?) -> Void,
         onPlaceApp: @escaping (DockPinnedApp, Int) -> Void,
-        onRemoveApp: @escaping (DockItem) -> Void
+        onRemoveApp: @escaping (DockItem) -> Void,
+        onWidgetsChanged: @escaping ([DockWidgetPlacement]) -> Void = { _ in }
     ) {
         self.activator = activator
         self.readAppearance = readAppearance
@@ -184,6 +214,8 @@ final class DockController {
         self.onSelectWorkspace = onSelectWorkspace
         self.onPlaceApp = onPlaceApp
         self.onRemoveApp = onRemoveApp
+        self.onWidgetsChanged = onWidgetsChanged
+        panel.content.onWidgetsChanged = { [weak self] in self?.onWidgetsChanged($0) }
         panel.content.onActivate = { [weak self] in self?.activate($0) }
         panel.content.onSelectWorkspace = { [weak self] in self?.onSelectWorkspace($0) }
         panel.content.onPlaceApp = { [weak self] app, index in self?.onPlaceApp(app, index) }
@@ -223,6 +255,10 @@ final class DockController {
         panel.apply(workspaces: workspaces, activeID: activeID)
     }
 
+    func apply(widgets: [DockWidgetPlacement]) {
+        panel.apply(widgets: widgets)
+    }
+
     func apply(enabled: Bool) {
         panel.setPresented(enabled)
     }
@@ -243,10 +279,11 @@ final class DockController {
         let inside = panel.capsuleScreenRect.insetBy(dx: -8, dy: -8).contains(location)
         if inside && !wasInside { refreshAppearance() }
         wasInside = inside
+        followCursorScreen(at: location)
         updateHover(at: location)
         updateHotZone(at: location)
         // Le Dock macOS ne surgit qu'au contact du bord du bas : inutile de l'interroger ailleurs.
-        if let screen = NSScreen.screens.first, location.y <= screen.frame.minY + 160 { syncWithSystemDock() }
+        if let screen = NSScreen.underCursor, location.y <= screen.frame.minY + 160 { syncWithSystemDock() }
     }
 
     /// Zone sensible du bord du bas, au milieu de l'écran, comme celles des bandes latérales : le dock
@@ -274,10 +311,24 @@ final class DockController {
         syncWithSystemDock()
     }
 
+    /// Le dock suit le curseur d'un écran à l'autre. Tant que le curseur est encore sur le dock, il ne
+    /// bouge pas (un glisser-déposer peut le frôler du bord d'un autre écran).
+    private func followCursorScreen(at location: NSPoint) {
+        guard let screen = NSScreen.underCursor, screen.displayID != panel.displayID,
+              !(panel.isRevealed && dockZone.contains(location))
+        else { return }
+        hideTask?.cancel()
+        hideTask = nil
+        hotActive = false
+        // Avec le masquage auto, il arrive replié et attend la zone sensible de ce nouvel écran.
+        panel.moveTo(screen, reveal: !autoHide)
+        syncWithSystemDock()
+    }
+
     /// Le dock reste tant que le curseur est dans la zone sensible ou sur lui, puis se retire un
     /// instant après.
     private func updateHotZone(at location: NSPoint) {
-        guard let screen = NSScreen.screens.first else { return }
+        guard let screen = NSScreen.underCursor else { return }
         let over = Self.hotZone(on: screen).contains(location) || (panel.isRevealed && dockZone.contains(location))
         if over {
             hideTask?.cancel()
@@ -310,7 +361,7 @@ final class DockController {
 
     private func syncWithSystemDock() {
         // Sans Accessibilité on ne peut pas savoir : le dock personnalisé reste affiché.
-        let systemVisible = SystemDockVisibility.isVisible() ?? false
+        let systemVisible = panel.targetScreen.flatMap { SystemDockVisibility.isVisible(on: $0) } ?? false
         panel.setRevealed(!systemVisible && (!autoHide || hotActive), animated: true)
         if systemVisible {
             watchSystemDock()

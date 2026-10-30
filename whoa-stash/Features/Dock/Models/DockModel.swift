@@ -59,7 +59,8 @@ final class DockModel {
                 isWebApp: Self.isWebApp(bundleID: app.bundleID, path: app.path), isPinned: true)
         }
         let pinnedIDs = Set(pinned.map(\.bundleID))
-        let overflow = running.filter { !pinnedIDs.contains($0.bundleID) }.map { app in
+        // Le Finder tourne toujours : le ranger dans le dossier n'apprendrait rien. Il n'apparaît que si on l'ajoute.
+        let overflow = running.filter { !pinnedIDs.contains($0.bundleID) && $0.bundleID != Self.finderBundleID }.map { app in
             DockItem(
                 bundleID: app.bundleID, path: app.path, name: app.name, isRunning: true,
                 isWebApp: Self.isWebApp(bundleID: app.bundleID, path: app.path))
@@ -69,6 +70,8 @@ final class DockModel {
         state = next
         onStateChanged?(next)
     }
+
+    nonisolated static let finderBundleID = "com.apple.finder"
 
     nonisolated static func displayName(path: String) -> String {
         ((path as NSString).lastPathComponent as NSString).deletingPathExtension

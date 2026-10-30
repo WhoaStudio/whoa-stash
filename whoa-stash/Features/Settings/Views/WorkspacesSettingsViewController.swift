@@ -25,6 +25,7 @@ final class WorkspacesSettingsViewController: SettingsSectionViewController, NST
     private lazy var activeCheckbox = NSButton.settingsCheckbox(
         "Show in the dock", target: self, action: #selector(activeChanged))
     private var picker: AppPickerView?
+    private let widgetsView = WorkspaceWidgetsView()
     private let preview = DockPreviewView(size: NSSize(width: 460, height: 76))
     private var editingRows: [SettingsFormRowView] = []
 
@@ -81,9 +82,14 @@ final class WorkspacesSettingsViewController: SettingsSectionViewController, NST
         picker.onToggle = { [weak self] app, on in self?.viewModel.setApp(app.pinned, selected: on) }
         self.picker = picker
         let appsRow = SettingsFormRowView(title: "Apps", control: picker, caption: "The apps this workspace shows in the dock", alignsTop: true)
-        editingRows = [nameRow, logoRow, colorRow, activeRow, layoutRow, appsRow]
+        widgetsView.onAdd = { [weak self] in self?.viewModel.addWidget(kind: $0) }
+        widgetsView.onRemove = { [weak self] in self?.viewModel.removeWidget(id: $0) }
+        let widgetsRow = SettingsFormRowView(
+            title: "Widgets", control: widgetsView,
+            caption: "Widgets this workspace shows in the dock. Drag one in the dock to move it, or out of the dock to remove it", alignsTop: true)
+        editingRows = [nameRow, logoRow, colorRow, activeRow, layoutRow, appsRow, widgetsRow]
 
-        return [SettingsFormRowView(title: "Workspace", control: header), makeSettingsDivider(), nameRow, logoRow, colorRow, activeRow, makeSettingsDivider(), layoutRow, appsRow]
+        return [SettingsFormRowView(title: "Workspace", control: header), makeSettingsDivider(), nameRow, logoRow, colorRow, activeRow, makeSettingsDivider(), layoutRow, appsRow, widgetsRow]
     }
 
     override func viewDidLoad() {
@@ -110,11 +116,13 @@ final class WorkspacesSettingsViewController: SettingsSectionViewController, NST
         [nameField, symbolPopUp, colorWell, activeCheckbox].forEach { ($0 as? NSControl)?.isEnabled = selected != nil }
         picker?.setEnabled(selected != nil)
         preview.setEnabled(selected != nil)
+        widgetsView.setEnabled(selected != nil)
 
         guard let selected else {
             nameField.stringValue = ""
             picker?.setSelected([])
             preview.setApps([])
+            widgetsView.apply([])
             return
         }
         if nameField.currentEditor() == nil { nameField.stringValue = selected.name }
@@ -127,6 +135,7 @@ final class WorkspacesSettingsViewController: SettingsSectionViewController, NST
         activeCheckbox.state = settings.activeWorkspaceID == selected.id ? .on : .off
         picker?.setSelected(Set(selected.apps.map(\.bundleID)))
         preview.setApps(selected.apps)
+        widgetsView.apply(selected.widgets)
     }
 
     @objc private func workspaceSelected() {

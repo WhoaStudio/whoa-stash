@@ -102,6 +102,8 @@ struct GeneralSettings: Codable, Equatable, Sendable {
     var enableAnimations: Bool = true
     var enableHapticFeedback: Bool = true
     var enableSoundFeedback: Bool = true
+    /// Son « pop » sur les clics de boutons (`ButtonSound`), distinct du son des graduations.
+    var enableButtonSound: Bool = true
     /// Opacité du fond des panneaux de l'overlay, de 0,35 (très translucide) à 1 (plein).
     /// Les fenêtres sont déjà `isOpaque = false` : c'est la silhouette peinte à l'intérieur qui
     /// porte le fond, donc baisser cette valeur laisse réellement voir le bureau à travers.
@@ -153,6 +155,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var spotify = SpotifySettings()
     var dock = DockSettings()
     var radialMenu = RadialMenuSettings()
+    var ai = AISettings()
 
     static let `default` = AppSettings()
 }

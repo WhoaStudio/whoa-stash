@@ -45,6 +45,9 @@ final class FileTrayView: NSView {
     /// Fichiers cochés dans le bac : un clic sur une vignette la coche ou la décoche, et le menu
     /// contextuel (Copy, Open) porte sur toute la sélection.
     private var selection: Set<URL> = []
+    /// Défilement de la grille quand elle dépasse le bac, et sa course maximale.
+    private var scrollOffset: CGFloat = 0
+    private var maxScrollOffset: CGFloat = 0
 
     private static let transformTileSize = NSSize(width: 96, height: 52)
 
@@ -66,7 +69,16 @@ final class FileTrayView: NSView {
         }
     }
 
+    override func scrollWheel(with event: NSEvent) {
+        guard maxScrollOffset > 0 else { return super.scrollWheel(with: event) }
+        scrollOffset = min(max(0, scrollOffset - event.scrollingDeltaY), maxScrollOffset)
+        needsLayout = true
+    }
+
     private func setUp() {
+        // Les vignettes qui débordent du bac sont rognées au bord, au lieu de sortir de la zone.
+        layer?.masksToBounds = true
+
         // Liseré en tirets : il dit « on peut déposer ici » sans peser autant qu'un cadre plein,
         // et c'est lui qui s'allume quand un glisser survole la zone.
         dropHighlightLayer.fillColor = nil
@@ -329,20 +341,29 @@ final class FileTrayView: NSView {
         // rangée incomplète se centre d'elle-même plutôt que de coller à gauche.
         let tile = FileTrayItemView.tileSize
         let inset: CGFloat = 8
-        let columns = max(1, Int((bounds.width - 2 * inset + tileSpacing) / (tile.width + tileSpacing)))
+        let columns = 4
+        // Quatre vignettes par rangée ; si le bac est trop étroit, elles rétrécissent plutôt que de sortir.
+        let tileWidth = min(tile.width, (bounds.width - 2 * inset - CGFloat(columns - 1) * tileSpacing) / CGFloat(columns))
         let rowCount = (items.count + columns - 1) / columns
         let gridHeight = CGFloat(rowCount) * tile.height + CGFloat(max(0, rowCount - 1)) * tileSpacing
-        let gridTop = bounds.midY + gridHeight / 2
+
+        // Quand la grille dépasse le bac, elle défile depuis le haut et les vignettes coupées sont
+        // rognées au bord ; sinon elle reste centrée.
+        maxScrollOffset = max(0, gridHeight - (bounds.height - 2 * inset))
+        scrollOffset = min(max(0, scrollOffset), maxScrollOffset)
+        let gridTop = maxScrollOffset > 0
+            ? bounds.maxY - inset + scrollOffset
+            : bounds.midY + gridHeight / 2
 
         for (position, item) in items.enumerated() {
             let row = position / columns
             let column = position % columns
             let inRow = min(columns, items.count - row * columns)
-            let rowWidth = CGFloat(inRow) * tile.width + CGFloat(inRow - 1) * tileSpacing
+            let rowWidth = CGFloat(inRow) * tileWidth + CGFloat(inRow - 1) * tileSpacing
             item.frame = NSRect(
-                x: bounds.midX - rowWidth / 2 + CGFloat(column) * (tile.width + tileSpacing),
+                x: bounds.midX - rowWidth / 2 + CGFloat(column) * (tileWidth + tileSpacing),
                 y: gridTop - CGFloat(row + 1) * tile.height - CGFloat(row) * tileSpacing,
-                width: tile.width,
+                width: tileWidth,
                 height: tile.height
             )
         }
@@ -404,6 +425,11 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
 
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
         iconView.imageScaling = .scaleProportionallyUpOrDown
+        // Aperçu en carré aux coins arrondis, comme les vignettes du Finder.
+        iconView.wantsLayer = true
+        iconView.layer?.cornerRadius = 14
+        iconView.layer?.cornerCurve = .continuous
+        iconView.layer?.masksToBounds = true
         addSubview(iconView)
 
         selectionLayer.fillColor = NSColor.white.withAlphaComponent(0.08).cgColor
@@ -614,7 +640,7 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
 
         selectionLayer.frame = bounds
         selectionLayer.path = CGPath(
-            roundedRect: iconView.frame.insetBy(dx: -4, dy: -4), cornerWidth: 10, cornerHeight: 10, transform: nil)
+            roundedRect: iconView.frame.insetBy(dx: -4, dy: -4), cornerWidth: 18, cornerHeight: 18, transform: nil)
         let badge = checkBadge.intrinsicContentSize
         checkBadge.frame = NSRect(
             x: iconView.frame.maxX - badge.width / 2 - 6, y: iconView.frame.minY - badge.height / 2 + 6,
